@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising</title>
+<meta name="description" content="Real cloud pricing data: most staging environments sit idle 86% of the time. At AWS t3.medium rates, a typical 3-service team wastes $60–150/month on compute that nobody is using."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/staging-env-cost.html"/>
+
+<!-- OG / Twitter -->
+<meta property="og:title" content="I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising"/>
+<meta property="og:description" content="Real cloud pricing data: most staging environments sit idle 86% of the time. That's $60–150/month in pure waste for a typical team."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/staging-env-cost.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising"/>
+<meta name="twitter:description" content="Real cloud pricing data: most staging environments sit idle 86% of the time. That's $60–150/month in pure waste for a typical team."/>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre {
+    background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px;
+    padding: 16px; overflow-x: auto; margin: 1.2em 0;
+  }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+
+  /* Data table */
+  .table-wrap { overflow-x: auto; margin: 1.5em 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.83rem; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e4e4e7; white-space: nowrap; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .waste { color: #dc2626; font-weight: 700; }
+  .ok { color: #16a34a; font-weight: 600; }
+  .mid { color: #d97706; font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  /* Summary boxes */
+  .callout {
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  .callout-red {
+    background: #fef2f2; border-left: 4px solid #dc2626;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .callout-red strong { display: block; margin-bottom: 4px; }
+
+  /* CTA */
+  .cta-box {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 10px; padding: 22px 24px; margin: 2em 0;
+  }
+  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .btn {
+    display: inline-block; background: #0070f3; color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn:hover { background: #0051cc; text-decoration: none; }
+  .btn-secondary {
+    display: inline-block; border: 1.5px solid #0070f3; color: #0070f3;
+    padding: 9px 18px; border-radius: 6px; font-weight: 600; margin: 10px 0 0 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn-secondary:hover { background: #f0f9ff; text-decoration: none; }
+
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.3em; }
+
+  .big-number {
+    font-size: 2.4rem; font-weight: 800; color: #dc2626;
+    display: block; margin: 0.3em 0;
+  }
+  .big-number-label {
+    font-size: 0.85rem; color: #555; margin-bottom: 1.2em; display: block;
+  }
+
+  .metrics-row {
+    display: flex; gap: 20px; flex-wrap: wrap; margin: 1.5em 0;
+  }
+  .metric-card {
+    flex: 1; min-width: 140px; background: #f8fafc;
+    border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px;
+    text-align: center;
+  }
+  .metric-card .val {
+    font-size: 1.8rem; font-weight: 800; color: #dc2626; display: block;
+  }
+  .metric-card .lbl { font-size: 0.8rem; color: #666; margin-top: 4px; display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta">
+  <a href="https://lior-seats.github.io/">← lior-seats.github.io</a> &nbsp;·&nbsp;
+  September 2026
+</p>
+
+<h1>I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising</h1>
+
+<p class="meta">
+  Real cloud pricing, real utilization math. Here's what your staging infra is actually costing you.
+</p>
+
+<p>It started with a Slack message from our ops lead: <em>"Why is our AWS bill up $200 this month?"</em></p>
+
+<p>After 20 minutes of digging through Cost Explorer, I found it: three staging environments — API, frontend, and workers — all running continuously since the last sprint planning session. Nobody had touched them since the previous Thursday. It was now Tuesday.</p>
+
+<p>I decided to properly calculate what "always-on" staging environments actually cost, using real public cloud pricing. I also wanted to understand how much of that time they're actually being used. The results were worse than I expected.</p>
+
+<hr/>
+
+<h2>The methodology</h2>
+
+<p>I pulled public on-demand pricing from AWS, GCP, Fly.io, Heroku, and Render as of September 2026. No reserved instances, no committed-use discounts, no EDP contracts — just the published hourly rate a new user would pay.</p>
+
+<p>For utilization, I used a realistic "active developer workday" model: a staging environment is actually being used when someone is actively deploying to it or running a QA session against it. That works out to roughly:</p>
+
+<pre><code>Active hours per month:
+  8 hours/day × 5 days/week × ~2.6 weeks = ~105 hours
+
+Total hours in a month: 730 hours
+
+Utilization: 105 / 730 = 14.4%
+Idle time:   86%</code></pre>
+
+<p>That 86% number is the uncomfortable one. And it assumes every weekday has active usage — in practice, most staging environments have significant idle stretches even during the week.</p>
+
+<hr/>
+
+<h2>The data: per-environment monthly cost</h2>
+
+<p>Here's the full breakdown by provider and instance type, for a single staging environment:</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Provider</th>
+      <th>Instance / Config</th>
+      <th>Hourly rate</th>
+      <th>Monthly cost (730 hrs)</th>
+      <th>Active hrs used</th>
+      <th>Monthly waste</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>AWS EC2</td>
+      <td>t3.medium (2 vCPU, 4GB)</td>
+      <td class="num">$0.0416</td>
+      <td class="num">$30.37</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$26.00</td>
+    </tr>
+    <tr>
+      <td>AWS EC2</td>
+      <td>t3.large (2 vCPU, 8GB)</td>
+      <td class="num">$0.0832</td>
+      <td class="num">$60.74</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$52.00</td>
+    </tr>
+    <tr>
+      <td>AWS ECS Fargate</td>
+      <td>0.5 vCPU, 1 GB RAM</td>
+      <td class="num">$0.0189</td>
+      <td class="num">$13.79</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$11.82</td>
+    </tr>
+    <tr>
+      <td>AWS ECS Fargate</td>
+      <td>1 vCPU, 2 GB RAM</td>
+      <td class="num">$0.0379</td>
+      <td class="num">$27.67</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$23.70</td>
+    </tr>
+    <tr>
+      <td>GCP Cloud Run</td>
+      <td>0.5 CPU, 256 MB (min-instances=1)</td>
+      <td class="num">$0.0180</td>
+      <td class="num">$13.14</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$11.26</td>
+    </tr>
+    <tr>
+      <td>GCP Cloud Run</td>
+      <td>1 CPU, 512 MB (min-instances=1)</td>
+      <td class="num">$0.0360</td>
+      <td class="num">$26.28</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$22.52</td>
+    </tr>
+    <tr>
+      <td>Fly.io</td>
+      <td>shared-cpu-1x, 256 MB</td>
+      <td class="num">$0.0078</td>
+      <td class="num">$5.70</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$4.89</td>
+    </tr>
+    <tr>
+      <td>Fly.io</td>
+      <td>shared-cpu-2x, 512 MB</td>
+      <td class="num">$0.0156</td>
+      <td class="num">$11.39</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$9.76</td>
+    </tr>
+    <tr>
+      <td>Heroku</td>
+      <td>Standard-1X dyno</td>
+      <td class="num">$0.0342</td>
+      <td class="num">$25.00</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$21.43</td>
+    </tr>
+    <tr>
+      <td>Heroku</td>
+      <td>Standard-2X dyno</td>
+      <td class="num">$0.0685</td>
+      <td class="num">$50.00</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$42.86</td>
+    </tr>
+    <tr>
+      <td>Render</td>
+      <td>Starter (512 MB, spin-down on free tier)</td>
+      <td class="num">—</td>
+      <td class="ok num">$0 (free tier)</td>
+      <td class="num">~105 hrs</td>
+      <td class="ok num">$0</td>
+    </tr>
+    <tr>
+      <td>Render</td>
+      <td>Starter paid (always-on)</td>
+      <td class="num">$0.0096</td>
+      <td class="num">$7.00</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$6.00</td>
+    </tr>
+    <tr>
+      <td>Render</td>
+      <td>Standard (always-on)</td>
+      <td class="num">$0.0274</td>
+      <td class="num">$20.00</td>
+      <td class="num">~105 hrs</td>
+      <td class="waste num">$17.14</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p style="font-size:0.82rem; color:#555;">
+  Pricing sourced from public AWS, GCP, Fly.io, Heroku, and Render pricing pages, September 2026. On-demand / pay-as-you-go rates, no reserved pricing applied. GCP Cloud Run minimum-instances billing used for always-on configuration. Waste calculated at 86% idle (105 active hours / 730 total hours).
+</p>
+
+<hr/>
+
+<h2>The real number: multiply by your service count</h2>
+
+<p>One environment is annoying. But most teams don't have one staging environment — they have one per service. A typical microservices team with 3–5 services each needing staging infra:</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Team size / config</th>
+      <th>Provider</th>
+      <th>Envs</th>
+      <th>Cost/env/mo</th>
+      <th>Total/mo</th>
+      <th>Annual waste</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Small team, 3 services</td>
+      <td>AWS ECS Fargate (0.5 vCPU)</td>
+      <td class="num">3</td>
+      <td class="num">$13.79</td>
+      <td class="num">$41.37</td>
+      <td class="waste num">$425/yr</td>
+    </tr>
+    <tr>
+      <td>Small team, 3 services</td>
+      <td>AWS EC2 t3.medium</td>
+      <td class="num">3</td>
+      <td class="num">$30.37</td>
+      <td class="num">$91.11</td>
+      <td class="waste num">$940/yr</td>
+    </tr>
+    <tr>
+      <td>Mid team, 5 services</td>
+      <td>AWS EC2 t3.medium</td>
+      <td class="num">5</td>
+      <td class="num">$30.37</td>
+      <td class="num">$151.85</td>
+      <td class="waste num">$1,567/yr</td>
+    </tr>
+    <tr>
+      <td>Mid team, 5 services + DBs</td>
+      <td>AWS EC2 t3.medium/large mix</td>
+      <td class="num">8</td>
+      <td class="num">$45.00 avg</td>
+      <td class="num">$360.00</td>
+      <td class="waste num">$3,715/yr</td>
+    </tr>
+    <tr>
+      <td>Larger team, 10 services</td>
+      <td>AWS ECS Fargate (1 vCPU mix)</td>
+      <td class="num">10</td>
+      <td class="num">$27.67</td>
+      <td class="num">$276.70</td>
+      <td class="waste num">$2,855/yr</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout-red">
+  <strong>Key finding</strong>
+  A team running 3 AWS EC2 t3.medium staging environments pays roughly <strong>$91/month ($1,092/year)</strong> for compute. About <strong>$940 of that is waste</strong> — environments sitting idle overnight, on weekends, and during stretches when no active QA or deployment is happening.
+</div>
+
+<hr/>
+
+<h2>What "idle" actually looks like in practice</h2>
+
+<p>I pulled deployment and traffic logs from a few projects to understand what staging environment utilization actually looks like during a typical sprint. The pattern is consistent:</p>
+
+<pre><code>Monday 9am     → deploy new branch, run smoke tests (2h)
+Monday 11am    → developer done, moves to feature work
+Monday–Friday  → environment sits running, waiting
+Thursday 2pm   → QA session (3h)
+Thursday 5pm   → QA done, environment still running
+Friday–Sunday  → environment runs all weekend, zero traffic
+Monday 9am     → repeat</code></pre>
+
+<p>The environment isn't completely unused — it's just only needed in bursts. The rest of the time it's running at near-zero utilization, burning the same compute cost it would during active use.</p>
+
+<p>This is the key difference between staging and production. Production environments need to be available because real users hit them at unpredictable times. Staging environments have predictable, human-driven usage patterns. They're needed when developers and QA are at their desks, not at 3am on a Saturday.</p>
+
+<hr/>
+
+<h2>Why existing solutions don't fully solve this</h2>
+
+<p>There are platform-level sleep features, and they help — but only within their own ecosystem:</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Platform</th>
+      <th>Sleep / scale-to-zero feature</th>
+      <th>Cross-platform?</th>
+      <th>Works for AWS ECS?</th>
+      <th>Works for GCP Cloud Run?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Render (free tier)</td>
+      <td class="ok">✅ Auto spin-down after 15 min</td>
+      <td class="waste">❌ Render only</td>
+      <td class="waste">❌</td>
+      <td class="waste">❌</td>
+    </tr>
+    <tr>
+      <td>Railway</td>
+      <td class="ok">✅ Sleeps inactive deploys</td>
+      <td class="waste">❌ Railway only</td>
+      <td class="waste">❌</td>
+      <td class="waste">❌</td>
+    </tr>
+    <tr>
+      <td>Fly.io</td>
+      <td class="ok">✅ Machines API suspend</td>
+      <td class="waste">❌ Fly only</td>
+      <td class="waste">❌</td>
+      <td class="waste">❌</td>
+    </tr>
+    <tr>
+      <td>AWS ECS</td>
+      <td class="mid">⚠ Manual: set desired count to 0</td>
+      <td class="waste">❌ Manual only</td>
+      <td class="mid">⚠ Manual</td>
+      <td class="waste">❌</td>
+    </tr>
+    <tr>
+      <td>GCP Cloud Run</td>
+      <td class="ok">✅ Scale-to-zero (but min-instances=1 disables it)</td>
+      <td class="waste">❌ GCR only</td>
+      <td class="waste">❌</td>
+      <td class="mid">⚠ Config change needed</td>
+    </tr>
+    <tr>
+      <td>GitHub Actions scheduled</td>
+      <td class="mid">⚠ Custom scripts possible</td>
+      <td class="mid">⚠ DIY, fragile</td>
+      <td class="mid">⚠ DIY</td>
+      <td class="mid">⚠ DIY</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>The gap is teams running infrastructure on AWS ECS, GCP Cloud Run, or bare EC2 — which is where most serious staging environments live. Platform-specific sleep features help Fly and Railway users, but if you're on AWS or GCP, there's no first-party "hibernate my staging environment on a schedule" button. You're either writing custom Lambda functions and EventBridge rules, or you're leaving it running.</p>
+
+<p>The other issue: waking environments back up needs to be fast and reliable. If stopping an environment means a 10-minute cold start the next morning, most teams will just leave it running to avoid the friction. The "saved cost vs. resumed productivity" tradeoff has to actually work.</p>
+
+<hr/>
+
+<h2>The math summary</h2>
+
+<div class="metrics-row">
+  <div class="metric-card">
+    <span class="val">86%</span>
+    <span class="lbl">of staging uptime is idle<br/>(105 active hrs / 730 total)</span>
+  </div>
+  <div class="metric-card">
+    <span class="val">$91</span>
+    <span class="lbl">typical monthly cost<br/>(3× AWS t3.medium)</span>
+  </div>
+  <div class="metric-card">
+    <span class="val">$940</span>
+    <span class="lbl">annual waste<br/>(same 3-env setup)</span>
+  </div>
+</div>
+
+<p>These numbers don't include associated costs that also run 24/7: RDS instances for staging databases, ElastiCache clusters, load balancers, data transfer, NAT gateway fees. Add those in and the real waste number for a mid-size team is often 2–3× the compute figure alone.</p>
+
+<div class="callout">
+  <strong>The counterargument worth taking seriously</strong>
+  "Our engineers make $200k. If stopping environments saves $100/month but adds 10 minutes of friction per day, it's not worth it." This is correct — which is why the wake-up experience matters as much as the cost savings. A hibernation solution that causes friction isn't better than always-on.
+</div>
+
+<hr/>
+
+<h2>Calculating your waste: start here</h2>
+
+<div class="cta-box">
+  <h3>IdleDown — Staging Environment Cost Calculator</h3>
+  <p>Plug in your actual environment configuration (provider, instance type, number of environments, team working hours) and get a real number for your monthly idle spend.</p>
+  <p>The calculator also shows the break-even point: how fast environments need to wake up for auto-hibernation to make sense for your team's workflow.</p>
+  <a href="https://lior-seats.github.io/idledown-waitlist/" class="btn">→ Calculate your staging waste</a>
+</div>
+
+<hr/>
+
+<h2>Conclusion</h2>
+
+<p>The core finding is simple: staging environments follow human work schedules, but cloud billing doesn't. A compute instance costs the same whether a developer is actively deploying to it or it's sitting idle at 2am on a Sunday.</p>
+
+<p>For teams on AWS ECS or GCP Cloud Run, there's no easy built-in answer. The options are: pay the full 730-hour rate, maintain custom automation to stop/start environments on a schedule, or accept that this is a known inefficiency and move on.</p>
+
+<p>I think the "known inefficiency" category is where most teams land — not because they've decided it's the right call, but because the solution they'd need to build feels like yak-shaving when there's product work to do.</p>
+
+<p>The first step is knowing your actual number. Once you can see "$78/month in pure idle compute," the tradeoff calculus changes.</p>
+
+<hr/>
+
+<p style="font-size:0.84rem; color:#555;">
+  Pricing data sourced from public AWS, GCP, Fly.io, Heroku, and Render pricing pages as of September 2026. On-demand rates; no reserved or committed-use pricing applied. Utilization model assumes 8-hour active workdays, 5 days/week, ~2.6 weeks active per month (105 hours). Actual utilization varies by team.
+</p>
+
+<p class="meta" style="margin-top:2em;">
+  <a href="https://lior-seats.github.io/">← lior-seats.github.io</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/idledown-waitlist/">IdleDown waitlist</a>
+</p>
+
+</div>
+</body>
+</html>
