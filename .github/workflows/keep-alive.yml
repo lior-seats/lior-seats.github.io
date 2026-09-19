@@ -1,0 +1,20 @@
+name: Foreman Keep-Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Foreman health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 https://agent-control-plane-w3m9.onrender.com/health)
+          echo "Foreman health status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Foreman is warm"
+          else
+            echo "⚠️ Foreman returned $STATUS — may be cold-starting"
+          fi
