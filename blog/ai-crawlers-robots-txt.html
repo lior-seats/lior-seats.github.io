@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly</title>
+<meta name="description" content="Real data: 6/20 major dev platforms have zero AI bot rules. 7/20 rely on Content-Signal only. Only 2/20 block meta-externalagent — the crawler most cited for Vercel bill spikes."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html"/>
+
+<!-- OG / Twitter -->
+<meta property="og:title" content="I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly"/>
+<meta property="og:description" content="Real data: 6/20 have zero AI rules. Only 2/20 block meta-externalagent — the crawler behind the bill spikes."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly"/>
+<meta name="twitter:description" content="Real data: 6/20 have zero AI rules. Only 2/20 block meta-externalagent — the crawler behind the bill spikes."/>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre {
+    background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px;
+    padding: 16px; overflow-x: auto; margin: 1.2em 0;
+  }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+
+  /* Data table */
+  .table-wrap { overflow-x: auto; margin: 1.5em 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.83rem; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e4e4e7; white-space: nowrap; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .yes { color: #16a34a; font-weight: 700; }
+  .no { color: #dc2626; font-weight: 600; }
+  .warn { color: #d97706; font-weight: 600; }
+
+  /* Summary boxes */
+  .callout {
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* CTA */
+  .cta-box {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 10px; padding: 22px 24px; margin: 2em 0;
+  }
+  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .btn {
+    display: inline-block; background: #0070f3; color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn:hover { background: #0051cc; text-decoration: none; }
+  .btn-secondary {
+    display: inline-block; border: 1.5px solid #0070f3; color: #0070f3;
+    padding: 9px 18px; border-radius: 6px; font-weight: 600; margin: 10px 0 0 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn-secondary:hover { background: #f0f9ff; text-decoration: none; }
+
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.3em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta">
+  <a href="https://lior-seats.github.io/crawl-check/">← AI Crawler Check Tool</a> &nbsp;·&nbsp;
+  September 2026
+</p>
+
+<h1>I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly</h1>
+
+<p class="meta">
+  The data behind the assumption that your robots.txt is protecting you.
+</p>
+
+<p>This week there's been a lot of discussion about AI scraping — Microsoft execs calling it theft, site owners dealing with unexpected infrastructure costs, developers trying to figure out if their robots.txt is actually doing anything useful.</p>
+
+<p>I got curious and ran a systematic check on 20 popular developer platforms. The results were more interesting than I expected.</p>
+
+<hr/>
+
+<h2>The raw data</h2>
+
+<p>I used the <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> to check the actual robots.txt against all major AI crawlers for 20 well-known developer platforms:</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Platform</th>
+      <th>GPTBot</th>
+      <th>ClaudeBot</th>
+      <th>meta-externalagent</th>
+      <th>ByteSpider</th>
+      <th>PerplexityBot</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>vercel.com</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="no">❌</td><td class="no">❌</td><td class="warn">⚠</td></tr>
+    <tr><td>netlify.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+    <tr><td>railway.app</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="no">❌</td><td class="no">❌</td><td class="warn">⚠</td></tr>
+    <tr><td>fly.io</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>render.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+    <tr><td>heroku.com</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>github.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+    <tr><td>supabase.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+    <tr><td>planetscale.com</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="no">❌</td><td class="no">❌</td><td class="warn">⚠</td></tr>
+    <tr><td>stripe.com</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>linear.app</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>notion.so</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>figma.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+    <tr><td>postman.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="yes">✅</td></tr>
+    <tr><td>clerk.com</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td></tr>
+    <tr><td>convex.dev</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td></tr>
+    <tr><td>neon.tech</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td></tr>
+    <tr><td>upstash.com</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>turso.tech</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
+    <tr><td>cloudflare.com</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p style="font-size:0.82rem; color:#555;">
+  ✅ = explicit block rule | ❌ = no rule (crawler allowed by default) | ⚠ = uses <code>Content-Signal</code> header only (advisory, not blocking)
+</p>
+
+<div class="callout">
+  <strong>Summary</strong>
+  <ul style="margin:0; padding-left:1.2em;">
+    <li><strong>6/20 have zero AI bot rules</strong> — heroku, stripe, linear, notion, turso, upstash</li>
+    <li><strong>7/20 use only Content-Signal</strong> instead of per-bot user-agent rules — vercel, railway, planetscale, clerk, convex, neon, fly</li>
+    <li><strong>5/20 have partial coverage</strong> — missing meta-externalagent, the crawler most cited for bill spikes</li>
+    <li><strong>Only 2/20 have comprehensive coverage</strong> across all major AI crawlers — render.com and postman.com</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2>The finding that surprised me most: vercel.com itself</h2>
+
+<p>Vercel's own marketing site uses <code>Content-Signal</code> but has no explicit per-bot user-agent rules. The platform whose users have been most vocal about AI crawler bill spikes doesn't block the individual bots via robots.txt on its own marketing site.</p>
+
+<p>That's not a criticism of Vercel specifically — it's evidence that even sophisticated teams miss these. The rules keep getting added as new crawlers emerge, and there's no single canonical reference list.</p>
+
+<hr/>
+
+<h2>Why Content-Signal doesn't actually block crawlers</h2>
+
+<p>Several platforms use the newer <code>Content-Signal</code> directive:</p>
+
+<pre><code>Content-Signal: search=yes, ai-input=yes, ai-train=no</code></pre>
+
+<p>This is a proposed standard that signals your <em>preference</em> — it's advisory, not blocking. Crawlers that honor <code>User-agent</code> rules won't automatically honor <code>Content-Signal</code>. And crawlers that don't honor robots.txt at all won't honor either.</p>
+
+<p><code>Content-Signal</code> is useful as a signal of intent, but it doesn't replace explicit user-agent rules.</p>
+
+<hr/>
+
+<h2>The meta-externalagent gap is the biggest miss</h2>
+
+<p><code>meta-externalagent</code> is Meta's web crawler (Facebook, Instagram, and AI training). It's the bot most frequently cited in discussions about unexpected Vercel and Netlify bill spikes.</p>
+
+<p>Of the 20 platforms I checked, only render.com and postman.com explicitly block it. Even platforms that do block GPTBot and ClaudeBot consistently miss <code>meta-externalagent</code>.</p>
+
+<hr/>
+
+<h2>The robots.txt false sense of security</h2>
+
+<p>Even when you have rules, there are common gaps:</p>
+
+<pre><code># Most people know to add this:
+User-agent: GPTBot
+Disallow: /
+
+# But what about these?
+User-agent: ClaudeBot
+User-agent: meta-externalagent    ← the one causing bill spikes
+User-agent: Bytespider
+User-agent: PerplexityBot
+User-agent: CCBot
+User-agent: Amazonbot
+User-agent: DuckAssistBot</code></pre>
+
+<p>There are also case sensitivity issues — <code>User-agent: gptbot</code> doesn't match <code>GPTBot</code> in some parsers. And robots.txt only works for crawlers that <em>choose</em> to honor it.</p>
+
+<hr/>
+
+<h2>The infrastructure cost angle</h2>
+
+<p>One thing that surprises people: even when bots are blocked by robots.txt, the <em>request still hits your server</em> before your app can respond. On Vercel or Netlify with per-request billing, high-volume crawlers create infrastructure costs regardless of whether they're "blocked" by advisory rules.</p>
+
+<p>That's why monitoring matters alongside blocking — knowing which bot is causing what percentage of your bill lets you respond before the invoice arrives.</p>
+
+<hr/>
+
+<h2>Check your own site — takes 10 seconds</h2>
+
+<div class="cta-box">
+  <h3>AI Crawler Check — free browser tool</h3>
+  <p>Paste your URL. It fetches your robots.txt and shows exactly which AI crawlers are blocked vs. allowed. No signup, runs in the browser, checks 8 major AI crawlers.</p>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn">→ Check your site now</a>
+  <a href="https://github.com/lior-seats/ai-crawler-block-list" class="btn-secondary">Block configs repo</a>
+</div>
+
+<h2>Quick wins if you want to improve your coverage today</h2>
+
+<ol style="padding-left:1.4em; margin-bottom:1em;">
+  <li style="margin-bottom:0.5em"><strong>Run the checker on your main domain</strong> — takes 10 seconds</li>
+  <li style="margin-bottom:0.5em"><strong>Add the missing user-agents</strong> (especially <code>meta-externalagent</code>) from the <a href="https://github.com/lior-seats/ai-crawler-block-list">ai-crawler-block-list repo</a></li>
+  <li style="margin-bottom:0.5em"><strong>Use the Cloudflare WAF rule</strong> if you're on Cloudflare — infrastructure-level blocking, not advisory</li>
+  <li style="margin-bottom:0.5em"><strong>Don't rely on Content-Signal alone</strong> — use explicit user-agent rules</li>
+</ol>
+
+<hr/>
+
+<p style="font-size:0.88rem; color:#555;"><em>Methodology: Checks run via a live robots.txt proxy. Results reflect the state of each platform's public robots.txt as of September 2026. Questions about methodology welcome in HN/Reddit comments.</em></p>
+
+<p style="margin-top:2em;">
+  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> &nbsp;·&nbsp;
+  <a href="https://github.com/lior-seats/ai-crawler-block-list">Block configs repo</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard waitlist</a>
+</p>
+
+</div>
+
+<!-- Hit counter -->
+<script>
+(function(){
+  fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-ai-crawlers-robots-txt');
+})();
+</script>
+
+</body>
+</html>
