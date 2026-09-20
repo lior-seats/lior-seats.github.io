@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Blog — lior-seats.github.io</title>
+<meta name="description" content="Articles on developer infrastructure, AI crawlers, staging costs, and webhook reliability."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/"/>
+<meta property="og:title" content="Blog — lior-seats.github.io"/>
+<meta property="og:description" content="Articles on developer infrastructure, AI crawlers, staging costs, and webhook reliability."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; }
+  .subtitle { color: #666; font-size: 0.95rem; margin-bottom: 2.5em; }
+  a { color: inherit; text-decoration: none; }
+  a:hover h2 { text-decoration: underline; }
+
+  .post-list { list-style: none; }
+  .post-item { padding: 1.5em 0; border-bottom: 1px solid #e4e4e7; }
+  .post-item:first-child { border-top: 1px solid #e4e4e7; }
+  .post-item a { display: block; }
+  .post-item h2 {
+    font-size: 1.1rem; font-weight: 700; color: #1a1a1a;
+    margin-bottom: 6px; line-height: 1.35;
+  }
+  .post-item p { font-size: 0.92rem; color: #555; line-height: 1.55; margin-bottom: 6px; }
+  .post-meta { font-size: 0.82rem; color: #888; }
+  .tag {
+    display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7;
+    padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600;
+    color: #555; margin-right: 4px;
+  }
+
+  footer { margin-top: 3em; font-size: 0.85rem; color: #888; }
+  footer a { color: #0070f3; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Blog</h1>
+<p class="subtitle">Developer infrastructure · AI crawlers · staging costs · webhook reliability</p>
+
+<ul class="post-list">
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html">
+      <h2>I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly</h2>
+      <p>Real data: 6/20 have zero AI bot rules. Only 2/20 block meta-externalagent — the crawler most cited for Vercel bill spikes.</p>
+      <span class="post-meta">
+        <span class="tag">AI crawlers</span>
+        <span class="tag">data</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">
+      <h2>How to block AI crawlers: robots.txt, Vercel, Cloudflare, Nginx, Apache, and more</h2>
+      <p>Copy-paste configs for every major platform. Covers GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and 12 more.</p>
+      <span class="post-meta">
+        <span class="tag">AI crawlers</span>
+        <span class="tag">guide</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/staging-env-cost.html">
+      <h2>I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising</h2>
+      <p>Real cloud pricing data: most staging environments sit idle 86% of the time. A typical 3-service team wastes $60–150/month on unused compute.</p>
+      <span class="post-meta">
+        <span class="tag">staging</span>
+        <span class="tag">cloud costs</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/stripe-webhook-failures.html">
+      <h2>Stripe webhooks fail silently — and most developers don't know until a customer complains</h2>
+      <p>Stripe retries failed webhooks for 72 hours, but your app never gets notified when they all fail. Here's how to detect it before it costs you orders.</p>
+      <span class="post-meta">
+        <span class="tag">webhooks</span>
+        <span class="tag">Stripe</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+</ul>
+
+<footer>
+  <a href="https://lior-seats.github.io/">← lior-seats.github.io</a>
+  &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a>
+</footer>
+
+</div>
+</body>
+</html>
