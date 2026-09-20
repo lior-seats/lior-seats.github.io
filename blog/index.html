@@ -4,10 +4,10 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Blog — lior-seats.github.io</title>
-<meta name="description" content="Articles on developer infrastructure, AI crawlers, staging costs, and webhook reliability."/>
+<meta name="description" content="Writing on AI crawlers, infrastructure, and developer tools."/>
 <link rel="canonical" href="https://lior-seats.github.io/blog/"/>
 <meta property="og:title" content="Blog — lior-seats.github.io"/>
-<meta property="og:description" content="Articles on developer infrastructure, AI crawlers, staging costs, and webhook reliability."/>
+<meta property="og:description" content="Writing on AI crawlers, infrastructure, and developer tools."/>
 <meta property="og:url" content="https://lior-seats.github.io/blog/"/>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -37,7 +37,14 @@
     color: #555; margin-right: 4px;
   }
 
-  footer { margin-top: 3em; font-size: 0.85rem; color: #888; }
+  .cta-box {
+    margin-top: 2.5em; padding: 1.2em 1.4em;
+    background: #f8f9ff; border: 1px solid #dde3f8; border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  .cta-box a { color: #0070f3; text-decoration: underline; }
+
+  footer { margin-top: 2em; font-size: 0.85rem; color: #888; }
   footer a { color: #0070f3; }
 </style>
 </head>
@@ -45,7 +52,7 @@
 <div class="container">
 
 <h1>Blog</h1>
-<p class="subtitle">Developer infrastructure · AI crawlers · staging costs · webhook reliability</p>
+<p class="subtitle">Writing on AI crawlers, infrastructure, and developer tools.</p>
 
 <ul class="post-list">
 
@@ -63,7 +70,7 @@
 
   <li class="post-item">
     <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">
-      <h2>How to block AI crawlers: robots.txt, Vercel, Cloudflare, Nginx, Apache, and more</h2>
+      <h2>How to block AI crawlers on your site (Nginx, Cloudflare, Vercel, Apache, and more)</h2>
       <p>Copy-paste configs for every major platform. Covers GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and 12 more.</p>
       <span class="post-meta">
         <span class="tag">AI crawlers</span>
@@ -98,6 +105,12 @@
   </li>
 
 </ul>
+
+<div class="cta-box">
+  🔍 Check if your site is blocking AI crawlers →
+  <a href="https://lior-seats.github.io/crawl-check/">crawl-check tool</a>
+  (free, takes 10 seconds)
+</div>
 
 <footer>
   <a href="https://lior-seats.github.io/">← lior-seats.github.io</a>
