@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to block AI crawlers: robots.txt, Vercel, Cloudflare, Nginx, and more</title>
+<meta name="description" content="Copy-paste configs to block GPTBot, ClaudeBot, meta-externalagent, and 12+ other AI crawlers from your site. Covers robots.txt, Vercel, Cloudflare, Nginx, Apache, and Express."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html"/>
+
+<meta property="og:title" content="How to block AI crawlers: robots.txt, Vercel, Cloudflare, Nginx, and more"/>
+<meta property="og:description" content="Copy-paste configs for every major platform to block GPTBot, ClaudeBot, meta-externalagent, Bytespider, and 12+ other AI crawlers."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="How to block AI crawlers: robots.txt, Vercel, Cloudflare, Nginx, and more"/>
+<meta name="twitter:description" content="Copy-paste configs for every major platform to block GPTBot, ClaudeBot, meta-externalagent, Bytespider, and 12+ others."/>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre {
+    background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px;
+    padding: 16px; overflow-x: auto; margin: 1.2em 0;
+  }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout {
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout-blue {
+    background: #eff6ff; border-left: 4px solid #3b82f6;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .cta-box {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 10px; padding: 22px 24px; margin: 2em 0;
+  }
+  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .btn {
+    display: inline-block; background: #0070f3; color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn:hover { background: #0051cc; text-decoration: none; }
+  .btn-secondary {
+    display: inline-block; border: 1.5px solid #0070f3; color: #0070f3;
+    padding: 9px 18px; border-radius: 6px; font-weight: 600; margin: 10px 0 0 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn-secondary:hover { background: #f0f9ff; text-decoration: none; }
+  .platform-tag {
+    display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; font-weight: 600;
+    color: #444; margin-bottom: 8px;
+  }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.3em; }
+  .toc { background: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .toc ul { margin-bottom: 0; }
+  .toc li { margin-bottom: 0.2em; }
+  .toc strong { display: block; margin-bottom: 8px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; color: #666; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta">
+  <a href="https://lior-seats.github.io/crawl-check/">← AI Crawler Check Tool</a> &nbsp;·&nbsp;
+  September 2026
+</p>
+
+<h1>How to block AI crawlers: robots.txt, Vercel, Cloudflare, Nginx, Apache, and Express</h1>
+
+<p class="meta">Copy-paste configs for every major platform. Covers GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and 12 more.</p>
+
+<p>AI crawlers are getting more aggressive. If you've seen your Vercel or Netlify bill spike without a corresponding increase in real users, there's a good chance an AI training crawler is behind it. <a href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html">Our analysis of 20 popular developer platforms</a> found that most aren't blocking the crawlers responsible for these cost spikes.</p>
+
+<p>This guide gives you copy-paste configs for every major platform to block the ones that matter most.</p>
+
+<div class="cta-box">
+  <h3>🔍 Check your site first</h3>
+  <p>Before you start, find out which AI crawlers are currently allowed to access your site:</p>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn">Check my site free →</a>
+  <a href="https://github.com/lior-seats/ai-crawler-block-list" class="btn-secondary">Full bot list on GitHub →</a>
+</div>
+
+<div class="toc">
+  <strong>Jump to</strong>
+  <ul>
+    <li><a href="#why">Why blocking matters (and what robots.txt can't do)</a></li>
+    <li><a href="#robots-txt">1. robots.txt — works everywhere</a></li>
+    <li><a href="#vercel">2. Vercel (vercel.json headers)</a></li>
+    <li><a href="#cloudflare">3. Cloudflare (WAF rule)</a></li>
+    <li><a href="#nginx">4. Nginx</a></li>
+    <li><a href="#apache">5. Apache (.htaccess)</a></li>
+    <li><a href="#express">6. Express / Node.js middleware</a></li>
+    <li><a href="#next-steps">What to do after blocking</a></li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2 id="why">Why blocking matters — and what robots.txt can't do</h2>
+
+<p>There are two reasons to block AI crawlers:</p>
+
+<ol>
+  <li><strong>Infrastructure cost.</strong> AI training crawlers — especially meta-externalagent, Bytespider, and GPTBot — can hammer your site relentlessly. If you're on a usage-based hosting plan (Vercel, Netlify, AWS Lambda), you're paying for every one of those requests.</li>
+  <li><strong>Content control.</strong> If you don't want your content used to train AI models, you need to express that somewhere. robots.txt is the standard place.</li>
+</ol>
+
+<div class="callout">
+  <strong>⚠️ robots.txt is polite, not enforced</strong>
+  robots.txt is a convention, not a technical block. Well-behaved crawlers like GPTBot and ClaudeBot honor it. Others — particularly scrapers built for training data — may ignore it entirely. If your concern is cost or content scraping by bad actors, use a server-level block (Cloudflare, Nginx, or middleware) instead.
+</div>
+
+<p>That said: robots.txt is fast, free, zero-risk, and effective against the major crawlers you're most likely to encounter. Start there.</p>
+
+<hr/>
+
+<h2 id="robots-txt">1. robots.txt</h2>
+
+<span class="platform-tag">Works everywhere</span>
+
+<p>Add this to your <code>robots.txt</code> file at the root of your domain (<code>https://yourdomain.com/robots.txt</code>):</p>
+
+<pre><code># Block all major AI training crawlers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: DiffBot
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+# Allow Google and Bing (comment out if you want to block them too)
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: *
+Allow: /</code></pre>
+
+<p><strong>Where to put it:</strong></p>
+<ul>
+  <li><strong>Static sites:</strong> Drop <code>robots.txt</code> in your repo root.</li>
+  <li><strong>Next.js:</strong> Put it in the <code>public/</code> directory.</li>
+  <li><strong>Express/Node:</strong> Serve it as a static file or return it from a route.</li>
+</ul>
+
+<p>After deploying, verify at <a href="https://lior-seats.github.io/crawl-check/">crawl-check</a> that the bots now show as blocked.</p>
+
+<hr/>
+
+<h2 id="vercel">2. Vercel</h2>
+
+<span class="platform-tag">vercel.json</span>
+
+<p>Vercel can block crawlers at the edge via response headers. Add this to your <code>vercel.json</code>:</p>
+
+<pre><code>{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noai, noimageai"
+        }
+      ]
+    }
+  ]
+}</code></pre>
+
+<p>The <code>noai</code> and <code>noimageai</code> directives are the HTTP header equivalent of robots.txt for AI crawlers — they're honored by the major crawlers alongside the file-based approach.</p>
+
+<p>For a harder server-side block using Vercel middleware:</p>
+
+<pre><code>// middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+const AI_BOTS = [
+  'gptbot', 'chatgpt-user', 'oai-searchbot', 'ccbot',
+  'anthropic-ai', 'claude-web', 'claudebot', 'meta-externalagent',
+  'bytespider', 'perplexitybot', 'amazonbot', 'applebot-extended',
+  'cohere-ai', 'diffbot', 'facebookbot',
+]
+
+export function middleware(request: NextRequest) {
+  const ua = request.headers.get('user-agent')?.toLowerCase() ?? ''
+  if (AI_BOTS.some(bot => ua.includes(bot))) {
+    return new NextResponse('Access denied', { status: 403 })
+  }
+  return NextResponse.next()
+}
+
+export const config = {
+  matcher: '/((?!_next/static|_next/image|favicon.ico).*)',
+}</code></pre>
+
+<div class="callout-blue">
+  <strong>💡 Middleware vs robots.txt</strong>
+  The middleware approach returns HTTP 403 — crawlers see an actual error, not just a robots.txt directive. This is more effective against scrapers that ignore robots.txt, but use it cautiously: misconfigured middleware can block real users or Googlebot.
+</div>
+
+<hr/>
+
+<h2 id="cloudflare">3. Cloudflare</h2>
+
+<span class="platform-tag">WAF custom rule</span>
+
+<p>If your site is behind Cloudflare, you can block AI crawlers at the network level before requests ever reach your origin — completely free with any Cloudflare plan.</p>
+
+<p><strong>Option A: WAF Custom Rule (recommended)</strong></p>
+
+<p>Go to <strong>Security → WAF → Custom Rules → Create rule</strong>, then configure:</p>
+
+<pre><code>Rule name: Block AI crawlers
+
+Expression:
+(http.user_agent contains "GPTBot") or
+(http.user_agent contains "ChatGPT-User") or
+(http.user_agent contains "anthropic-ai") or
+(http.user_agent contains "ClaudeBot") or
+(http.user_agent contains "Claude-Web") or
+(http.user_agent contains "meta-externalagent") or
+(http.user_agent contains "Bytespider") or
+(http.user_agent contains "PerplexityBot") or
+(http.user_agent contains "Amazonbot") or
+(http.user_agent contains "CCBot") or
+(http.user_agent contains "cohere-ai") or
+(http.user_agent contains "DiffBot")
+
+Action: Block</code></pre>
+
+<p><strong>Option B: Page Rule (older, simpler)</strong></p>
+
+<p>For a quick block on the whole domain without WAF:</p>
+
+<pre><code>Security Level → Under Attack mode temporarily, or use a Transform Rule
+to block specific user-agents via the header value.</code></pre>
+
+<p>The WAF approach is better — it's per-rule, logged, and doesn't affect real users.</p>
+
+<hr/>
+
+<h2 id="nginx">4. Nginx</h2>
+
+<span class="platform-tag">nginx.conf</span>
+
+<p>Add to your server block:</p>
+
+<pre><code>server {
+    # ... your existing config ...
+
+    # Block AI training crawlers
+    if ($http_user_agent ~* "(GPTBot|ChatGPT-User|OAI-SearchBot|CCBot|anthropic-ai|Claude-Web|ClaudeBot|meta-externalagent|Bytespider|PerplexityBot|Amazonbot|Applebot-Extended|cohere-ai|DiffBot|FacebookBot)") {
+        return 403;
+    }
+}</code></pre>
+
+<p>Or using a <code>map</code> block for better performance (evaluate once per request):</p>
+
+<pre><code>http {
+    map $http_user_agent $is_ai_bot {
+        default         0;
+        "~*GPTBot"      1;
+        "~*ChatGPT-User" 1;
+        "~*anthropic-ai" 1;
+        "~*ClaudeBot"   1;
+        "~*Claude-Web"  1;
+        "~*meta-externalagent" 1;
+        "~*Bytespider"  1;
+        "~*PerplexityBot" 1;
+        "~*Amazonbot"   1;
+        "~*CCBot"       1;
+        "~*cohere-ai"   1;
+        "~*DiffBot"     1;
+    }
+
+    server {
+        if ($is_ai_bot) {
+            return 403;
+        }
+    }
+}</code></pre>
+
+<p>After editing, reload Nginx: <code>sudo nginx -s reload</code></p>
+
+<hr/>
+
+<h2 id="apache">5. Apache</h2>
+
+<span class="platform-tag">.htaccess</span>
+
+<p>Add to your <code>.htaccess</code> file:</p>
+
+<pre><code>RewriteEngine On
+
+# Block AI training crawlers
+RewriteCond %{HTTP_USER_AGENT} (GPTBot|ChatGPT-User|OAI-SearchBot|CCBot|anthropic-ai|Claude-Web|ClaudeBot|meta-externalagent|Bytespider|PerplexityBot|Amazonbot|Applebot-Extended|cohere-ai|DiffBot|FacebookBot) [NC]
+RewriteRule .* - [F,L]</code></pre>
+
+<p>If <code>mod_rewrite</code> isn't available, use <code>mod_setenvif</code> instead:</p>
+
+<pre><code>&lt;IfModule mod_setenvif.c&gt;
+  SetEnvIfNoCase User-Agent "GPTBot|ChatGPT-User|anthropic-ai|ClaudeBot|meta-externalagent|Bytespider|PerplexityBot|Amazonbot|CCBot|cohere-ai|DiffBot" bad_bot=1
+  &lt;IfModule mod_authz_core.c&gt;
+    &lt;RequireAll&gt;
+      Require all granted
+      Require not env bad_bot
+    &lt;/RequireAll&gt;
+  &lt;/IfModule&gt;
+&lt;/IfModule&gt;</code></pre>
+
+<hr/>
+
+<h2 id="express">6. Express / Node.js middleware</h2>
+
+<span class="platform-tag">Express · Fastify · any Node server</span>
+
+<p>Drop this middleware in before your routes:</p>
+
+<pre><code>// ai-bot-block.js
+const AI_BOTS = [
+  'gptbot', 'chatgpt-user', 'oai-searchbot', 'ccbot',
+  'anthropic-ai', 'claude-web', 'claudebot', 'meta-externalagent',
+  'bytespider', 'perplexitybot', 'amazonbot', 'applebot-extended',
+  'cohere-ai', 'diffbot', 'facebookbot',
+]
+
+function blockAiBots(req, res, next) {
+  const ua = (req.headers['user-agent'] || '').toLowerCase()
+  if (AI_BOTS.some(bot => ua.includes(bot))) {
+    return res.status(403).json({ error: 'Access denied' })
+  }
+  next()
+}
+
+module.exports = blockAiBots</code></pre>
+
+<pre><code>// app.js
+const express = require('express')
+const blockAiBots = require('./ai-bot-block')
+
+const app = express()
+app.use(blockAiBots)  // Apply before all routes
+
+// ... your routes ...</code></pre>
+
+<p>For Fastify, add it as a hook:</p>
+
+<pre><code>const AI_BOTS = [
+  'gptbot', 'chatgpt-user', 'oai-searchbot', 'ccbot',
+  'anthropic-ai', 'claude-web', 'claudebot', 'meta-externalagent',
+  'bytespider', 'perplexitybot', 'amazonbot',
+  'cohere-ai', 'diffbot',
+]
+
+fastify.addHook('onRequest', async (request, reply) => {
+  const ua = (request.headers['user-agent'] || '').toLowerCase()
+  if (AI_BOTS.some(bot => ua.includes(bot))) {
+    return reply.status(403).send({ error: 'Access denied' })
+  }
+})</code></pre>
+
+<hr/>
+
+<h2 id="next-steps">What to do after blocking</h2>
+
+<h3>Verify it worked</h3>
+<p>Use <a href="https://lior-seats.github.io/crawl-check/">the crawl-check tool</a> to confirm the bots now show as blocked on your domain. It checks 12+ major AI crawlers against your live robots.txt in seconds.</p>
+
+<h3>Keep the list updated</h3>
+<p>New AI crawlers appear every few months. The <a href="https://github.com/lior-seats/ai-crawler-block-list">ai-crawler-block-list repo</a> is updated regularly and includes configs for all platforms in this guide. Watch the repo to get notified of new additions.</p>
+
+<h3>Monitor what's actually hitting your site</h3>
+<p>robots.txt blocks well-behaved crawlers. For real enforcement — and to see which bots were costing you money before you blocked them — you need server-level logging. If you're on Vercel, <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard</a> connects to your Vercel log drain and shows you per-bot request counts and estimated cost attribution.</p>
+
+<div class="cta-box">
+  <h3>📊 See which AI bots hit you before blocking</h3>
+  <p>robots.txt stops future crawls, but it doesn't tell you what was hitting you before. CrawlGuard connects to your Vercel log drain and shows per-bot cost attribution — so you can see exactly what you were paying for.</p>
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/" class="btn">Get early access to CrawlGuard →</a>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn-secondary">Check my site now →</a>
+</div>
+
+<hr/>
+
+<h2>Related</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html">I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly</a></li>
+  <li><a href="https://github.com/lior-seats/ai-crawler-block-list">ai-crawler-block-list — copy-paste configs on GitHub</a></li>
+  <li><a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check — free tool to check your site</a></li>
+</ul>
+
+</div>
+</body>
+</html>
