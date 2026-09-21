@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to detect API deprecation before it breaks your production app</title>
+<meta name="description" content="APIs deprecate with 90 days notice. Most developers find out when orders stop. Here's how to monitor for Sunset headers, changelog changes, and breaking changes before they hit production."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/api-deprecation-monitoring.html"/>
+<meta property="og:title" content="How to detect API deprecation before it breaks your production app"/>
+<meta property="og:description" content="APIs deprecate with 90 days notice. Most developers find out when orders stop. Here's how to catch breaking changes before they reach production."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/api-deprecation-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="How to detect API deprecation before it breaks your production app"/>
+<meta name="twitter:description" content="APIs deprecate with 90 days notice. Most developers find out when orders stop."/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre {
+    background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px;
+    padding: 16px; overflow-x: auto; margin: 1.2em 0;
+  }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout {
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout-blue {
+    background: #eff6ff; border-left: 4px solid #3b82f6;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .cta-box {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 10px; padding: 22px 24px; margin: 2em 0;
+  }
+  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .btn {
+    display: inline-block; background: #0070f3; color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn:hover { background: #0051cc; text-decoration: none; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta">
+  <a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp;
+  September 2026
+</p>
+
+<h1>How to detect API deprecation before it breaks your production app</h1>
+
+<p class="meta">The 90-day notice was in the changelog. Nobody subscribed to the changelog. Orders stopped on a Thursday at 2am.</p>
+
+<p>The outage started with a 404 on what had been a perfectly stable endpoint for two years. Stripe had deprecated <code>/v1/charges</code> in favor of <code>/v1/payment_intents</code> — and had announced it in their changelog 90 days before the cutoff. One email, one changelog entry, and then silence until the day the old endpoint stopped accepting requests.</p>
+
+<p>By the time anyone noticed, 47 orders had failed silently over six hours. The monitoring that caught it was a customer calling support.</p>
+
+<p>This is the standard deprecation story. Here's why it happens, and what you can do to catch it before the Thursday outage.</p>
+
+<hr/>
+
+<h2>Why API deprecations are invisible until they're not</h2>
+
+<h3>Email-only announcements buried in noise</h3>
+<p>Most API providers announce deprecations via email to the account owner. That email goes into the inbox of whoever created the API key — often a developer who left six months ago, or a shared engineering alias that nobody monitors. The email is correct, the notice period is reasonable, and nobody reads it.</p>
+
+<h3>Deprecation headers that nobody logs</h3>
+<p>The <a href="https://www.rfc-editor.org/rfc/rfc8594" target="_blank" rel="noopener">Sunset header (RFC 8594)</a> and the <code>Deprecation</code> header are designed specifically for this problem: the API provider adds them to responses to signal that an endpoint is going away on a specific date. Here's what they look like:</p>
+
+<pre><code>HTTP/1.1 200 OK
+Deprecation: Sun, 01 Dec 2026 00:00:00 GMT
+Sunset: Sun, 01 Jan 2027 00:00:00 GMT
+Link: &lt;https://api.example.com/v2/orders&gt;; rel="successor-version"</code></pre>
+
+<p>The headers are there. They're in every response from the deprecated endpoint. But virtually nobody parses response headers in their API integration code — you extract the JSON body, check the status code, and move on. The deprecation signal sits in the headers unread until the endpoint stops working.</p>
+
+<h3>Versioning strategies that break without ceremony</h3>
+<p>Not every API uses explicit version headers or sunset dates. Some APIs just change behavior: a new required field is added, an optional field becomes required, a field is renamed, an enum value is removed. These changes don't generate 404s — they generate 400s or malformed responses that look like client errors, not deprecations.</p>
+
+<h3>"We announced it in the changelog"</h3>
+<p>Stripe, Twilio, GitHub, and most serious API providers maintain detailed changelogs. The problem isn't the announcement — it's the discovery model. You don't subscribe to a changelog and get push notifications the moment something changes that affects your integration. You have to go check. Nobody does this on a weekly basis across every API they use.</p>
+
+<hr/>
+
+<h2>What actually happens when a third-party API breaks</h2>
+
+<p>The failure modes are less obvious than "endpoint disappears":</p>
+
+<table>
+  <thead><tr><th>Breaking change type</th><th>How it manifests</th><th>How hard to detect</th></tr></thead>
+  <tbody>
+    <tr><td>Endpoint removed</td><td>404 or 410</td><td>Easy — monitoring catches it</td></tr>
+    <tr><td>New required field</td><td>400 with validation error</td><td>Medium — looks like a client bug</td></tr>
+    <tr><td>Response field removed</td><td>Null pointer / parsing error</td><td>Hard — surfaces as your bug, not theirs</td></tr>
+    <tr><td>Rate limit change</td><td>429 at previously-safe volumes</td><td>Hard — intermittent, load-dependent</td></tr>
+    <tr><td>Auth method deprecated</td><td>401 on what was a valid request</td><td>Medium — clear signal, unclear cause</td></tr>
+    <tr><td>Behavior change, same response shape</td><td>Wrong data, no error</td><td>Very hard — requires business logic validation</td></tr>
+  </tbody>
+</table>
+
+<p>The dangerous ones are the last two. Response shape changes that produce valid JSON with wrong values — a field that used to be a UNIX timestamp now returns an ISO 8601 string, an amount that used to be in dollars now returns cents — produce no errors at all. They produce incorrect orders, billing failures, or corrupted data that you find in a spreadsheet three months later.</p>
+
+<hr/>
+
+<h2>How to catch deprecations today — manual approaches</h2>
+
+<h3>Subscribe to provider changelogs and status pages</h3>
+<p>The major providers have machine-readable changelogs:</p>
+<ul>
+  <li><strong>Stripe:</strong> <a href="https://stripe.com/docs/upgrades" target="_blank" rel="noopener">stripe.com/docs/upgrades</a> — API version history with breaking change notes</li>
+  <li><strong>GitHub:</strong> <a href="https://developer.github.com/changes/" target="_blank" rel="noopener">developer.github.com/changes</a> — RSS feed available</li>
+  <li><strong>Twilio:</strong> <a href="https://www.twilio.com/en-us/changelog" target="_blank" rel="noopener">twilio.com/en-us/changelog</a></li>
+  <li><strong>Slack:</strong> <a href="https://api.slack.com/changelog" target="_blank" rel="noopener">api.slack.com/changelog</a></li>
+</ul>
+<p>If you use RSS: most changelogs publish feeds. Pipe them into Slack via an RSS bot. This gets you push notifications, but you still have to read them and understand which changes affect your integration.</p>
+
+<h3>Monitor the Sunset and Deprecation headers</h3>
+
+<p>The highest-signal detection you can add today: check every API response for <code>Sunset</code> and <code>Deprecation</code> headers in your HTTP client layer. Here's a Node.js/axios interceptor that does this:</p>
+
+<pre><code>// api-deprecation-monitor.js
+const axios = require('axios')
+const nodemailer = require('nodemailer')
+
+const ALERT_EMAIL = process.env.ALERT_EMAIL
+const SMTP_URL = process.env.SMTP_URL
+
+// Add a response interceptor to every axios call
+axios.interceptors.response.use(
+  async (response) => {
+    const sunset = response.headers['sunset']
+    const deprecation = response.headers['deprecation']
+
+    if (sunset || deprecation) {
+      const url = response.config.url
+      const sunsetDate = sunset ? new Date(sunset) : null
+      const daysUntilSunset = sunsetDate
+        ? Math.ceil((sunsetDate - Date.now()) / 86400000)
+        : null
+
+      // Log to console always
+      console.warn('[API DEPRECATION DETECTED]', {
+        url,
+        deprecation,
+        sunset,
+        daysUntilSunset,
+        successor: response.headers['link'],
+      })
+
+      // Send email alert
+      if (ALERT_EMAIL && SMTP_URL) {
+        await sendDeprecationAlert({
+          url,
+          deprecation,
+          sunset,
+          daysUntilSunset,
+          successor: response.headers['link'],
+        })
+      }
+    }
+
+    return response
+  },
+  (error) => Promise.reject(error)
+)
+
+async function sendDeprecationAlert({ url, deprecation, sunset, daysUntilSunset, successor }) {
+  const transporter = nodemailer.createTransport(SMTP_URL)
+  const urgency = daysUntilSunset !== null && daysUntilSunset < 30 ? '🚨 URGENT' : '⚠️'
+
+  await transporter.sendMail({
+    from: process.env.ALERT_FROM || 'alerts@yourapp.com',
+    to: ALERT_EMAIL,
+    subject: `${urgency} API deprecation detected: ${new URL(url).hostname}`,
+    text: [
+      `Endpoint: ${url}`,
+      deprecation ? `Deprecation date: ${deprecation}` : '',
+      sunset ? `Sunset date: ${sunset}` : '',
+      daysUntilSunset !== null ? `Days until sunset: ${daysUntilSunset}` : '',
+      successor ? `Successor: ${successor}` : '',
+      '',
+      'This endpoint is scheduled for removal. Update your integration before the sunset date.',
+    ].filter(Boolean).join('\n'),
+  })
+}
+
+module.exports = { axios }
+</code></pre>
+
+<p>Use this in your codebase by importing <code>axios</code> from this module instead of directly from the package. Every API call you make will automatically check for deprecation headers.</p>
+
+<p>Environment variables: <code>ALERT_EMAIL</code> (where to send alerts), <code>SMTP_URL</code> (e.g. <code>smtp://user:pass@smtp.gmail.com:587</code>), optionally <code>ALERT_FROM</code>.</p>
+
+<h3>Write a synthetic monitor for critical endpoints</h3>
+<p>For your highest-stakes integrations, run a synthetic check every hour: hit the endpoint with a known-good request and validate the response shape, not just the status code. If the response shape changes — a field disappears, a type changes — your test fails before production traffic fails.</p>
+
+<pre><code>// synthetic-monitor.js — run hourly via cron or a job scheduler
+const { axios } = require('./api-deprecation-monitor')
+
+async function checkStripeEndpoint() {
+  // Use a real but low-stakes request
+  const response = await axios.get('https://api.stripe.com/v1/balance', {
+    headers: { 'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}` }
+  })
+
+  // Validate expected response shape
+  const { available, pending } = response.data
+  if (!Array.isArray(available) || !Array.isArray(pending)) {
+    throw new Error(`Unexpected response shape: ${JSON.stringify(Object.keys(response.data))}`)
+  }
+
+  console.log('Stripe balance endpoint: OK')
+}
+
+checkStripeEndpoint().catch((err) => {
+  console.error('Synthetic check failed:', err.message)
+  // Send alert (reuse the same alert function)
+  process.exit(1)
+})
+</code></pre>
+
+<div class="callout-blue">
+  <strong>💡 Where to run this</strong>
+  A cron job on your existing server works. For a simpler setup, a free-tier GitHub Action on a schedule (every hour, <code>on: schedule: - cron: '0 * * * *'</code>) runs your monitor without any new infrastructure. GitHub Actions sends you an email when a workflow fails.
+</div>
+
+<hr/>
+
+<h2>The coverage gap: why this still isn't enough</h2>
+
+<p>The interceptor catches Sunset/Deprecation headers — but only for providers that emit them. Most don't. GitHub, Twilio, and Stripe do for some endpoints. Many smaller APIs don't implement RFC 8594 at all.</p>
+
+<p>The synthetic monitor catches shape changes — but only for endpoints you explicitly test. A typical app touches dozens of API endpoints, and you realistically only write synthetic tests for the critical path.</p>
+
+<p>And neither approach covers the changelog monitoring problem: knowing that <em>something changed</em> across 50+ APIs that your codebase depends on, translated into plain English, before you have to go read each provider's changelog manually.</p>
+
+<div class="callout">
+  <strong>⚠️ The real coverage you need</strong>
+  Real API change detection needs three layers: (1) header monitoring on live traffic, (2) synthetic endpoint checks for critical paths, and (3) changelog monitoring across all your providers. The first two you can build yourself. The third is where most teams have nothing.
+</div>
+
+<div class="cta-box">
+  <h3>📡 Automated API deprecation monitoring across all your integrations</h3>
+  <p>APIWatch monitors changelogs for 50+ major APIs — Stripe, OpenAI, Twilio, GitHub, Slack, and more — and sends plain-English alerts the moment a breaking change or deprecation is announced. Know 30 days before your app does.</p>
+  <p style="font-size:0.88rem;color:#555;margin-top:8px;">Early access pricing for waitlist members.</p>
+  <a href="https://lior-seats.github.io/apiwatch-waitlist/" class="btn">Join the APIWatch waitlist →</a>
+</div>
+
+<hr/>
+
+<h2>Summary: what to implement this week</h2>
+
+<ol>
+  <li><strong>Add the Sunset/Deprecation interceptor</strong> to your HTTP client. Costs nothing, catches the best-behaved providers immediately.</li>
+  <li><strong>Subscribe to changelogs</strong> for your top 3-5 most critical dependencies via RSS → Slack. Ten minutes of setup.</li>
+  <li><strong>Write one synthetic test</strong> for your highest-stakes API integration (the one that processes payments or creates orders). Run it hourly.</li>
+  <li><strong>Validate response shapes, not just status codes</strong>. A 200 with wrong data is worse than a 404.</li>
+  <li><strong>Know your sunset dates</strong>. If any of your integrations are on a deprecated API version, you already have a countdown you may not know about.</li>
+</ol>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em;">
+  <em>Sunset header spec: <a href="https://www.rfc-editor.org/rfc/rfc8594" target="_blank" rel="noopener">RFC 8594</a>. Provider changelogs linked above were current as of September 2026.</em>
+</p>
+
+<p style="margin-top:2em;">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/apiwatch-waitlist/">APIWatch waitlist</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check</a>
+</p>
+
+</div>
+</body>
+</html>
