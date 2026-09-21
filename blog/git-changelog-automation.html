@@ -4,15 +4,15 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Why your git history is useless to stakeholders — and how to auto-generate changelogs that aren't</title>
-<meta name="description" content="47 commits: 'fix typo', 'WIP', 'more fixes', 'finally'. Nobody knows what shipped. Here's how to pipe git log into an LLM and generate a real changelog automatically."/>
+<meta name="description" content="Your git log is written for you, not your users or PM. Here's how to auto-generate human-readable changelogs from commits using an LLM — with a working Node.js script you can run today."/>
 <link rel="canonical" href="https://lior-seats.github.io/blog/git-changelog-automation.html"/>
 <meta property="og:title" content="Why your git history is useless to stakeholders — and how to auto-generate changelogs that aren't"/>
-<meta property="og:description" content="47 commits: 'fix typo', 'WIP', 'more fixes', 'finally'. Here's how to auto-generate readable changelogs from git log using an LLM."/>
+<meta property="og:description" content="Your git log is written for you, not your users or PM. Here's how to auto-generate human-readable changelogs using an LLM."/>
 <meta property="og:url" content="https://lior-seats.github.io/blog/git-changelog-automation.html"/>
 <meta property="og:type" content="article"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="Why your git history is useless to stakeholders — and how to auto-generate changelogs that aren't"/>
-<meta name="twitter:description" content="47 commits: 'fix typo', 'WIP', 'more fixes'. Here's how to auto-generate readable changelogs from git log."/>
+<meta name="twitter:title" content="Auto-generate human-readable changelogs from git commits"/>
+<meta name="twitter:description" content="Your git log is written for developers. Here's how to turn it into something stakeholders can actually read."/>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -39,28 +39,33 @@
     padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
   }
   .callout strong { display: block; margin-bottom: 4px; }
-  .callout-green {
-    background: #f0fdf4; border-left: 4px solid #22c55e;
-    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
-  }
   .cta-box {
-    background: #f0f9ff; border: 1px solid #bae6fd;
+    background: #f0fdf4; border: 1px solid #86efac;
     border-radius: 10px; padding: 22px 24px; margin: 2em 0;
   }
-  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
   .btn {
-    display: inline-block; background: #0070f3; color: #fff;
+    display: inline-block; background: #16a34a; color: #fff;
     padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
     text-decoration: none; font-size: 0.95rem;
   }
-  .btn:hover { background: #0051cc; text-decoration: none; }
+  .btn:hover { background: #15803d; text-decoration: none; }
+  .commit-table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.88rem; }
+  .commit-table th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; }
+  .commit-table td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  .commit-table tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+  .tag-bad { background: #fee2e2; color: #991b1b; }
+  .tag-good { background: #dcfce7; color: #166534; }
   hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
   ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
   li { margin-bottom: 0.4em; }
-  .commit-log { background: #1e1e2e; color: #cdd6f4; border-radius: 6px; padding: 16px; margin: 1.2em 0; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.85em; }
-  .commit-log .sha { color: #cba6f7; }
-  .commit-log .bad { color: #f38ba8; }
-  .commit-log .ok { color: #a6e3a1; }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps li { counter-increment: step; padding-left: 2.2em; position: relative; margin-bottom: 0.7em; }
+  .steps li::before { content: counter(step); position: absolute; left: 0;
+    background: #0070f3; color: #fff; border-radius: 50%;
+    width: 1.5em; height: 1.5em; display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; top: 0.15em; }
 </style>
 </head>
 <body>
@@ -73,194 +78,196 @@
 
 <h1>Why your git history is useless to stakeholders — and how to auto-generate changelogs that aren't</h1>
 
-<p class="meta">47 commits: "fix typo", "WIP", "more fixes", "FINALLY", "ugh". The sprint ended. The PM wants to know what shipped.</p>
+<p class="meta">Sprint ends. PM asks "what shipped this week?" You stare at 47 commits: "fix typo", "WIP", "more fixes", "finally", "plz work".</p>
 
-<p>Every two weeks it's the same conversation. Sprint review is in an hour. The PM opens a ticket: "Can someone update the changelog?" You open a terminal:</p>
+<p>Every developer knows this moment. The sprint is over, a release just went out, and someone asks what changed. You open <code>git log --oneline</code> and see something like this:</p>
 
-<div class="commit-log">
-<span class="sha">a3f1d9c</span> <span class="bad">fix typo</span><br/>
-<span class="sha">b8e2c14</span> <span class="bad">WIP</span><br/>
-<span class="sha">c91a7e5</span> <span class="bad">more fixes</span><br/>
-<span class="sha">d4b3f22</span> <span class="bad">lol</span><br/>
-<span class="sha">e5c8d11</span> <span class="bad">FINALLY</span><br/>
-<span class="sha">f7a9e33</span> <span class="ok">add retry logic to payment handler</span><br/>
-<span class="sha">g2d4b56</span> <span class="bad">forgot to add tests</span><br/>
-<span class="sha">h8e1c79</span> <span class="bad">tests passing now hopefully</span><br/>
-<span class="sha">i3f7a92</span> <span class="ok">implement user export feature</span><br/>
-<span class="sha">j9b2d15</span> <span class="bad">cleanup</span>
-</div>
+<pre><code>a3f9c12 fix
+9b1e4d8 WIP — do not merge
+c7a2e11 finally
+d8b3f00 more fixes
+e1d5a99 hotfix for prod
+f2c6b88 add stuff
+04a79c1 cleanup
+b5e8d77 tests</code></pre>
 
-<p>You spend 25 minutes reading diffs, reconstructing intent, and writing a changelog that should have taken three minutes. Then it happens again next sprint.</p>
+<p>This is completely normal. Commit messages are written under time pressure, for the author's short-term memory, not for a PM, a user, or a future developer nine months from now. They're internal shorthand — useful during the sprint, useless outside it.</p>
 
-<p>The problem isn't the developers — commit messages are written under pressure for the author's short-term memory, not for stakeholders reading them two weeks later. The solution isn't telling developers to write better commits (you've tried). It's automating the translation layer between git history and human-readable changelog.</p>
+<p>The result: writing a release changelog is manual, slow, and usually gets skipped. Which means stakeholders don't know what changed, users don't know what's new, and the release just quietly ships into a void.</p>
 
 <hr/>
 
-<h2>Why commit messages are structurally bad as changelogs</h2>
+<h2>Why good commit messages alone don't solve this</h2>
 
-<p>Commit messages are optimized for one reader (the author) at one moment in time (the moment of writing). They're useful for <code>git blame</code>, for understanding the context of a change, for bisecting a bug. They're almost useless for external communication.</p>
+<p><a href="https://www.conventionalcommits.org/" target="_blank">Conventional Commits</a> is a popular spec that adds structure to commit messages: <code>feat: add dark mode</code>, <code>fix: resolve login redirect loop</code>, <code>chore: update deps</code>. When your team follows it consistently, you can use tools like <code>auto-changelog</code> or <code>semantic-release</code> to mechanically generate a changelog.</p>
 
-<p>The core problems:</p>
+<p>The problem is "when your team follows it consistently." Most teams don't. Even teams that start with good intentions drift. And even when they do follow it, mechanical grouping of raw commit messages isn't the same as a human-readable changelog. <code>feat: add dark mode toggle to user settings screen (closes #412)</code> is better than "stuff" — but it's still developer-centric, not user-centric.</p>
 
-<ul>
-  <li><strong>Granularity mismatch.</strong> A single feature might span 20 commits. A changelog needs one entry. Mechanical extraction produces 20 items when you need one.</li>
-  <li><strong>Audience mismatch.</strong> "Refactor payment handler to use async/await instead of promise chains" is a meaningful commit message. "Payments are now more reliable" is what goes in the changelog.</li>
-  <li><strong>Noise ratio.</strong> WIP commits, fixup commits, merge commits, and typo fixes are legitimate parts of the git workflow. They're noise in a changelog.</li>
-  <li><strong>Context loss.</strong> The commit that says "fix the thing from yesterday" makes perfect sense when you wrote it. It's incomprehensible to anyone else.</li>
-</ul>
-
-<div class="callout">
-  <strong>What about Conventional Commits?</strong>
-  <a href="https://www.conventionalcommits.org/" target="_blank" rel="noopener">Conventional Commits</a> is a great discipline for structured commit history: <code>feat: add user export</code>, <code>fix: payment retry logic</code>, <code>chore: update dependencies</code>. It solves the noise/signal problem for teams that enforce it. But most codebases weren't built with it, and "rewrite your commit discipline" is a harder sell than "automate the translation."<br/><br/>
-  The approach below works with both — Conventional Commits gives the LLM better input, but the LLM also handles the unstructured case well.
-</div>
+<p>A user-facing changelog reads like: <em>"You can now switch between light and dark mode in Settings → Appearance."</em> That takes rewriting, not just grouping.</p>
 
 <hr/>
 
-<h2>Current approaches and why they fall short</h2>
+<h2>The gap between commit history and stakeholder communication</h2>
 
-<h3>git log --oneline → copy-paste → rewrite</h3>
-<p>This is what most teams do. It works but it's slow, it doesn't scale to frequent releases, and the quality depends entirely on whoever writes it that day.</p>
+<table class="commit-table">
+  <thead>
+    <tr>
+      <th>Commit message</th>
+      <th>What it means</th>
+      <th>User-facing changelog entry</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>fix: resolve race cond in auth flow</code></td>
+      <td>Login was occasionally failing for users on slow connections</td>
+      <td>Fixed intermittent login failures on slow connections</td>
+    </tr>
+    <tr>
+      <td><code>feat: add dark mode toggle</code></td>
+      <td>New UI setting</td>
+      <td>New: Dark mode — toggle in Settings → Appearance</td>
+    </tr>
+    <tr>
+      <td><code>refactor: migrate from axios to fetch</code></td>
+      <td>Internal cleanup</td>
+      <td>(omit — no user impact)</td>
+    </tr>
+    <tr>
+      <td><code>fix: CORS issue on /api/export</code></td>
+      <td>CSV export was broken from certain browsers</td>
+      <td>Fixed CSV export from Safari and Firefox</td>
+    </tr>
+  </tbody>
+</table>
 
-<h3>auto-changelog and similar tools</h3>
-<p>Tools like <code>auto-changelog</code>, <code>conventional-changelog</code>, and <code>release-it</code> parse commit messages mechanically and template them into a CHANGELOG.md. This works well for Conventional Commits codebases — it produces consistent output, automates the file update, and runs in CI. But the output is still commit-message text, just formatted differently. "fix: payment retry" becomes "- fix: payment retry" in the changelog. The audience mismatch and noise problem remain.</p>
-
-<h3>GitHub Releases</h3>
-<p>GitHub's "Auto-generate release notes" feature compares commits since the last tag and produces a list of PR titles and merged PRs. Better than raw commits, but still technical and mechanical. Fine for developer audiences; poor for product stakeholders, users, or public-facing changelogs.</p>
+<p>The transformation from commit message to changelog entry requires context and judgment. The developer knows what the race condition actually affected. A mechanical tool doesn't. But an LLM can make a reasonable inference, and in practice, the result is better than nothing — which is what most teams produce today.</p>
 
 <hr/>
 
-<h2>The AI-powered approach: git log → LLM → readable changelog</h2>
+<h2>The approach: pipe git log into an LLM</h2>
 
-<p>The insight: language models are exceptionally good at the specific task of summarizing technical text for a non-technical audience. "Summarize these 47 commits into what a user cares about" is a task that takes a developer 20 minutes and an LLM about 3 seconds.</p>
+<p>The simplest useful implementation is a script that:</p>
 
-<p>Here's a Node.js script that does exactly this:</p>
+<ol class="steps">
+  <li>Runs <code>git log</code> for a configurable window (last 7 days, or since last tag)</li>
+  <li>Formats the commits into a prompt</li>
+  <li>Sends the prompt to an LLM API (OpenAI, Anthropic, or local model)</li>
+  <li>Outputs formatted markdown grouped by: New Features, Bug Fixes, Improvements, Internal (or omit internal entirely)</li>
+</ol>
+
+<p>Here's a working implementation in Node.js (~40 lines):</p>
 
 <pre><code>#!/usr/bin/env node
 // generate-changelog.js
-// Usage: node generate-changelog.js [--since "7 days ago"] [--since-tag v1.2.3]
-// Requires: OPENAI_API_KEY in env
+// Usage: node generate-changelog.js [--since "7 days ago"] [--output CHANGELOG.md]
 
-const { execSync } = require('child_process')
-const https = require('https')
+const { execSync } = require('child_process');
+const https = require('https');
 
-const args = process.argv.slice(2)
-const sinceIndex = args.indexOf('--since')
-const sinceTagIndex = args.indexOf('--since-tag')
+const since = process.argv.includes('--since')
+  ? process.argv[process.argv.indexOf('--since') + 1]
+  : '7 days ago';
 
-let gitLogCmd
-if (sinceTagIndex !== -1) {
-  const tag = args[sinceTagIndex + 1]
-  gitLogCmd = `git log ${tag}..HEAD --pretty=format:"- %s (%an)" --no-merges`
-} else {
-  const since = sinceIndex !== -1 ? args[sinceIndex + 1] : '7 days ago'
-  gitLogCmd = `git log --since="${since}" --pretty=format:"- %s (%an)" --no-merges`
-}
+const outputFile = process.argv.includes('--output')
+  ? process.argv[process.argv.indexOf('--output') + 1]
+  : null;
 
-const commits = execSync(gitLogCmd, { encoding: 'utf8' }).trim()
+// 1. Get commits
+const commits = execSync(
+  `git log --since="${since}" --pretty=format:"- %s (%an)" --no-merges`
+).toString().trim();
 
 if (!commits) {
-  console.log('No commits found in the specified range.')
-  process.exit(0)
+  console.log('No commits found in the given window.');
+  process.exit(0);
 }
 
-const prompt = `You are a technical writer. Below is a list of git commits from a software project.
+// 2. Build prompt
+const prompt = `You are a technical writer. Convert the following git commits into a concise, user-facing changelog.
 
-Generate a concise, user-friendly changelog in this exact format:
-
-## What's new
-[2-4 bullet points about major new features or improvements. User-facing language only.]
-
-## Bug fixes
-[Bullet points for bug fixes. Skip if none.]
-
-## Under the hood
-[1-2 bullets for technical improvements users might notice indirectly. Omit internal refactors.]
+Group entries under these headings (omit empty sections):
+## New Features
+## Bug Fixes  
+## Improvements
+## Internal (for changes with no user impact)
 
 Rules:
-- Skip WIP, typo, cleanup, and merge commits entirely
-- Combine related commits into single bullet points
-- Write for a non-technical audience (product managers, users)
-- If a section has nothing meaningful, omit it
-- Keep each bullet to one sentence
+- Rewrite each entry in plain English for non-developers
+- Omit trivial chores (dep updates, typo fixes) unless impactful
+- Do not invent details — only describe what the commit message implies
+- Keep entries to one sentence each
 
 Commits:
 ${commits}
 
-Changelog:`
+Output only the markdown changelog, no preamble.`;
 
-const requestBody = JSON.stringify({
+// 3. Call OpenAI
+const body = JSON.stringify({
   model: 'gpt-4o-mini',
   messages: [{ role: 'user', content: prompt }],
-  max_tokens: 500,
-  temperature: 0.3
-})
+  max_tokens: 1000,
+  temperature: 0.3,
+});
 
-const options = {
+const req = https.request({
   hostname: 'api.openai.com',
   path: '/v1/chat/completions',
   method: 'POST',
   headers: {
+    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ***`,
-    'Content-Length': Buffer.byteLength(requestBody)
-  }
-}
-
-const req = https.request(options, (res) => {
-  let data = ''
-  res.on('data', chunk => data += chunk)
+    'Content-Length': Buffer.byteLength(body),
+  },
+}, (res) => {
+  let data = '';
+  res.on('data', chunk => data += chunk);
   res.on('end', () => {
-    const response = JSON.parse(data)
-    if (response.error) {
-      console.error('OpenAI error:', response.error.message)
-      process.exit(1)
+    const result = JSON.parse(data);
+    const changelog = result.choices?.[0]?.message?.content ?? 'Error: no output';
+    if (outputFile) {
+      require('fs').writeFileSync(outputFile, changelog + '\n');
+      console.log(`Changelog written to ${outputFile}`);
+    } else {
+      console.log(changelog);
     }
-    const changelog = response.choices[0].message.content.trim()
-    const today = new Date().toISOString().split('T')[0]
-    console.log(`# Changelog — ${today}\n\n${changelog}\n`)
-  })
-})
+  });
+});
 
-req.on('error', (err) => {
-  console.error('Request error:', err.message)
-  process.exit(1)
-})
+req.on('error', err => { console.error('Request failed:', err.message); process.exit(1); });
+req.write(body);
+req.end();</code></pre>
 
-req.write(requestBody)
-req.end()
-</code></pre>
+<p>Run it with:</p>
 
-<p>Usage:</p>
-<pre><code>OPENAI_API_KEY=sk-... node generate-changelog.js
-# Or since a specific release tag:
-OPENAI_API_KEY=sk-... node generate-changelog.js --since-tag v1.4.2
-</code></pre>
+<pre><code>OPENAI_API_KEY=sk-... node generate-changelog.js --since "7 days ago"
+# or since last git tag:
+OPENAI_API_KEY=sk-... node generate-changelog.js --since "$(git describe --tags --abbrev=0)"</code></pre>
 
-<p>Typical output for a sprint worth of commits:</p>
+<p>Typical output for a real sprint:</p>
 
-<div class="commit-log" style="color:#cdd6f4">
-<span style="color:#89dceb"># Changelog — 2026-09-21</span><br/><br/>
-<span style="color:#a6e3a1">## What's new</span><br/>
-- Users can now export their account data as a CSV from the settings page<br/>
-- Payment retries now happen automatically when a card charge fails — no more manual retry requests to support<br/>
-- Dashboard loading time reduced by ~40% on large accounts<br/><br/>
-<span style="color:#f9e2af">## Bug fixes</span><br/>
-- Fixed an issue where email notifications were sent twice for the same event<br/>
-- Date formatting in the activity log now correctly respects the user's timezone
-</div>
+<pre><code>## New Features
+- Users can now switch between light and dark mode in Settings → Appearance
 
-<p>Cost for a typical sprint: under $0.01. GPT-4o-mini is <a href="https://openai.com/pricing" target="_blank" rel="noopener">priced at $0.15/1M input tokens</a>; a full sprint of commits is ~1,000 tokens.</p>
+## Bug Fixes
+- Fixed intermittent login failures on slow network connections
+- Resolved CSV export errors in Safari and Firefox
+
+## Improvements
+- Reduced initial page load time for dashboards with large datasets
+
+## Internal
+- Migrated HTTP client from Axios to native fetch (no user impact)</code></pre>
 
 <hr/>
 
-<h2>Automate it with GitHub Actions</h2>
+<h2>Automating it with GitHub Actions</h2>
 
-<p>Run this on every merge to main so the changelog is always up to date:</p>
+<p>Run this on every merge to <code>main</code> and push the changelog to Slack or save it as a release artifact:</p>
 
 <pre><code># .github/workflows/changelog.yml
-name: Generate changelog
-
+name: Generate changelog on merge
 on:
   push:
     branches: [main]
@@ -271,71 +278,83 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history needed for git log
-
+          fetch-depth: 0  # need full history for git log
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Generate changelog
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          node generate-changelog.js --since "$(git log -1 --before=1.day --format=%ci)" \
-            >> CHANGELOG.md
+          node generate-changelog.js --since "$(git log --merges -1 --format='%cd' --date=iso HEAD~1)" \
+            --output /tmp/CHANGELOG_LATEST.md
+          cat /tmp/CHANGELOG_LATEST.md
+      - name: Post to Slack (optional)
+        if: env.SLACK_WEBHOOK != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          BODY=$(cat /tmp/CHANGELOG_LATEST.md | head -20)
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-type: application/json' \
+            --data "{\"text\": \"*Release notes:*\n\`\`\`${BODY}\`\`\`\"}"</code></pre>
 
-      - name: Commit changelog
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: update changelog [skip ci]"
-          file_pattern: CHANGELOG.md
-</code></pre>
-
-<p>Add <code>OPENAI_API_KEY</code> to your repository secrets (Settings → Secrets → New repository secret). The workflow generates and commits a changelog entry on every merge, automatically, with no developer involvement.</p>
-
-<div class="callout-green">
-  <strong>✅ What you get from this setup</strong>
-  An always-current CHANGELOG.md that reads like a product person wrote it, generated from every merge, costing less than a coffee per year. PMs can bookmark the file. Users can subscribe to the releases RSS feed. Nobody needs to write anything.
-</div>
+<p>Total: ~10 lines of workflow YAML. No external services. Runs on every merge. LLM cost per run is roughly $0.001 with <code>gpt-4o-mini</code>.</p>
 
 <hr/>
 
-<h2>Where this approach hits limits</h2>
+<h2>Where this breaks down</h2>
 
-<p>The script above solves the "weekly changelog" problem for a single repo. The gaps appear as your product scales:</p>
+<p>The script above covers 80% of the use case. What it doesn't handle:</p>
 
 <ul>
-  <li><strong>Multi-repo products.</strong> A monorepo is straightforward. Microservices with 10 separate repos need 10 changelog runs, then someone needs to synthesize them into a product changelog. The script can't do that automatically.</li>
-  <li><strong>Jira/Linear integration.</strong> Ticket references in commit messages (<code>PROJ-1234</code>) contain more context than the commit message itself. A good changelog pulls the ticket title and description — not just the commit.</li>
-  <li><strong>Push to stakeholders.</strong> Generating a CHANGELOG.md is step one. Getting it to the PM via Slack, to users via email, to customers via an embedded widget — that's a separate system.</li>
-  <li><strong>Version and semver management.</strong> When to bump major vs. minor vs. patch based on what changed requires either Conventional Commits or manual decisions.</li>
+  <li><strong>Multi-repo products:</strong> If your product spans 3 services, you need to aggregate across repos, deduplicate, and present a coherent user story — not three separate changelogs.</li>
+  <li><strong>Jira/Linear integration:</strong> Commit messages referencing ticket IDs (e.g., <code>fix JIRA-1234</code>) need the actual ticket summary to generate meaningful output. Raw messages are often too terse.</li>
+  <li><strong>Versioning:</strong> The script above generates a window of changes, not a versioned changelog. You need to decide what constitutes a "release" and tag accordingly.</li>
+  <li><strong>Push/notify:</strong> Generating a file is useful; automatically pushing it to Slack, email, a docs portal, or an in-app notification requires separate plumbing for each destination.</li>
+  <li><strong>Scheduled delivery:</strong> Most teams want a weekly digest, not a per-commit changelog. That means a cron job, not a merge trigger.</li>
 </ul>
 
-<div class="cta-box">
-  <h3>📋 Want this automated end-to-end?</h3>
-  <p>PushLog connects to your GitHub repos, generates AI-written changelog entries on every PR merge, and publishes them automatically — to your public changelog page, an embeddable widget, Slack, and email. One integration, always current.</p>
-  <p style="font-size:0.88rem;color:#555;margin-top:8px;">Early access pricing for waitlist members.</p>
-  <a href="https://lior-seats.github.io/pushlog-waitlist/" class="btn">Join the PushLog waitlist →</a>
+<p>These are solvable — but they're engineering work on top of the core generation logic. At some point you're building a changelog pipeline, not a script.</p>
+
+<div class="callout">
+  <strong>The practical tradeoff</strong>
+  The script in this article gets you from "no changelog" to "decent changelog" in under an hour.
+  Getting from "decent changelog" to "automated, versioned, multi-repo, multi-destination changelog delivered on schedule" is a different project.
 </div>
 
 <hr/>
 
-<h2>Summary: three things to set up this week</h2>
+<h2>What to do right now</h2>
 
-<ol>
-  <li><strong>Drop the script above into your repo.</strong> Run it locally with your last sprint's commits and see the output. If it's useful, it costs nothing to leave it there.</li>
-  <li><strong>Add the GitHub Action.</strong> It runs on every merge, commits the changelog update, and costs pennies per month in OpenAI tokens.</li>
-  <li><strong>Consider Conventional Commits for new work.</strong> <a href="https://www.conventionalcommits.org/" target="_blank" rel="noopener">The spec</a> is simple — <code>feat:</code>, <code>fix:</code>, <code>chore:</code> prefixes on commit messages — and it dramatically improves LLM output quality because the model can distinguish noise from signal before summarizing.</li>
+<ol class="steps">
+  <li>Copy the script above into your project root as <code>generate-changelog.js</code></li>
+  <li>Run it against your last 7 days: <code>OPENAI_API_KEY=sk-... node generate-changelog.js</code></li>
+  <li>Review the output — fix anything that seems wrong in the prompt</li>
+  <li>Add the GitHub Actions workflow if you want automated runs on merge</li>
+  <li>Decide whether to send output to Slack, save to file, or both</li>
 </ol>
 
-<p style="font-size:0.88rem; color:#555; margin-top:2em;">
-  <em>OpenAI pricing current as of September 2026. GPT-4o-mini used for cost efficiency; substitute gpt-4o for higher-quality output on complex codebases.</em>
-</p>
+<p>Most teams get a working changelog in an afternoon. The hard part isn't the LLM call — it's deciding where the output should go and who owns keeping it updated.</p>
 
-<p style="margin-top:2em;">
-  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
-  <a href="https://lior-seats.github.io/pushlog-waitlist/">PushLog waitlist</a> &nbsp;·&nbsp;
-  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check</a>
+<hr/>
+
+<div class="cta-box">
+  <h3>Want this automated and pushed to your team automatically?</h3>
+  <p>
+    PushLog is building automated changelog delivery from git history — versioned, multi-repo, with Slack/email delivery on your schedule.
+    No scripting required.
+  </p>
+  <p>
+    If maintaining changelogs is something you keep meaning to fix, join the waitlist:
+  </p>
+  <a class="btn" href="https://lior-seats.github.io/pushlog-waitlist/">Join the PushLog waitlist →</a>
+</div>
+
+<hr/>
+
+<p class="meta">
+  <a href="https://lior-seats.github.io/blog/">← More articles</a>
 </p>
 
 </div>
