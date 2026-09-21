@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Why your Stripe webhooks fail silently — and how to stop missing orders</title>
+<meta name="description" content="Stripe retries failed webhooks for 72 hours then gives up silently. Here's why webhook failures are invisible, what Stripe actually does on failure, and how to catch them before a customer complains."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/webhook-failure-silent-debugging.html"/>
+<meta property="og:title" content="Why your Stripe webhooks fail silently — and how to stop missing orders"/>
+<meta property="og:description" content="Stripe retries for 72 hours then gives up silently. Here's how to catch webhook failures before a customer complains."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/webhook-failure-silent-debugging.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Why your Stripe webhooks fail silently — and how to stop missing orders"/>
+<meta name="twitter:description" content="Stripe retries for 72 hours then gives up silently. Here's how to catch webhook failures before a customer complains."/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre {
+    background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px;
+    padding: 16px; overflow-x: auto; margin: 1.2em 0;
+  }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout {
+    background: #fef3c7; border-left: 4px solid #f59e0b;
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
+  }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 10px; padding: 22px 24px; margin: 2em 0;
+  }
+  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .btn {
+    display: inline-block; background: #0070f3; color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
+    text-decoration: none; font-size: 0.95rem;
+  }
+  .btn:hover { background: #0051cc; text-decoration: none; }
+  .retry-table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; }
+  .retry-table th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; }
+  .retry-table td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; }
+  .retry-table tr:nth-child(even) td { background: #fafafa; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta">
+  <a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp;
+  September 2026
+</p>
+
+<h1>Why your Stripe webhooks fail silently — and how to stop missing orders</h1>
+
+<p class="meta">The customer said "I never received my order." You checked your app. No errors. The webhook failed three days ago — and nobody knew.</p>
+
+<p>A customer opens a support ticket: their payment went through but their order was never created. You dig in. The Stripe charge is there. Your app has no logs about this customer. Then you check Stripe's webhook dashboard and find it: a delivery failure from 72 hours ago, marked as "Failed after all retries."</p>
+
+<p>Stripe tried to reach your server seven times over three days. Your server returned 500 each time. And then Stripe stopped trying — silently, without emailing you, without flagging it in your logs, without doing anything except updating a row in their database that you'd only find if you knew to look.</p>
+
+<p>This happens more than it should. Here's why, and what to do about it.</p>
+
+<hr/>
+
+<h2>Why webhooks fail silently in the first place</h2>
+
+<p>Most webhook failures fall into one of four buckets:</p>
+
+<h3>1. Your handler returns 500 (or times out)</h3>
+<p>The most common cause. Your handler throws an exception — database connection drop, null pointer, bad JSON parsing — and returns a 500 before Stripe marks the event as failed. Stripe sees the 500, waits, and retries. This looks completely normal in your server logs as a spike in 500 errors, which may or may not be monitored.</p>
+
+<h3>2. Your handler takes too long</h3>
+<p>Stripe has a 30-second timeout. If your handler does something slow — expensive DB query, synchronous email sending, external API call — the connection times out from Stripe's side. Stripe treats this as a delivery failure and retries. Your server logs may show the request completing successfully (it did — eventually), but Stripe already gave up.</p>
+
+<h3>3. TLS/certificate errors</h3>
+<p>Expired SSL cert, mismatched hostname, or a reverse proxy misconfiguration. Stripe can't establish a connection, the delivery fails immediately, and nothing in your app logs because your app never received the request.</p>
+
+<h3>4. Handler crashes mid-processing</h3>
+<p>Your handler starts processing, partially updates the database, then throws. You return 500. Stripe retries. Now you have a partial order state and six more incoming retries that each try to create the order again — potentially causing duplicate fulfillment if you're not idempotent.</p>
+
+<div class="callout">
+  <strong>⚠️ The dangerous scenario</strong>
+  Failures during the retry window aren't dangerous by themselves. The dangerous part is that Stripe retries for 72 hours and then <em>stops</em>. At that point, the event is gone from the retry queue. If your webhook powers something critical — order fulfillment, subscription activation, usage reset — it just never happened.
+</div>
+
+<hr/>
+
+<h2>What Stripe actually does when a webhook fails</h2>
+
+<p>Stripe's retry schedule (as of 2026) for failed webhook deliveries:</p>
+
+<table class="retry-table">
+  <thead><tr><th>Attempt</th><th>Delay after previous attempt</th><th>Cumulative time</th></tr></thead>
+  <tbody>
+    <tr><td>1 (initial)</td><td>—</td><td>0</td></tr>
+    <tr><td>2</td><td>~1 hour</td><td>~1 hour</td></tr>
+    <tr><td>3</td><td>~3 hours</td><td>~4 hours</td></tr>
+    <tr><td>4</td><td>~5 hours</td><td>~9 hours</td></tr>
+    <tr><td>5</td><td>~10 hours</td><td>~19 hours</td></tr>
+    <tr><td>6</td><td>~24 hours</td><td>~43 hours</td></tr>
+    <tr><td>7</td><td>~24 hours</td><td>~67 hours (~72h)</td></tr>
+    <tr><td>—</td><td><strong>Gives up silently</strong></td><td>—</td></tr>
+  </tbody>
+</table>
+
+<p>After attempt 7, Stripe marks the event as <code>failed</code> and no longer retries. You won't receive an email. The event won't resurface. The only record is in Stripe's dashboard under <strong>Developers → Webhooks → [your endpoint] → Failed deliveries</strong>.</p>
+
+<p>See <a href="https://stripe.com/docs/webhooks/best-practices#retry-logic" target="_blank" rel="noopener">Stripe's webhook retry documentation</a> for the authoritative reference.</p>
+
+<hr/>
+
+<h2>How to detect failures today (manual approaches)</h2>
+
+<h3>Check Stripe's webhook dashboard</h3>
+<p>Go to <strong>Stripe Dashboard → Developers → Webhooks → [your endpoint]</strong>. Filter by "Failed" status. This is retroactive — you'll see what failed, but only if you go looking.</p>
+
+<h3>Enable Stripe's built-in webhook delivery alerts</h3>
+<p>Stripe has an optional email alert when a webhook endpoint has consecutive failures. It's not on by default. Enable it under <strong>Developers → Webhooks → [endpoint] → Edit → Alert settings</strong>. This is the minimum baseline — you'll get an email after multiple failures, but only for that one endpoint, with a delay.</p>
+
+<h3>Write a reconciliation script</h3>
+<p>Run hourly: compare Stripe charges from the last hour against your orders table. Any charge with no corresponding order is a missed webhook. This is the most reliable detection method for order fulfillment specifically, but it's bespoke per use case and doesn't generalize to subscription events, refund events, etc.</p>
+
+<div class="callout">
+  <strong>The coverage gap</strong>
+  None of these approaches give you real-time alerting. The Stripe dashboard is reactive. The email alert fires after consecutive failures, not on the first one. And reconciliation only works if you know exactly what events should create what DB rows. For teams using webhooks from multiple providers — GitHub, Twilio, Shopify, PagerDuty — each has a completely separate detection mechanism.
+</div>
+
+<hr/>
+
+<h2>A webhook receiver that actually tells you when it fails</h2>
+
+<p>The following is a minimal Express handler with two additions over the default: error logging to a file, and an email alert on failure. Drop this in and you'll have at least a local record and an immediate notification when something goes wrong.</p>
+
+<pre><code>// webhook-receiver.js
+const express = require('express')
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+const fs = require('fs')
+const nodemailer = require('nodemailer') // npm install nodemailer
+
+const app = express()
+
+// CRITICAL: use raw body for Stripe signature verification
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature']
+
+  let event
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    )
+  } catch (err) {
+    logFailure('signature_verification', err.message, req.headers)
+    return res.status(400).send(`Webhook signature error: ${err.message}`)
+  }
+
+  try {
+    await handleEvent(event)
+    res.status(200).json({ received: true })
+  } catch (err) {
+    logFailure(event.type, err.message, { eventId: event.id })
+    await sendFailureAlert(event, err)
+    // Return 500 so Stripe retries — but now you're also alerted immediately
+    res.status(500).json({ error: 'Handler failed' })
+  }
+})
+
+async function handleEvent(event) {
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await fulfillOrder(event.data.object)
+      break
+    case 'customer.subscription.deleted':
+      await cancelSubscription(event.data.object)
+      break
+    default:
+      // Unknown event type — log and return 200 so Stripe stops retrying
+      console.log(`Unhandled event type: ${event.type}`)
+  }
+}
+
+function logFailure(type, message, context = {}) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    type,
+    message,
+    context,
+  }
+  fs.appendFileSync('webhook-failures.log', JSON.stringify(entry) + '\n')
+  console.error('[WEBHOOK FAILURE]', entry)
+}
+
+async function sendFailureAlert(event, err) {
+  if (!process.env.ALERT_EMAIL || !process.env.SMTP_URL) return
+
+  const transporter = nodemailer.createTransport(process.env.SMTP_URL)
+  await transporter.sendMail({
+    from: process.env.ALERT_FROM || 'alerts@yourapp.com',
+    to: process.env.ALERT_EMAIL,
+    subject: `⚠️ Webhook handler failed: ${event.type}`,
+    text: [
+      `Event ID: ${event.id}`,
+      `Event type: ${event.type}`,
+      `Error: ${err.message}`,
+      `Time: ${new Date().toISOString()}`,
+      '',
+      'Stripe will retry this event. Check your handler immediately.',
+      `Stripe dashboard: https://dashboard.stripe.com/webhooks`,
+    ].join('\n'),
+  })
+}
+
+async function fulfillOrder(session) {
+  // Your order fulfillment logic here
+  // Make this idempotent — Stripe may retry the same event
+  const idempotencyKey = session.id
+  // ... create order with idempotency_key check
+}
+
+async function cancelSubscription(subscription) {
+  // Your subscription cancellation logic here
+}
+
+app.listen(3000, () => console.log('Webhook receiver listening on port 3000'))
+</code></pre>
+
+<p>Environment variables needed:</p>
+<ul>
+  <li><code>STRIPE_SECRET_KEY</code> — your Stripe secret key</li>
+  <li><code>STRIPE_WEBHOOK_SECRET</code> — from Stripe dashboard → Webhooks → signing secret</li>
+  <li><code>ALERT_EMAIL</code> — where to send failure alerts</li>
+  <li><code>SMTP_URL</code> — e.g. <code>smtp://user:pass@smtp.gmail.com:587</code></li>
+</ul>
+
+<p>The key behavior: when your handler throws, you return 500 (so Stripe retries the event — the right call), AND you immediately log to a file and email an alert. You'll know about the failure within minutes, not after a customer complains three days later.</p>
+
+<hr/>
+
+<h2>The provider coverage problem</h2>
+
+<p>This handler pattern works for Stripe. But if you're also receiving webhooks from GitHub (deployment hooks, PR events), Twilio (SMS delivery receipts), Shopify (order events), or PagerDuty — each one has its own failure mode and its own separate monitoring story. GitHub doesn't retry at all. Twilio has different retry behavior than Stripe. Shopify's webhook dashboard is in a completely different place.</p>
+
+<p>Most teams end up with a patchwork: Stripe's built-in alerts for Stripe, a custom reconciliation job for orders, nothing for GitHub webhooks, and a support ticket whenever Twilio has a problem. The failure surface is large and the monitoring is inconsistent.</p>
+
+<div class="cta-box">
+  <h3>🔔 Passive webhook monitoring across all providers</h3>
+  <p>WebhookPulse monitors every delivery from Stripe, GitHub, Twilio, Shopify, and more — and alerts you within seconds of a failure, with the full response body so you know exactly what broke. One integration, all your providers.</p>
+  <p style="font-size:0.88rem;color:#555;margin-top:8px;">Early access pricing for waitlist members.</p>
+  <a href="https://lior-seats.github.io/webhookpulse-waitlist/" class="btn">Join the WebhookPulse waitlist →</a>
+</div>
+
+<hr/>
+
+<h2>Summary: what to do right now</h2>
+
+<ol>
+  <li><strong>Enable Stripe's delivery alerts</strong> — Developers → Webhooks → [endpoint] → Edit → Alert settings. Takes 30 seconds and catches the worst failures.</li>
+  <li><strong>Add logging to your webhook handler</strong> — at minimum, log every failure with the event ID so you can replay it from the Stripe dashboard.</li>
+  <li><strong>Make your handlers idempotent</strong> — check for an existing record before creating a new one, using the Stripe event ID as a unique key. Stripe will retry, and you don't want duplicate orders.</li>
+  <li><strong>Return 500 on real failures</strong> — don't swallow exceptions and return 200. Return 200 means "I got it and processed it." Return 500 means "retry me." Use them correctly.</li>
+  <li><strong>Return 200 fast</strong> — respond within 30 seconds or Stripe times out. Do expensive work async (queue it) if needed.</li>
+</ol>
+
+<p style="font-size:0.88rem; color:#555; margin-top:2em;">
+  <em>Retry schedule sourced from Stripe's webhook documentation, September 2026. Behavior may change — verify against current Stripe docs.</em>
+</p>
+
+<p style="margin-top:2em;">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/webhookpulse-waitlist/">WebhookPulse waitlist</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check</a>
+</p>
+
+</div>
+</body>
+</html>
