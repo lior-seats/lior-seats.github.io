@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Best API Deprecation Monitoring Tools for Developers (2026)</title>
+<meta name="description" content="Honest comparison of API deprecation monitoring tools — manual changelog monitoring, Optic, Bump.sh, DIY header parsing, and APIWatch early access."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html"/>
+<meta property="og:title" content="Best API Deprecation Monitoring Tools for Developers (2026)"/>
+<meta property="og:description" content="Honest comparison of API deprecation monitoring tools — manual changelog monitoring, Optic, Bump.sh, DIY header parsing, and APIWatch early access."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.88rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 10px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 8px 10px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Best API Deprecation Monitoring Tools for Developers (2026)</h1>
+
+<p class="meta">You're running an API version from two years ago. Here's how to know before it breaks.</p>
+
+<p>API deprecations are a slow-moving but high-impact risk. Unlike downtime — which is immediate and obvious — a deprecated API endpoint typically gives you weeks or months of warning before it stops working. The problem is that almost no team actually receives and acts on that warning. The notices land in ignored inboxes, the dashboard pings go unseen, and the migration stays on the backlog until production breaks.</p>
+
+<p>This comparison covers every realistic tool and approach for tracking API deprecations — from manual changelog monitoring to purpose-built tools. The goal is to find the right fit based on your team size, technical investment tolerance, and risk profile.</p>
+
+<hr/>
+
+<h2>Quick comparison table</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Approach / Tool</th>
+      <th>What it monitors</th>
+      <th>Setup effort</th>
+      <th>Cost</th>
+      <th>Catches silent changes?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Manual changelog monitoring</strong></td>
+      <td>Provider announcements</td>
+      <td>Low</td>
+      <td>Free</td>
+      <td>Only if you read it</td>
+    </tr>
+    <tr>
+      <td><strong>Optic</strong></td>
+      <td>API spec diffs (your own APIs)</td>
+      <td>Medium</td>
+      <td>Free / paid tiers</td>
+      <td>For APIs you control</td>
+    </tr>
+    <tr>
+      <td><strong>Bump.sh</strong></td>
+      <td>API spec diffs + changelog hosting</td>
+      <td>Medium</td>
+      <td>Free / ~$19+/mo</td>
+      <td>For APIs you control</td>
+    </tr>
+    <tr>
+      <td><strong>DIY header parsing</strong></td>
+      <td>Sunset/Deprecation response headers</td>
+      <td>High (custom code)</td>
+      <td>Engineering time</td>
+      <td>Yes (if headers exist)</td>
+    </tr>
+    <tr>
+      <td><strong>APIWatch</strong></td>
+      <td>Third-party API deprecation signals</td>
+      <td>Low</td>
+      <td>Early access</td>
+      <td>Yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Manual changelog monitoring</h2>
+
+<p><strong>What it is:</strong> Subscribing to provider changelogs, RSS feeds, or mailing lists and reading them regularly. Every major API provider — Stripe, GitHub, Twilio, SendGrid, Salesforce — publishes a changelog. Some have email newsletter options. All have RSS feeds if you look for them.</p>
+
+<p><strong>How to set it up:</strong> Use an RSS reader (Feedly, Inoreader, or a self-hosted option) to subscribe to the changelogs of every API you depend on. Route new entries to a Slack channel called <code>#api-changelogs</code> that at least one engineer monitors weekly.</p>
+
+<pre><code># Key changelog RSS feeds to subscribe to:
+Stripe changelog:   https://stripe.com/blog/rss
+GitHub changelog:   https://github.blog/changelog/feed/
+Twilio changelog:   https://www.twilio.com/changelog/rss
+SendGrid changelog: https://sendgrid.com/blog/tag/changelog/feed/
+Shopify changelog:  https://shopify.dev/changelog.atom</code></pre>
+
+<p><strong>Honest assessment:</strong> This works, but only if someone is reliably reading the feed. It requires consistent human attention. When the team is heads-down or the responsible engineer leaves, the monitoring stops working. It also requires you to know which providers to monitor — you can miss a deprecation from an SDK you use if the deprecation isn't announced in the provider's main changelog.</p>
+
+<div class="callout">
+  <strong>The human dependency problem</strong>
+  Manual monitoring fails on the exact days it matters most: during incidents, launches, and team transitions. It's the first process to fall apart under pressure.
+</div>
+
+<hr/>
+
+<h2>Optic</h2>
+
+<p><strong>What it is:</strong> Optic is an API change management tool designed for teams that <em>build</em> APIs. It captures live API traffic, generates an OpenAPI spec from that traffic, and diffs new observed behavior against the spec to detect breaking changes. It's designed for API producers — not consumers monitoring third-party APIs.</p>
+
+<p><strong>Strengths:</strong> Excellent for enforcing API stability on your own endpoints. Can catch breaking changes before they reach production if integrated into CI. The spec diff output is clear and actionable. Open-source core with a hosted tier.</p>
+
+<p><strong>Weaknesses:</strong> Primarily built for APIs you control, not for monitoring third-party APIs you consume. It won't tell you that Stripe deprecated a field or that Twilio's endpoint has a <code>Sunset</code> header.</p>
+
+<p><strong>When to use it:</strong> If you publish an API and need to guarantee backwards compatibility for your own consumers. Not the right fit for monitoring external API deprecations that could break your app.</p>
+
+<hr/>
+
+<h2>Bump.sh</h2>
+
+<p><strong>What it is:</strong> Bump.sh is an API documentation and changelog platform. It watches an OpenAPI spec file and generates a visual changelog whenever the spec changes — showing what was added, changed, and removed. It also hosts the documentation publicly or privately.</p>
+
+<p><strong>Strengths:</strong> Beautiful diff output. Automatically notifies your API consumers when you push a new spec version. Good for teams that maintain APIs and want to communicate changes professionally.</p>
+
+<p><strong>Weaknesses:</strong> Like Optic, it's built for API producers. It compares spec files — meaning it works when the provider publishes an updated OpenAPI spec. Many providers don't publish up-to-date OpenAPI specs. And it won't catch live deprecation signals in HTTP headers from APIs you're calling.</p>
+
+<p><strong>When to use it:</strong> If you or your team publishes an API with an OpenAPI spec and want automated changelog generation. Not suitable for third-party API deprecation monitoring without significant custom work.</p>
+
+<hr/>
+
+<h2>DIY Sunset/Deprecation header parsing</h2>
+
+<p><strong>What it is:</strong> Building your own middleware or wrapper around your API client that inspects HTTP response headers for standardized deprecation signals. The <code>Sunset</code> and <code>Deprecation</code> headers (RFC 8594) are the machine-readable standard for API deprecation — when present, they tell you exactly when an endpoint will stop working.</p>
+
+<p><strong>How to implement it:</strong></p>
+
+<pre><code>// Wrapper around fetch that logs deprecation headers
+async function monitoredFetch(url, options = {}) {
+  const response = await fetch(url, options);
+
+  const sunset = response.headers.get('sunset');
+  const deprecation = response.headers.get('deprecation');
+  const link = response.headers.get('link');
+
+  if (sunset || deprecation) {
+    const message = [
+      `⚠️ API deprecation detected`,
+      `URL: ${url}`,
+      sunset ? `Sunset date: ${sunset}` : null,
+      deprecation ? `Deprecation: ${deprecation}` : null,
+      link ? `Info: ${link}` : null
+    ].filter(Boolean).join('\n');
+
+    // Log it and alert your team
+    console.warn(message);
+    await alertSlack(message); // your Slack notification function
+  }
+
+  return response;
+}
+
+// Use monitoredFetch() everywhere you call external APIs
+const response = await monitoredFetch('https://api.stripe.com/v1/charges', {
+  headers: { 'Authorization': `Bearer ${STRIPE_KEY}` }
+});</code></pre>
+
+<p><strong>Honest assessment:</strong> This is the most technically reliable approach for catching deprecations that providers surface via headers. The problem is that not all providers use these headers consistently — and building and maintaining this wrapper across every API client in your stack takes meaningful engineering time. It also only works for endpoints that include the headers; it won't catch deprecations announced only via email or changelog.</p>
+
+<p><strong>When to use it:</strong> If you have a small number of critical API integrations, the time investment is worth it. At scale, it becomes maintenance overhead.</p>
+
+<hr/>
+
+<h2>APIWatch (early access)</h2>
+
+<p><strong>What it is:</strong> APIWatch is built specifically for the problem none of the above tools fully solve: monitoring <em>third-party</em> APIs you depend on for upcoming deprecation signals. It watches provider changelogs, Sunset/Deprecation headers from live API calls, and SDK release notes — and alerts you when something you use is approaching end-of-life.</p>
+
+<p><strong>Strengths:</strong> Designed for the consumer side of the API relationship, not the producer side. No architectural changes required — you don't need to route API traffic through a proxy or modify your API client code. Works for any HTTP API.</p>
+
+<p><strong>Current status:</strong> Early access / waitlist. If you want to be notified when it launches and have input on which APIs and providers are monitored first, the waitlist is the right place to start.</p>
+
+<div class="cta-box">
+  <h3>📡 Don't let a deprecated API break your production app</h3>
+  <p>APIWatch monitors the APIs you depend on for upcoming deprecation signals — provider changelogs, Sunset headers, SDK deprecation notices — and alerts your team before it becomes urgent. Join the early access waitlist.</p>
+  <a href="https://lior-seats.github.io/apiwatch-waitlist/" class="btn">Join the APIWatch waitlist →</a>
+</div>
+
+<hr/>
+
+<h2>Which approach is right for you?</h2>
+
+<ul>
+  <li><strong>You publish an API and want to protect your consumers:</strong> Optic or Bump.sh. Both are well-built for this use case.</li>
+  <li><strong>You consume a few critical APIs and have engineering bandwidth:</strong> DIY header parsing gives you the most reliable, code-level signal. Worth the investment for Stripe, GitHub, or Twilio integrations.</li>
+  <li><strong>You want to cover your provider changelog blind spots with minimal setup:</strong> Set up RSS → Slack for your key providers. Takes 30 minutes and costs nothing.</li>
+  <li><strong>You want automated third-party API deprecation monitoring without building it yourself:</strong> APIWatch is building exactly this. Worth getting on the waitlist.</li>
+</ul>
+
+<p>The minimum viable approach for any team: RSS subscriptions for your top 5 provider changelogs, routed to a Slack channel that at least one engineer checks weekly. It's not perfect, but it's infinitely better than the current default of nothing.</p>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/apiwatch-waitlist/">APIWatch</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=api-deprecation-monitoring-tools',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

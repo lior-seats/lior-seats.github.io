@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Best Webhook Monitoring Tools for Indie Developers (2026)</title>
+<meta name="description" content="Honest comparison of webhook monitoring tools — Hookdeck, webhook.site, RequestCatcher, DIY logging, and WebhookPulse early access. Find out which fits your needs."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/webhook-monitoring-tools.html"/>
+<meta property="og:title" content="Best Webhook Monitoring Tools for Indie Developers (2026)"/>
+<meta property="og:description" content="Honest comparison of webhook monitoring tools — Hookdeck, webhook.site, RequestCatcher, DIY logging, and WebhookPulse early access. Find out which fits your needs."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/webhook-monitoring-tools.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.9rem; }
+  th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Best Webhook Monitoring Tools for Indie Developers (2026)</h1>
+
+<p class="meta">You want to know when your webhooks fail. Here's what exists, what it costs, and what's actually missing.</p>
+
+<p>Webhooks are easy to set up and surprisingly hard to monitor. When a Stripe, GitHub, or Twilio webhook starts failing, the sender retries quietly for days and then gives up. Your application sees nothing unusual. By the time you notice, you've missed events.</p>
+
+<p>This is a practical comparison of the tools available in 2026 — what each one does well, where it falls short, and which fits the "just tell me when it fails" use case that most indie developers actually need.</p>
+
+<hr/>
+
+<h2>The comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Best for</th>
+      <th>Failure alerts</th>
+      <th>Price</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Hookdeck</strong></td>
+      <td>Webhook infrastructure &amp; routing</td>
+      <td>Yes (with setup)</td>
+      <td>Free tier; $25/mo+</td>
+    </tr>
+    <tr>
+      <td><strong>webhook.site</strong></td>
+      <td>Inspecting &amp; debugging payloads</td>
+      <td>No</td>
+      <td>Free / $9/mo</td>
+    </tr>
+    <tr>
+      <td><strong>RequestCatcher</strong></td>
+      <td>Quick local inspection</td>
+      <td>No</td>
+      <td>Free</td>
+    </tr>
+    <tr>
+      <td><strong>DIY logging</strong></td>
+      <td>Full control, existing infra</td>
+      <td>Only if you build it</td>
+      <td>Engineering time</td>
+    </tr>
+    <tr>
+      <td><strong>WebhookPulse</strong></td>
+      <td>"Tell me when it fails"</td>
+      <td>Yes — core feature</td>
+      <td>Early access</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Hookdeck</h2>
+
+<p>Hookdeck is the most full-featured webhook tool in this list. It acts as a proxy layer between the webhook sender and your application: senders deliver to Hookdeck, Hookdeck queues and reliably delivers to your endpoint, with automatic retries, filtering, transformation, and routing.</p>
+
+<p>The monitoring story is solid if you configure it: Hookdeck can alert on delivery failures, track event volume, and give you a dashboard of what's been delivered and what's pending. The tradeoff is that Hookdeck requires you to change your webhook URL to point at their proxy — which means reconfiguring every Stripe, GitHub, or Twilio integration to route through Hookdeck.</p>
+
+<p>For teams already using Hookdeck for reliability, the monitoring comes along for the ride. For someone who just wants to know "is my Stripe endpoint healthy," it's a lot of infrastructure to adopt. Free tier supports limited connections and events; serious usage starts at $25/month.</p>
+
+<h2>webhook.site</h2>
+
+<p>webhook.site is the standard go-to for payload inspection. You get a unique URL, point any webhook sender at it, and watch the requests arrive in a clean interface in real time. It shows headers, body, query parameters, and lets you inspect, replay, and export.</p>
+
+<p>It is purely an inspection tool, not a monitoring tool. There are no alerts, no failure detection, and no integration with your production environment. It's useful during development when you're figuring out what a webhook payload looks like before writing the handler. It is not useful for knowing when your production webhooks fail.</p>
+
+<p>The paid version ($9/month) adds custom domains, longer retention, and more concurrent URLs. Still no monitoring.</p>
+
+<h2>RequestCatcher</h2>
+
+<p>RequestCatcher is the simplest option: go to requestcatcher.com, get a URL like <code>yourname.requestcatcher.com</code>, point a webhook at it, watch requests appear. No account needed. It's the fastest way to verify that a sender is actually firing events.</p>
+
+<p>Like webhook.site, it's a debug tool, not a monitoring tool. No alerts, no persistence, no production use. Sessions expire. Fine for a 10-minute test; not applicable to the "notify me when my production webhook fails" problem.</p>
+
+<h2>DIY logging</h2>
+
+<p>The most common real-world approach: log every incoming webhook to a structured log or database table, then build your own alerting on top. A minimal implementation:</p>
+
+<pre><code>// Log every receipt
+app.post('/webhooks/stripe', (req, res) => {
+  db.insert('webhook_events', {
+    type: req.body.type,
+    event_id: req.body.id,
+    received_at: new Date(),
+    status: 'received'
+  });
+  // ... handle event
+});
+
+// Separate checker job: alert if no events in unexpected window
+// SELECT MAX(received_at) FROM webhook_events WHERE type = 'charge.succeeded'
+</code></pre>
+
+<p>This works and gives you full control. The cost is engineering time: building the checker, wiring up alerts, maintaining the schema, handling edge cases when event volume naturally dips (weekends, seasonality). Most indie developers don't build this until something has already broken once.</p>
+
+<div class="callout">
+  <strong>The gap in the market</strong>
+  None of the tools above give you what most developers actually want: configure your Stripe/GitHub/Twilio endpoints, set expected delivery windows, and get a Slack or email alert when deliveries fail or go quiet — without rerouting traffic through a proxy or building your own alerting.
+</div>
+
+<h2>Which to use</h2>
+
+<ul>
+  <li><strong>Debugging a payload format</strong> → webhook.site or RequestCatcher</li>
+  <li><strong>Need reliable delivery + routing infrastructure</strong> → Hookdeck</li>
+  <li><strong>Full control, already have monitoring stack</strong> → DIY logging</li>
+  <li><strong>"Just tell me when my Stripe webhooks fail"</strong> → WebhookPulse (early access below)</li>
+</ul>
+
+<div class="cta-box">
+  <h3>🔔 WebhookPulse — monitoring without the proxy</h3>
+  <p>WebhookPulse monitors your existing webhook endpoints across Stripe, GitHub, Twilio, and more without rerouting traffic. Configure expected delivery windows per event type and get alerted via Slack or email when things go quiet — before Stripe exhausts its retry window.</p>
+  <a href="https://lior-seats.github.io/webhookpulse-waitlist/" class="btn">Join the WebhookPulse waitlist →</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/webhookpulse-waitlist/">WebhookPulse</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/blog/webhook-failures-silent.html">Why webhooks fail silently</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=webhook-monitoring-tools',{mode:'no-cors'});}());</script>
+</body>
+</html>

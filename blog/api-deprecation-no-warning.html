@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>What Happens When an API You Depend On Gets Deprecated Without Warning</title>
+<meta name="description" content="Stripe, Twilio, SendGrid, GitHub all deprecate API versions. Notices go to billing emails nobody checks. Production breaks on a Tuesday. Here's how to monitor for it."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/api-deprecation-no-warning.html"/>
+<meta property="og:title" content="What Happens When an API You Depend On Gets Deprecated Without Warning"/>
+<meta property="og:description" content="Deprecation notices go to billing emails nobody reads. Production breaks on a Tuesday. Here's how to detect upcoming API deprecations before they break you."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/api-deprecation-no-warning.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>What Happens When an API You Depend On Gets Deprecated Without Warning</h1>
+
+<p class="meta">The 90-day notice was in the changelog. Nobody on your team subscribed. Production breaks on a Tuesday.</p>
+
+<p>Every major API provider — Stripe, Twilio, SendGrid, GitHub — maintains versioned APIs and eventually deprecates old ones. The standard promise is "we'll give you plenty of notice." The standard reality is that notice arrives as an email to a billing address nobody monitors, a blog post nobody subscribes to, and a deprecation header in API responses nobody is parsing. Production breaks anyway.</p>
+
+<p>This article covers how API providers actually communicate deprecations, why those signals get missed, and what you can monitor to catch upcoming deprecations before they break you.</p>
+
+<hr/>
+
+<h2>How providers actually announce deprecations</h2>
+
+<h3>Stripe</h3>
+<p>Stripe's API is versioned by date (e.g., <code>2023-10-16</code>). When you create a Stripe account, your account is pinned to the API version current at that time. Stripe's policy is to support API versions for at least 18 months before sunsetting them, and they email the account owner before doing so.</p>
+
+<p>The problem: "the account owner" is whoever set up the Stripe account. At many companies this is a founder, a contractor, or a developer who left two years ago. The email goes to <code>billing@youroldstartup.com</code>. Nobody reads it. Stripe also adds a <code>Stripe-Version</code> header and a deprecation warning to API responses starting 6 months before a version is removed — but if nobody is logging and alerting on response headers, those warnings are invisible.</p>
+
+<h3>Twilio</h3>
+<p>Twilio announces API changes via their changelog at twilio.com/changelog, their developer newsletter, and direct emails to account holders. When specific endpoints or parameters are deprecated, they add deprecation notices to their API reference. Twilio also uses <code>Warning</code> headers in HTTP responses to flag deprecated parameter usage — the same missed-unless-you-parse-it problem as Stripe.</p>
+
+<p>One notable Twilio deprecation pattern: SMS pricing API endpoints have changed multiple times, catching developers who built billing-related integrations directly against those endpoints. The change is documented; the documentation is not where most developers look when production breaks.</p>
+
+<h3>SendGrid / Twilio Email</h3>
+<p>SendGrid has deprecated and removed API v2 in favor of v3. The transition was announced via blog post, migration guide, and email. Developers who built against v2 in 2018 and never touched the integration again were hitting broken endpoints in 2020. The integration "worked fine" until the day it stopped.</p>
+
+<h3>GitHub</h3>
+<p>GitHub announces API deprecations via their developer blog and the GitHub changelog. They also use a <code>Deprecation</code> response header on endpoints that are scheduled for removal, with a <code>Sunset</code> header indicating the removal date. The GitHub GraphQL and REST APIs have both had significant deprecations — OAuth app permission scopes, repository topics endpoints, and collaborator invitation APIs have all changed in ways that broke existing integrations.</p>
+
+<div class="callout">
+  <strong>The pattern across every provider</strong>
+  Every major provider uses the same three channels: email to account owner, blog/changelog post, and deprecation headers in API responses. Teams miss all three for the same reasons: wrong email address, nobody subscribed to the changelog, nobody parsing response headers.
+</div>
+
+<hr/>
+
+<h2>Real deprecation scenarios that broke production</h2>
+
+<h3>The Stripe TLS 1.2 migration</h3>
+<p>In 2018, Stripe dropped support for TLS 1.0 and 1.1, requiring TLS 1.2 or higher. This wasn't a versioned API change — it was a transport-level change. They announced it well in advance with a migration guide. Teams running old Ruby on Rails apps on older servers with outdated OpenSSL versions found out when requests started failing. The notice existed; the engineering team never mapped "Stripe TLS notice" to "our Rails 4.1 app on Ubuntu 14.04."</p>
+
+<h3>The GitHub authentication change</h3>
+<p>In 2021, GitHub removed support for password authentication to the API and to Git operations. After August 13, 2021, any script or CI pipeline using username/password authentication stopped working. GitHub sent emails and published extensively. Teams with automated scripts that hadn't been touched in years found them broken the morning of August 14th. The script owner had left the company. The email went to an unmonitored alias.</p>
+
+<h3>The SendGrid v2 sunset</h3>
+<p>SendGrid sunset the v2 API in January 2021. Applications using <code>https://sendgrid.com/api/mail.send.json</code> started receiving 410 Gone responses. Teams that had set up transactional email in 2016, verified it worked, and moved on found their confirmation emails and password resets silently failing. No runtime error in the application — just 410s from SendGrid that nobody was alerting on.</p>
+
+<hr/>
+
+<h2>What to monitor to catch deprecations early</h2>
+
+<h3>1. Parse Deprecation and Sunset headers</h3>
+<p>The IETF standard (RFC 8594) defines <code>Sunset</code> and <code>Deprecation</code> response headers. Stripe, GitHub, and others have adopted these. Add a response middleware that checks for these headers and logs (or alerts on) their presence:</p>
+
+<pre><code>// Express middleware: log deprecation headers
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (res.getHeader('Deprecation') || res.getHeader('Sunset')) {
+      console.warn('API deprecation notice', {
+        url: req.url,
+        deprecation: res.getHeader('Deprecation'),
+        sunset: res.getHeader('Sunset'),
+      });
+    }
+    return originalJson(body);
+  };
+  next();
+});
+</code></pre>
+
+<p>For outgoing HTTP calls to third-party APIs, instrument your HTTP client to log these headers on responses:</p>
+
+<pre><code>// Axios interceptor
+axios.interceptors.response.use((response) => {
+  if (response.headers['deprecation'] || response.headers['sunset']) {
+    logger.warn('External API deprecation', {
+      url: response.config.url,
+      deprecation: response.headers['deprecation'],
+      sunset: response.headers['sunset'],
+    });
+  }
+  return response;
+});
+</code></pre>
+
+<h3>2. Subscribe to provider changelogs via RSS</h3>
+<p>Most provider changelogs publish RSS feeds. Subscribe in an RSS reader or pipe them to a Slack channel:</p>
+<ul>
+  <li>Stripe changelog: <code>https://stripe.com/docs/changelog.rss</code></li>
+  <li>GitHub developer changelog: <code>https://developer.github.com/changes.atom</code></li>
+  <li>Twilio changelog: available from twilio.com/changelog</li>
+  <li>SendGrid product updates: via SendGrid status and blog feeds</li>
+</ul>
+
+<p>A Slack webhook + RSS-to-webhook bridge (Zapier, n8n, or a simple cron job) means deprecation announcements appear in your <code>#api-deprecations</code> channel the moment they're published.</p>
+
+<h3>3. Audit your API version pins</h3>
+<p>For Stripe specifically: log in to the Stripe dashboard, go to Developers → API keys, and check your account's pinned API version. If it's more than 18 months old, you're in the deprecation window. Do the same with any other provider that exposes version information in their dashboard.</p>
+
+<h3>4. Write synthetic monitoring tests against versioned endpoints</h3>
+<p>For critical integrations, write a canary test that calls a known endpoint and checks for a non-4xx response. Run it on a schedule. If the endpoint is deprecated and eventually removed, your canary alerts before production traffic is affected:</p>
+
+<pre><code># A synthetic monitor in pseudocode
+GET https://api.stripe.com/v1/charges?limit=1
+Assert: status != 410 and status != 404
+Assert: no 'Deprecation' header present
+Alert: on failure or deprecation header presence
+</code></pre>
+
+<div class="cta-box">
+  <h3>📡 Automated API deprecation monitoring</h3>
+  <p>APIWatch monitors your third-party API integrations for deprecation signals — Sunset headers, version warnings, changelog announcements — and alerts you via Slack or email before the removal date. Stop learning about deprecations from production outages.</p>
+  <a href="https://lior-seats.github.io/apiwatch-waitlist/" class="btn">Join the APIWatch waitlist →</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/apiwatch-waitlist/">APIWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html">API deprecation monitoring tools comparison</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=api-deprecation-no-warning',{mode:'no-cors'});}());</script>
+</body>
+</html>
