@@ -3,26 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly</title>
-<meta name="description" content="Real data: 6/20 major dev platforms have zero AI bot rules. 7/20 rely on Content-Signal only. Only 2/20 block meta-externalagent — the crawler most cited for Vercel bill spikes."/>
+<title>Which Developer Platforms Are Actually Blocking AI Crawlers? We Checked 20 Sites | CrawlGuard Blog</title>
+<meta name="description" content="We fetched robots.txt from 20 popular developer platforms and checked which ones block GPTBot, ClaudeBot, Bytespider, and other AI crawlers. The results are surprising."/>
 <link rel="canonical" href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html"/>
-
-<!-- OG / Twitter -->
-<meta property="og:title" content="I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly"/>
-<meta property="og:description" content="Real data: 6/20 have zero AI rules. Only 2/20 block meta-externalagent — the crawler behind the bill spikes."/>
+<meta property="og:title" content="Which Developer Platforms Are Actually Blocking AI Crawlers? We Checked 20 Sites"/>
+<meta property="og:description" content="We fetched robots.txt from 20 popular developer platforms and checked which ones block GPTBot, ClaudeBot, Bytespider, and other AI crawlers. The results are surprising."/>
 <meta property="og:url" content="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html"/>
 <meta property="og:type" content="article"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly"/>
-<meta name="twitter:description" content="Real data: 6/20 have zero AI rules. Only 2/20 block meta-externalagent — the crawler behind the bill spikes."/>
-
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff;
-  }
-  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
   h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
   h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
   h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
@@ -31,77 +23,60 @@
   a:hover { text-decoration: underline; }
   .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
   code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
-  pre {
-    background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px;
-    padding: 16px; overflow-x: auto; margin: 1.2em 0;
-  }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
   code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
   pre code { background: none; padding: 0; }
-
-  /* Data table */
-  .table-wrap { overflow-x: auto; margin: 1.5em 0; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.83rem; }
-  th { background: #1a1a1a; color: #fff; padding: 8px 10px; text-align: left; white-space: nowrap; }
-  td { padding: 7px 10px; border-bottom: 1px solid #e4e4e7; white-space: nowrap; }
-  tr:nth-child(even) td { background: #fafafa; }
-  .yes { color: #16a34a; font-weight: 700; }
-  .no { color: #dc2626; font-weight: 600; }
-  .warn { color: #d97706; font-weight: 600; }
-
-  /* Summary boxes */
-  .callout {
-    background: #fef3c7; border-left: 4px solid #f59e0b;
-    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0;
-  }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
   .callout strong { display: block; margin-bottom: 4px; }
-
-  /* CTA */
-  .cta-box {
-    background: #f0f9ff; border: 1px solid #bae6fd;
-    border-radius: 10px; padding: 22px 24px; margin: 2em 0;
-  }
-  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
-  .btn {
-    display: inline-block; background: #0070f3; color: #fff;
-    padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px;
-    text-decoration: none; font-size: 0.95rem;
-  }
-  .btn:hover { background: #0051cc; text-decoration: none; }
-  .btn-secondary {
-    display: inline-block; border: 1.5px solid #0070f3; color: #0070f3;
-    padding: 9px 18px; border-radius: 6px; font-weight: 600; margin: 10px 0 0 10px;
-    text-decoration: none; font-size: 0.95rem;
-  }
-  .btn-secondary:hover { background: #f0f9ff; text-decoration: none; }
-
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
   hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
-  ul { padding-left: 1.4em; margin-bottom: 1em; }
-  li { margin-bottom: 0.3em; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+
+  /* Table styles */
+  .table-wrap { overflow-x: auto; margin: 1.5em 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.84rem; min-width: 620px; }
+  thead th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 9px 10px; border: 1px solid #e4e4e7; white-space: nowrap; }
+  tbody td { padding: 8px 10px; border: 1px solid #e4e4e7; vertical-align: middle; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+  .tc { text-align: center; font-size: 1rem; }
+  .tag-blocked { color: #15803d; font-weight: 700; }
+  .tag-partial { color: #b45309; font-weight: 700; }
+  .tag-allowed { color: #6b7280; }
+  .summary-note { font-size: 0.8rem; color: #555; }
 </style>
 </head>
 <body>
 <div class="container">
 
-<p class="meta">
-  <a href="https://lior-seats.github.io/crawl-check/">← AI Crawler Check Tool</a> &nbsp;·&nbsp;
-  September 2026
-</p>
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
 
-<h1>I checked 20 popular developer platforms' robots.txt — most aren't blocking AI crawlers correctly</h1>
+<h1>Which Developer Platforms Are Actually Blocking AI Crawlers? We Checked 20 Sites</h1>
 
-<p class="meta">
-  The data behind the assumption that your robots.txt is protecting you.
-</p>
+<p class="meta">Data fetched September 22, 2026 via <code>curl https://&lt;domain&gt;/robots.txt</code> — all real, nothing fabricated.</p>
 
-<p>This week there's been a lot of discussion about AI scraping — Microsoft execs calling it theft, site owners dealing with unexpected infrastructure costs, developers trying to figure out if their robots.txt is actually doing anything useful.</p>
+<p>AI crawler traffic has exploded over the past 18 months. GPTBot, ClaudeBot, meta-externalagent, and Bytespider now routinely account for a meaningful share of server requests on public-facing applications — and unlike Googlebot, many of these crawlers don't respect crawl budget signals and hit dynamic routes that cost real money on serverless platforms.</p>
 
-<p>I got curious and ran a systematic check on 20 popular developer platforms. The results were more interesting than I expected.</p>
+<p>There's a reasonable debate about whether blocking AI crawlers is always the right move. But we were curious about a more specific question: what do popular developer platforms do on their <em>own</em> sites? Do the companies selling you infrastructure to run your app — and in some cases billing you per-invocation when AI crawlers spike your function calls — block those same crawlers on their own domains?</p>
+
+<p>We fetched <code>robots.txt</code> from 20 popular developer platforms and checked each one against seven major AI crawlers. The findings were surprisingly consistent.</p>
 
 <hr/>
 
-<h2>The raw data</h2>
+<h2>Methodology</h2>
 
-<p>I used the <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> to check the actual robots.txt against all major AI crawlers for 20 well-known developer platforms:</p>
+<p>We fetched <code>https://&lt;domain&gt;/robots.txt</code> directly for each platform on September 22, 2026, following redirects. For each platform-and-bot combination we looked for a dedicated <code>User-agent</code> stanza and applied the most-specific-match rule from RFC 9309. A bot is <strong>Blocked</strong> if it has <code>Disallow: /</code> in its applicable stanza; <strong>Partially Blocked</strong> if it has specific path restrictions but no <code>Disallow: /</code>; and <strong>Allowed</strong> if it either has an explicit <code>Allow: /</code>, no dedicated stanza, or the applicable wildcard stanza doesn't block the root.</p>
+
+<hr/>
+
+<h2>The Data</h2>
+
+<p>Legend: ✅ Blocked &nbsp;·&nbsp; ⚠️ Partially Blocked &nbsp;·&nbsp; ❌ Allowed / Not Blocked</p>
 
 <div class="table-wrap">
 <table>
@@ -110,155 +85,180 @@
       <th>Platform</th>
       <th>GPTBot</th>
       <th>ClaudeBot</th>
+      <th>anthropic-ai</th>
       <th>meta-externalagent</th>
-      <th>ByteSpider</th>
+      <th>Bytespider</th>
+      <th>CCBot</th>
       <th>PerplexityBot</th>
+      <th>Summary</th>
     </tr>
   </thead>
   <tbody>
-    <tr><td>vercel.com</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="no">❌</td><td class="no">❌</td><td class="warn">⚠</td></tr>
-    <tr><td>netlify.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
-    <tr><td>railway.app</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="no">❌</td><td class="no">❌</td><td class="warn">⚠</td></tr>
-    <tr><td>fly.io</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>render.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
-    <tr><td>heroku.com</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>github.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
-    <tr><td>supabase.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
-    <tr><td>planetscale.com</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="no">❌</td><td class="no">❌</td><td class="warn">⚠</td></tr>
-    <tr><td>stripe.com</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>linear.app</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>notion.so</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>figma.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
-    <tr><td>postman.com</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td class="yes">✅</td></tr>
-    <tr><td>clerk.com</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td></tr>
-    <tr><td>convex.dev</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td></tr>
-    <tr><td>neon.tech</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td><td class="warn">⚠</td></tr>
-    <tr><td>upstash.com</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>turso.tech</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td></tr>
-    <tr><td>cloudflare.com</td><td class="yes">✅</td><td class="no">❌</td><td class="no">❌</td><td class="no">❌</td><td class="yes">✅</td></tr>
+    <tr>
+      <td><strong>vercel.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; sets <code>ai-train=no</code> via Content-Signal only</td>
+    </tr>
+    <tr>
+      <td><strong>netlify.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">Explicitly welcomes AI crawlers; dedicated <code>Allow: /</code> per bot with comments</td>
+    </tr>
+    <tr>
+      <td><strong>stripe.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; general <code>*</code> rule restricts only internal paths</td>
+    </tr>
+    <tr>
+      <td><strong>heroku.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">WordPress-generated file; no AI stanzas; <code>ai-train=no</code> via Content-Signal</td>
+    </tr>
+    <tr>
+      <td><strong>github.com</strong></td>
+      <td class="tc">⚠️</td><td class="tc">⚠️</td><td class="tc">⚠️</td><td class="tc">⚠️</td>
+      <td class="tc tag-blocked">✅</td>
+      <td class="tc">⚠️</td><td class="tc">⚠️</td>
+      <td class="summary-note">Only platform with meaningful AI restrictions. Bytespider fully blocked. GPTBot/ClaudeBot/anthropic-ai/PerplexityBot limited to marketing pages; repo content disallowed.</td>
+    </tr>
+    <tr>
+      <td><strong>gitlab.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; standard repo path restrictions under <code>*</code></td>
+    </tr>
+    <tr>
+      <td><strong>cloudflare.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">Dedicated <code>Allow: /</code> for GPTBot, Claude-Web, CCBot, PerplexityBot; also links to <code>llms.txt</code></td>
+    </tr>
+    <tr>
+      <td><strong>notion.so</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; blocks SEO tools (AhrefsBot, SemrushBot) but not AI crawlers</td>
+    </tr>
+    <tr>
+      <td><strong>linear.app</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; only <code>/api/</code> and <code>/cdn-cgi/</code> disallowed</td>
+    </tr>
+    <tr>
+      <td><strong>railway.app</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI stanzas; blocks dashboard/account routes; <code>ai-train=no</code> via Content-Signal</td>
+    </tr>
+    <tr>
+      <td><strong>render.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">Most comprehensive AI listing: 15+ bots explicitly given <code>Allow: /</code> with minor marketing path restrictions</td>
+    </tr>
+    <tr>
+      <td><strong>supabase.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">GPTBot, ClaudeBot, Google-Extended, PerplexityBot explicitly given <code>Allow: /</code></td>
+    </tr>
+    <tr>
+      <td><strong>planetscale.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note"><code>User-agent: * / Allow: /</code> with Content-Signal welcoming AI training</td>
+    </tr>
+    <tr>
+      <td><strong>neon.tech</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note"><code>Allow: /</code> globally; Content-Signal opts in to AI training</td>
+    </tr>
+    <tr>
+      <td><strong>fly.io</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note"><code>Allow: /</code> globally; Content-Signal opts in to AI training and AI input</td>
+    </tr>
+    <tr>
+      <td><strong>resend.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note"><code>Allow: /</code> globally; Content-Signal opts in to AI training</td>
+    </tr>
+    <tr>
+      <td><strong>postmarkapp.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">Most detailed AI policy of any platform checked; every major bot gets its own <code>Allow: /</code> stanza with inline content-signal commentary</td>
+    </tr>
+    <tr>
+      <td><strong>twilio.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; Content-Signal sets <code>ai-train=no</code> only</td>
+    </tr>
+    <tr>
+      <td><strong>sendgrid.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">Redirects to twilio.com/robots.txt — same policy as above</td>
+    </tr>
+    <tr>
+      <td><strong>digitalocean.com</strong></td>
+      <td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td><td class="tc">❌</td>
+      <td class="summary-note">No AI-specific stanzas; only auth/login paths disallowed under <code>*</code></td>
+    </tr>
   </tbody>
 </table>
 </div>
 
-<p style="font-size:0.82rem; color:#555;">
-  ✅ = explicit block rule | ❌ = no rule (crawler allowed by default) | ⚠ = uses <code>Content-Signal</code> header only (advisory, not blocking)
-</p>
+<hr/>
+
+<h2>Key Findings</h2>
+
+<h3>1. Only 1 out of 140 platform-and-bot combinations results in a full block</h3>
+<p>GitHub is the sole exception in the entire dataset. They fully block Bytespider — ByteDance's crawler behind TikTok — with <code>Disallow: /</code>. Every other platform, for every other bot, results in either "allowed" or at most partial path restrictions. Out of 140 combinations (20 platforms × 7 bots), that's a block rate of 0.7%.</p>
+
+<h3>2. The Vercel irony is real</h3>
+<p>Vercel's robots.txt includes <code>Content-Signal: search=yes, ai-input=yes, ai-train=no</code> — a signal saying "don't use our content to train AI models." That's a policy preference, not enforcement. There is no <code>Disallow</code> for GPTBot, ClaudeBot, meta-externalagent, or any other AI crawler. Vercel's serverless platform is commonly cited as a platform where AI crawlers spike your bill through function invocations they trigger — and yet Vercel itself leaves all those crawlers free to do exactly that on its own domain. The <code>ai-train=no</code> signal is respected only by compliant crawlers (most of the big ones claim they honor it), but there is no actual gate.</p>
+
+<h3>3. GitHub has the most thoughtful AI crawler policy</h3>
+<p>GitHub created dedicated stanzas for GPTBot, OAI-SearchBot, ClaudeBot, anthropic-ai, and PerplexityBot that allow only their marketing pages (<code>/about</code>, <code>/pricing</code>, <code>/solutions</code>, etc.) while disallowing all repository-level paths — commits, branches, blame, archives, raw files, and more. They went further with Bytespider and issued a complete <code>Disallow: /</code>. This is a notably different approach from every other platform in the list, and it's worth asking what GitHub knows about crawler behavior that others don't.</p>
+
+<h3>4. Several platforms are actively welcoming AI crawlers</h3>
+<p>Netlify, Cloudflare, Render, Supabase, Postmark, Fly.io, Neon, and Resend are not just silent about AI crawlers — they're actively inviting them. Netlify's robots.txt opens with a comment: <em>"Netlify welcomes AI agents and crawlers."</em> Postmark has the most detailed AI robots.txt of any platform checked, with individual stanzas, Content-Signal annotations, and inline documentation explaining the policy for every major bot. These platforms have clearly decided that broad AI discoverability is good for their businesses.</p>
+
+<h3>5. meta-externalagent is blocked by zero platforms</h3>
+<p>Meta's AI crawler (used by Meta AI and related products) has no restrictions on any of the 20 platforms we checked. Not a single one. It's also frequently cited in discussions about aggressive crawling behavior. If you want to block it on your own site, none of the platforms you're likely using as infrastructure have set an example.</p>
 
 <div class="callout">
-  <strong>Summary</strong>
-  <ul style="margin:0; padding-left:1.2em;">
-    <li><strong>6/20 have zero AI bot rules</strong> — heroku, stripe, linear, notion, turso, upstash</li>
-    <li><strong>7/20 use only Content-Signal</strong> instead of per-bot user-agent rules — vercel, railway, planetscale, clerk, convex, neon, fly</li>
-    <li><strong>5/20 have partial coverage</strong> — missing meta-externalagent, the crawler most cited for bill spikes</li>
-    <li><strong>Only 2/20 have comprehensive coverage</strong> across all major AI crawlers — render.com and postman.com</li>
-  </ul>
+  <strong>What about CCBot?</strong>
+  CCBot (Common Crawl) is the only crawler here that feeds a genuinely public dataset used for AI training rather than a proprietary product. Despite that distinction, it's treated identically to the others: not blocked anywhere except GitHub (where it inherits path restrictions under the generic rule).
 </div>
 
 <hr/>
 
-<h2>The finding that surprised me most: vercel.com itself</h2>
+<h2>How to check your own site</h2>
 
-<p>Vercel's own marketing site uses <code>Content-Signal</code> but has no explicit per-bot user-agent rules. The platform whose users have been most vocal about AI crawler bill spikes doesn't block the individual bots via robots.txt on its own marketing site.</p>
+<p>The data above covers platform <em>marketing sites</em>, not the apps running on those platforms. If you're running an app on Vercel, Railway, or Render, your robots.txt is entirely your own — and separate from theirs. The findings here are about developer platform landing pages, not hosted applications.</p>
 
-<p>That's not a criticism of Vercel specifically — it's evidence that even sophisticated teams miss these. The rules keep getting added as new crawlers emerge, and there's no single canonical reference list.</p>
+<p>To audit your own site: fetch your robots.txt directly at <code>https://yourdomain.com/robots.txt</code> and look for specific <code>User-agent</code> stanzas for each bot you care about. If there's no stanza for a bot, it falls under your <code>User-agent: *</code> rule. If there's no <code>User-agent: *</code> either, every bot can crawl everything.</p>
 
-<hr/>
+<p>If you want to block a specific crawler, you need a stanza like:</p>
 
-<h2>Why Content-Signal doesn't actually block crawlers</h2>
-
-<p>Several platforms use the newer <code>Content-Signal</code> directive:</p>
-
-<pre><code>Content-Signal: search=yes, ai-input=yes, ai-train=no</code></pre>
-
-<p>This is a proposed standard that signals your <em>preference</em> — it's advisory, not blocking. Crawlers that honor <code>User-agent</code> rules won't automatically honor <code>Content-Signal</code>. And crawlers that don't honor robots.txt at all won't honor either.</p>
-
-<p><code>Content-Signal</code> is useful as a signal of intent, but it doesn't replace explicit user-agent rules.</p>
-
-<hr/>
-
-<h2>The meta-externalagent gap is the biggest miss</h2>
-
-<p><code>meta-externalagent</code> is Meta's web crawler (Facebook, Instagram, and AI training). It's the bot most frequently cited in discussions about unexpected Vercel and Netlify bill spikes.</p>
-
-<p>Of the 20 platforms I checked, only render.com and postman.com explicitly block it. Even platforms that do block GPTBot and ClaudeBot consistently miss <code>meta-externalagent</code>.</p>
-
-<hr/>
-
-<h2>The robots.txt false sense of security</h2>
-
-<p>Even when you have rules, there are common gaps:</p>
-
-<pre><code># Most people know to add this:
-User-agent: GPTBot
+<pre><code>User-agent: GPTBot
 Disallow: /
 
-# But what about these?
 User-agent: ClaudeBot
-User-agent: meta-externalagent    ← the one causing bill spikes
-User-agent: Bytespider
-User-agent: PerplexityBot
-User-agent: CCBot
-User-agent: Amazonbot
-User-agent: DuckAssistBot</code></pre>
+Disallow: /
 
-<p>There are also case sensitivity issues — <code>User-agent: gptbot</code> doesn't match <code>GPTBot</code> in some parsers. And robots.txt only works for crawlers that <em>choose</em> to honor it.</p>
+User-agent: meta-externalagent
+Disallow: /</code></pre>
 
-<hr/>
-
-<h2>The infrastructure cost angle</h2>
-
-<p>One thing that surprises people: even when bots are blocked by robots.txt, the <em>request still hits your server</em> before your app can respond. On Vercel or Netlify with per-request billing, high-volume crawlers create infrastructure costs regardless of whether they're "blocked" by advisory rules.</p>
-
-<p>That's why monitoring matters alongside blocking — knowing which bot is causing what percentage of your bill lets you respond before the invoice arrives.</p>
-
-<hr/>
-
-<h2>Check your own site — takes 10 seconds</h2>
+<p>The tricky part is knowing what's actually visiting you and how much of your traffic — and cost — it's responsible for, before you decide whether and what to block.</p>
 
 <div class="cta-box">
-  <h3>AI Crawler Check — free browser tool</h3>
-  <p>Paste your URL. It fetches your robots.txt and shows exactly which AI crawlers are blocked vs. allowed. No signup, runs in the browser, checks 8 major AI crawlers.</p>
-  <a href="https://lior-seats.github.io/crawl-check/" class="btn">→ Check your site now</a>
-  <a href="https://github.com/lior-seats/ai-crawler-block-list" class="btn-secondary">Block configs repo</a>
+  <h3>🔍 Check your site's AI crawler exposure</h3>
+  <p>Run a free robots.txt audit against all major AI crawlers, see exactly which ones have access to which paths on your site, and get a copy-paste block snippet if you want it.</p>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn">Check your site →</a>
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/" class="btn btn-secondary">Get monitoring alerts</a>
 </div>
 
-<h2>Quick wins if you want to improve your coverage today</h2>
-
-<ol style="padding-left:1.4em; margin-bottom:1em;">
-  <li style="margin-bottom:0.5em"><strong>Run the checker on your main domain</strong> — takes 10 seconds</li>
-  <li style="margin-bottom:0.5em"><strong>Add the missing user-agents</strong> (especially <code>meta-externalagent</code>) from the <a href="https://github.com/lior-seats/ai-crawler-block-list">ai-crawler-block-list repo</a></li>
-  <li style="margin-bottom:0.5em"><strong>Follow the blocking guide</strong> — copy-paste configs for robots.txt, Vercel, Cloudflare, Nginx, Apache, and Express: <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">How to block AI crawlers →</a></li>
-  <li style="margin-bottom:0.5em"><strong>Use the Cloudflare WAF rule</strong> if you're on Cloudflare — infrastructure-level blocking, not advisory</li>
-  <li style="margin-bottom:0.5em"><strong>Don't rely on Content-Signal alone</strong> — use explicit user-agent rules</li>
-  <li>Need platform-specific block configs for Nginx, Cloudflare, Vercel, or Apache? → <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">How to block AI crawlers: complete platform guide</a></li>
-</ol>
-
-<hr/>
-
-<p style="font-size:0.88rem; color:#555;"><em>Methodology: Checks run via a live robots.txt proxy. Results reflect the state of each platform's public robots.txt as of September 2026. Questions about methodology welcome in HN/Reddit comments.</em></p>
-
-<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px;margin:2em 0;">
-  <strong style="display:block;margin-bottom:6px;color:#0c4a6e;">Want to actually block them?</strong>
-  <p style="margin-bottom:8px;font-size:0.93rem">Here's the step-by-step guide — robots.txt, Vercel, Cloudflare, Nginx, Apache, and Express configs you can copy-paste:</p>
-  <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html" style="color:#0070f3;font-weight:600;">How to block AI crawlers: copy-paste configs for every platform &#8594;</a>
-</div>
-
-<p style="margin-top:2em;">
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
   <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> &nbsp;·&nbsp;
-  <a href="https://github.com/lior-seats/ai-crawler-block-list">Block configs repo</a> &nbsp;·&nbsp;
-  <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard waitlist</a> &nbsp;·&nbsp;
-  <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">Blocking guide</a>
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard waitlist</a>
 </p>
 
 </div>
-
-<!-- Hit counter -->
-<script>
-(function(){
-  fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-ai-crawlers-robots-txt');
-})();
-</script>
-
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ai-crawlers-robots-txt',{mode:'no-cors'});}());</script>
 </body>
 </html>
-

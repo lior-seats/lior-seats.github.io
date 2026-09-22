@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://lior-seats.github.io/</loc></url>
   <url><loc>https://lior-seats.github.io/blog/</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html</loc></url>
+  <url><loc>https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://lior-seats.github.io/blog/block-ai-crawlers-guide.html</loc></url>
   <url><loc>https://lior-seats.github.io/blog/staging-env-cost.html</loc></url>
   <url><loc>https://lior-seats.github.io/blog/cron-job-silent-failures.html</loc></url>
