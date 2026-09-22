@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Best Changelog &amp; Release Notes Tools for Indie Developers (2026)</title>
+<meta name="description" content="Honest comparison of changelog tools for indie developers: Keep a Changelog, conventional-changelog, Release Drafter, Changesets, and PushLog. Features, pricing, and what to use when."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/changelog-tools-developers.html"/>
+<meta property="og:title" content="Best Changelog &amp; Release Notes Tools for Indie Developers (2026)"/>
+<meta property="og:description" content="Honest comparison of changelog tools: Keep a Changelog, conventional-changelog, Release Drafter, Changesets, and PushLog. What to use and when."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/changelog-tools-developers.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.9rem; }
+  th { background: #f4f4f5; text-align: left; padding: 10px 12px; font-weight: 700; border: 1px solid #e4e4e7; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Best Changelog &amp; Release Notes Tools for Indie Developers (2026)</h1>
+
+<p class="meta">Every changelog tool has a different opinion about who does the writing. Here's an honest look at what's available and when each one makes sense.</p>
+
+<p>The changelog problem is well understood: nobody maintains it manually, and when users can't tell what's changed, they assume nothing has. The tooling landscape has evolved significantly — from plain markdown conventions to GitHub Actions automations to AI-drafted entries. This is a quick, honest comparison of the main options available in 2026 for indie developers and small teams.</p>
+
+<hr/>
+
+<h2>The five main approaches</h2>
+
+<h3>1. Keep a Changelog (convention)</h3>
+<p><a href="https://keepachangelog.com">keepachangelog.com</a> is a format specification, not software. It defines a standard structure for <code>CHANGELOG.md</code>: versions as headers, entries grouped by Added / Changed / Deprecated / Removed / Fixed / Security. The benefit is pure standardization — anyone can read it, any tool can parse it, no dependencies. The downside is that a human writes every word. It fails at exactly the point every other manual changelog fails: when shipping velocity increases and nobody has time.</p>
+
+<p><strong>Best for:</strong> open-source libraries with disciplined maintainers, compliance requirements, projects where the changelog is part of the codebase by design.</p>
+
+<h3>2. conventional-changelog CLI</h3>
+<p>A Node.js CLI that parses <a href="https://www.conventionalcommits.org/">Conventional Commits</a> formatted messages (<code>feat:</code>, <code>fix:</code>, <code>chore:</code>) and generates a changelog automatically. Zero AI — it's pure pattern matching on commit message prefixes. Works well when your team commits consistently. Falls apart when messages are <code>wip</code>, <code>fix stuff</code>, or <code>address review comments</code> — which is most real teams most of the time.</p>
+
+<p><strong>Best for:</strong> teams with strict commit discipline, open-source monorepos, CI pipelines where format enforcement is already in place.</p>
+
+<h3>3. Release Drafter (GitHub Action)</h3>
+<p>A GitHub Action that automatically drafts GitHub Release notes by categorizing PRs based on their labels. Reasonable results out of the box if your team labels PRs. Requires a <code>.github/release-drafter.yml</code> config, consistent labeling, and GitHub Releases as your publication surface. Entries are written from PR titles — still human-authored, just automated for assembly.</p>
+
+<p><strong>Best for:</strong> GitHub-native teams who already label PRs, projects where GitHub Releases is the canonical changelog location.</p>
+
+<h3>4. Changesets</h3>
+<p>A monorepo-focused tool where developers write a short "changeset" file alongside each PR describing what changed and the semver impact. Changesets are accumulated, then consumed at release time to bump versions and generate changelogs. The writing is distributed (each developer describes their own changes) but still manual. Adds friction to every PR. Strong choice for multi-package repositories where versioning is complex.</p>
+
+<p><strong>Best for:</strong> monorepos with multiple publishable packages, npm libraries that need coordinated versioning across packages.</p>
+
+<h3>5. PushLog (early access)</h3>
+<p>PushLog takes the AI approach: connect your GitHub repo once, and every PR or commit automatically becomes a polished changelog entry drafted by an LLM. No commit message format required, no PR labeling, no manual writing. Entries are categorized, written in plain language, and published to a public changelog page (plus embeddable widget and RSS feed) in one click. Currently in early access at $19/month with a waitlist.</p>
+
+<p><strong>Best for:</strong> indie developers and small teams who ship regularly, have inconsistent commit messages, and want a user-facing changelog without the overhead of maintaining it manually.</p>
+
+<hr/>
+
+<h2>Side-by-side comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Automation level</th>
+      <th>Requires commit format?</th>
+      <th>Public changelog page</th>
+      <th>Price</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Keep a Changelog</strong></td>
+      <td>None — fully manual</td>
+      <td>No</td>
+      <td>No (just a file)</td>
+      <td>Free</td>
+    </tr>
+    <tr>
+      <td><strong>conventional-changelog</strong></td>
+      <td>Parses commit prefixes</td>
+      <td>Yes (Conventional Commits)</td>
+      <td>No</td>
+      <td>Free</td>
+    </tr>
+    <tr>
+      <td><strong>Release Drafter</strong></td>
+      <td>Assembles from PR titles/labels</td>
+      <td>No (requires PR labels)</td>
+      <td>GitHub Releases only</td>
+      <td>Free</td>
+    </tr>
+    <tr>
+      <td><strong>Changesets</strong></td>
+      <td>Assembles from changeset files</td>
+      <td>No (requires changeset file per PR)</td>
+      <td>No</td>
+      <td>Free</td>
+    </tr>
+    <tr>
+      <td><strong>PushLog</strong></td>
+      <td>AI drafts entries automatically</td>
+      <td>No</td>
+      <td>Yes (hosted + widget + RSS)</td>
+      <td>$19/mo early access</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>The key distinction</strong>
+  Free tools automate assembly — they still rely on humans to write the words (in commit messages, PR titles, or changeset files). PushLog automates the writing itself. The tradeoff is cost versus discipline required from the team.
+</div>
+
+<hr/>
+
+<h2>Which one to use</h2>
+
+<p>If your team has strict commit discipline and an existing Conventional Commits workflow, <strong>conventional-changelog</strong> is a zero-cost automation worth adding. If you're on GitHub and label PRs consistently, <strong>Release Drafter</strong> is a reasonable 15-minute setup. If you manage a multi-package monorepo, <strong>Changesets</strong> handles the complexity well.</p>
+
+<p>If none of those conditions apply — which is most solo founders and small product teams — you're left with a choice between manually maintaining a markdown file (which won't happen) or something that doesn't require any new habits from your team. That's the case PushLog is built for: show up, merge PRs as you always have, and have a user-facing changelog that actually stays current.</p>
+
+<div class="cta-box">
+  <h3>📝 PushLog — AI-drafted changelogs from every merge</h3>
+  <p>Connect GitHub once. Every PR you merge becomes a polished changelog entry, auto-drafted by AI and ready to publish in one click. No commit format required. Early access members get 3 months free.</p>
+  <a href="https://lior-seats.github.io/pushlog-waitlist/" class="btn">Join the PushLog waitlist →</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/pushlog-waitlist/">PushLog</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=changelog-tools-developers',{mode:'no-cors'});}());</script>
+</body>
+</html>

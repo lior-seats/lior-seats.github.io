@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Stop Writing Changelogs by Hand: How to Auto-Generate Release Notes from Git Commits</title>
+<meta name="description" content="Manual changelogs are always out of date and take real time to write. Your git history already has the data. Here's how to auto-generate release notes from commits — and a ready-made solution."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/pushlog-changelog-automation.html"/>
+<meta property="og:title" content="Stop Writing Changelogs by Hand: How to Auto-Generate Release Notes from Git Commits"/>
+<meta property="og:description" content="Manual changelogs are always out of date. Your git history already has the data. Here's how to auto-generate release notes from commits."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/pushlog-changelog-automation.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Stop Writing Changelogs by Hand: How to Auto-Generate Release Notes from Git Commits</h1>
+
+<p class="meta">You shipped the release. CHANGELOG.md still says "v1.3.0 — June." Users are asking what changed. The data was in git the whole time.</p>
+
+<p>Every developer knows they should keep a changelog. Almost nobody does it consistently. It's not laziness — it's priority. Between the actual shipping, the bug fixes, and the customer calls, "update the changelog" is the task that always survives to next sprint. Then the next one. Then users start asking what changed, and you're staring at 90 commits trying to reconstruct two months of features from message subject lines.</p>
+
+<p>This article covers why manual changelogs fail structurally, how AI-assisted commit parsing fixes the problem, and what a minimum viable automation looks like you can implement today.</p>
+
+<hr/>
+
+<h2>The real cost of a manual changelog</h2>
+
+<p>Most teams underestimate what a stale changelog costs. The obvious cost is time — reconstructing a changelog from scratch takes 30–90 minutes per release, longer for anything over a few weeks. But the indirect costs are larger:</p>
+
+<h3>Users assume you stopped shipping</h3>
+<p>Your changelog is public evidence of momentum. A prospect evaluating your tool checks the changelog before buying. "Last update: 3 months ago" reads as abandoned, even if you merged 40 commits last week. You lose conversions not because the product is bad but because nobody updated a text file.</p>
+
+<h3>Support tickets for features you already shipped</h3>
+<p>Users request things you shipped two sprints ago. They never saw a changelog entry, so they don't know. You spend time in support conversations explaining features rather than building new ones. A maintained changelog eliminates an entire category of support ticket.</p>
+
+<h3>Non-technical stakeholders have no visibility</h3>
+<p>Investors, co-founders, customer success, and sales need to understand what shipped. A wall of git commits is useless to them. A changelog written in plain English is exactly what they need — and writing it falls on the engineering team every time.</p>
+
+<div class="callout">
+  <strong>The core problem</strong>
+  Manual changelogs require a human to translate technical commits into user-facing language after every release. That translation step is the bottleneck — and it's exactly what an LLM is good at.
+</div>
+
+<hr/>
+
+<h2>How AI-assisted commit parsing works</h2>
+
+<p>The information in your git history is surprisingly complete. Every commit has a subject, body, author, timestamp, and diff. Pull requests add titles, descriptions, labels, and linked issues. All of that is structured, machine-readable data that already describes what changed.</p>
+
+<p>The missing step is translation: turning <code>fix(auth): handle token refresh race condition</code> into "Fixed an issue where users could be unexpectedly logged out during high-traffic periods." That translation requires understanding context, user impact, and natural language — which is exactly the task LLMs handle well.</p>
+
+<p>The basic pattern:</p>
+
+<ol>
+  <li>Extract commits or merged PRs since last release using <code>git log</code></li>
+  <li>Send them to an LLM with a prompt describing the desired output format</li>
+  <li>Get back categorized, human-readable release notes</li>
+  <li>Review, adjust if needed, publish</li>
+</ol>
+
+<hr/>
+
+<h2>Minimum viable changelog automation</h2>
+
+<p>If you want to try this yourself before committing to any tooling, here's a working pattern:</p>
+
+<pre><code># Get commits since last tag
+git log $(git describe --tags --abbrev=0)..HEAD \
+  --pretty=format:"%h %s" \
+  --no-merges</code></pre>
+
+<p>Pipe the output into a prompt like this:</p>
+
+<pre><code>You are writing release notes for a developer tool.
+Below are git commit messages from this release.
+Categorize them as NEW (new features), FIX (bug fixes), or IMP (improvements).
+Write each entry in plain English for a non-technical reader.
+Omit internal refactors and dependency bumps unless they affect users.
+
+Commits:
+[paste git log output here]</code></pre>
+
+<p>This works. It's manual, but it compresses 45 minutes of "stare at commits and write" into 3 minutes of review. The output quality depends on your commit message discipline — cleaner messages produce better notes.</p>
+
+<h3>The limitations of a DIY approach</h3>
+<p>The manual version still requires someone to run the command, copy-paste into a chat window, review the output, and paste it into wherever your changelog lives. The automation is partial. You've compressed the writing step but not the triggering, formatting, or publishing steps. For a team shipping multiple times per week, the friction accumulates.</p>
+
+<p>A complete automated solution handles the entire pipeline: detects each merge or push automatically, runs the AI generation, formats the output into your changelog structure, and makes it available to publish in one click. That's the difference between a useful one-off script and a process that actually stays current.</p>
+
+<hr/>
+
+<h2>What good automated changelog output looks like</h2>
+
+<p>The goal is output a non-technical reader can understand immediately. Compare:</p>
+
+<p><strong>Raw commits:</strong></p>
+<pre><code>feat: dark mode toggle in settings
+fix: csv export truncating on special chars
+perf: lazy load dashboard components</code></pre>
+
+<p><strong>Auto-generated release notes:</strong></p>
+<pre><code>NEW  Dark mode support across all pages — toggle in Settings → Appearance
+FIX  CSV export no longer drops characters in names with accents or special symbols
+IMP  Dashboard loads significantly faster on first open</code></pre>
+
+<p>Same information, different audience. The first is useful to the engineer who wrote the commit. The second is useful to the user who doesn't know what lazy loading means but does notice when their dashboard feels slow.</p>
+
+<hr/>
+
+<h2>PushLog: the automated version</h2>
+
+<p>PushLog does this entire pipeline automatically. Connect your GitHub repo once, and every PR you merge becomes a polished, categorized changelog entry — drafted by AI, ready to publish in one click. No copy-pasting commits, no manual translation, no "I'll update the changelog later" that never happens.</p>
+
+<p>Each entry is categorized (NEW / FIX / IMP), written in plain language, and published to a public changelog page your users can actually read — plus an embeddable in-app widget and RSS feed.</p>
+
+<div class="cta-box">
+  <h3>📝 Stop writing release notes manually</h3>
+  <p>PushLog connects to your GitHub repo and auto-drafts changelog entries from every PR and commit. Early access is open — join the waitlist and get 3 months free.</p>
+  <a href="https://lior-seats.github.io/pushlog-waitlist/" class="btn">Join the PushLog waitlist →</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/pushlog-waitlist/">PushLog</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=pushlog-changelog-automation',{mode:'no-cors'});}());</script>
+</body>
+</html>
