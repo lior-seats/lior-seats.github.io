@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Best Cron Job Monitoring Tools for Indie Developers (2026)</title>
+<meta name="description" content="Honest comparison of cron job monitoring tools: healthchecks.io, UptimeRobot, Dead Man's Snitch, DIY approaches, and CronWatch. What to use and when."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-monitoring-tools.html"/>
+<meta property="og:title" content="Best Cron Job Monitoring Tools for Indie Developers (2026)"/>
+<meta property="og:description" content="Honest comparison of healthchecks.io, UptimeRobot, Dead Man's Snitch, and DIY approaches for monitoring cron jobs."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-monitoring-tools.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .tag-green { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+  .tag-yellow { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Best Cron Job Monitoring Tools for Indie Developers (2026)</h1>
+
+<p class="meta">An honest comparison of what's available, what each costs, and when to use each one.</p>
+
+<p>If you run scheduled jobs — nightly syncs, weekly reports, cleanup tasks, data pipelines — you've probably discovered that they can fail silently for days before anyone notices. The solution is a dead man's switch: a service your job pings when it completes successfully, and that alerts you when the ping doesn't arrive.</p>
+
+<p>There are a handful of solid tools in this space. Here's an honest comparison based on what actually matters for indie developers: ease of setup, free tier generosity, alert quality, and multi-platform support.</p>
+
+<hr/>
+
+<h2>At a glance</h2>
+
+<table>
+  <thead>
+    <tr><th>Tool</th><th>Free tier</th><th>Starting paid</th><th>Best for</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>healthchecks.io</strong></td>
+      <td>20 checks, email only</td>
+      <td>$0 (self-host) or $20/mo hosted</td>
+      <td>Developer-first, open source, most feature-complete</td>
+    </tr>
+    <tr>
+      <td><strong>UptimeRobot</strong></td>
+      <td>50 monitors, 5-min intervals</td>
+      <td>$7/mo</td>
+      <td>Simple uptime checks; cron support is limited</td>
+    </tr>
+    <tr>
+      <td><strong>Dead Man's Snitch</strong></td>
+      <td>1 snitch, hourly reporting</td>
+      <td>$7/mo (5 snitches)</td>
+      <td>Simple heartbeat monitoring, good Heroku integration</td>
+    </tr>
+    <tr>
+      <td><strong>Cronitor</strong></td>
+      <td>1 monitor, no alerts</td>
+      <td>$7/mo</td>
+      <td>Multi-platform, nice dashboard, telemetry support</td>
+    </tr>
+    <tr>
+      <td><strong>CronWatch</strong> (early access)</td>
+      <td>Waitlist</td>
+      <td>$9/mo (50 jobs)</td>
+      <td>Multi-platform, Slack-first alerts</td>
+    </tr>
+    <tr>
+      <td><strong>DIY (curl + script)</strong></td>
+      <td>Free (your time)</td>
+      <td>Engineering cost</td>
+      <td>When you have exactly one critical job and nothing else</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>healthchecks.io</h2>
+
+<p><strong>Best choice for most indie developers.</strong> Open source, self-hostable, and the hosted free tier covers 20 checks with email alerts — enough for most small projects. The integration is as simple as a curl command at the end of your cron job.</p>
+
+<pre><code># Cron job with healthchecks.io ping
+0 3 * * * /opt/jobs/sync.py && curl -s https://hc-ping.com/your-uuid</code></pre>
+
+<p>What makes it stand out:</p>
+<ul>
+  <li>Supports grace periods (job can run up to N minutes late before alerting)</li>
+  <li>Tracks run duration — useful for catching jobs that run but get much slower over time</li>
+  <li>Integrations: email, Slack, PagerDuty, Discord, Telegram, and more</li>
+  <li>Can ingest exit codes and log snippets alongside pings</li>
+</ul>
+
+<p><strong>Limitation:</strong> The free tier is email-only. Slack requires the paid plan ($20/mo hosted). If you're self-hosting, it's free and unlimited.</p>
+
+<h3>When to choose healthchecks.io</h3>
+<p>You want the most mature, feature-complete tool available. You're comfortable with self-hosting or can justify $20/mo. You have more than a handful of jobs to monitor.</p>
+
+<hr/>
+
+<h2>UptimeRobot</h2>
+
+<p>UptimeRobot is primarily an uptime monitoring service (HTTP endpoints) that added cron job monitoring as a secondary feature. The free tier is generous — 50 monitors at 5-minute intervals — but the cron/heartbeat support is less polished than dedicated tools.</p>
+
+<p>The basic model works: you ping a URL when your job succeeds, UptimeRobot alerts you if the ping doesn't arrive. But there's no grace period configuration, no duration tracking, and the alert rules are designed for uptime monitoring rather than scheduled job monitoring.</p>
+
+<h3>When to choose UptimeRobot</h3>
+<p>You're already using UptimeRobot for uptime monitoring and want to add cron monitoring to the same dashboard without another service. You have simple heartbeat needs and don't need duration tracking or grace periods.</p>
+
+<hr/>
+
+<h2>Dead Man's Snitch</h2>
+
+<p>Dead Man's Snitch (DMS) is a focused, simple heartbeat monitoring service with a long history (one of the original tools in this space). The interface is minimal — you create a "snitch," get a URL, ping it, and configure the reporting interval. That's it.</p>
+
+<p>It integrates directly with Heroku via a Heroku add-on, which used to be its primary market. The Heroku Scheduler integration is seamless if you're on that platform.</p>
+
+<h3>When to choose Dead Man's Snitch</h3>
+<p>You're on Heroku and want the native add-on integration. You want the simplest possible tool with minimal configuration. You only need a few snitches.</p>
+
+<hr/>
+
+<h2>Cronitor</h2>
+
+<p>Cronitor is the most polished dedicated cron monitoring tool, with a clean dashboard, solid telemetry support (you can send timing data alongside pings), and good multi-platform documentation. The SDK makes integration slightly easier than raw curl calls.</p>
+
+<pre><code># Cronitor CLI wrapping a cron job
+cronitor exec my-job python sync.py</code></pre>
+
+<p>The free tier is limited — one monitor, no alerts — which makes it hard to evaluate meaningfully before paying. Paid plans start at $7/mo for 5 monitors.</p>
+
+<h3>When to choose Cronitor</h3>
+<p>You have complex multi-step jobs where telemetry (timing per step) is valuable. You prefer a polished UI over raw simplicity. You're comfortable with a small ongoing spend.</p>
+
+<hr/>
+
+<h2>DIY: curl + Slack webhook</h2>
+
+<p>For exactly one critical job, you can build a basic monitoring setup yourself:</p>
+
+<pre><code>#!/bin/bash
+# Run the job, capture exit code
+python /opt/jobs/sync.py
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+  # Send a Slack alert on failure
+  curl -s -X POST "$SLACK_WEBHOOK_URL" \
+    -H "Content-type: application/json" \
+    -d "{\"text\": \"❌ nightly-sync failed with exit code $EXIT_CODE\"}"
+fi</code></pre>
+
+<p>This works. But it only catches failures (non-zero exit) — it doesn't catch missed runs (job never starts), jobs killed mid-execution, or jobs that "succeed" but produce stale output. The dead man's switch pattern addresses those cases; a simple failure alert doesn't.</p>
+
+<h3>When to use DIY</h3>
+<p>You have one job, it's not very critical, and you don't want to take a dependency on another service. Budget is zero. Acceptable to miss occasional failures if they're rare.</p>
+
+<hr/>
+
+<h2>Which one should you use?</h2>
+
+<p><strong>Start with healthchecks.io.</strong> It's open source, the free tier is reasonable, and it's the most mature tool in this space. Self-hosting is straightforward if you want unlimited checks for free.</p>
+
+<p>If you're on Heroku, Dead Man's Snitch's native add-on integration might be worth the small cost for the convenience.</p>
+
+<p>If you want a more polished multi-platform experience with Slack-first alerts and per-job run history designed around developer workflows rather than uptime monitoring — that's what CronWatch is building. It's early access right now.</p>
+
+<div class="cta-box">
+  <h3>📟 CronWatch — cron job monitoring for developers</h3>
+  <p>Monitors every job across crontab, GitHub Actions, Heroku Scheduler, AWS EventBridge, and more. Alerts you in Slack within minutes of a missed window. $9/mo, up to 50 jobs.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the early access waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron expression parser</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why cron jobs fail silently →</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/blog/">← All articles</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-monitoring-tools',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

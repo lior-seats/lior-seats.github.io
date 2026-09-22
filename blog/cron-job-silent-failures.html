@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Why Your Cron Jobs Are Failing Silently (and How to Know)</title>
+<meta name="description" content="Cron jobs fail without alerting you. Here's why scheduled jobs go silent, what it looks like across crontab, GitHub Actions, and AWS EventBridge, and how to detect it before a user complains."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-silent-failures.html"/>
+<meta property="og:title" content="Why Your Cron Jobs Are Failing Silently (and How to Know)"/>
+<meta property="og:description" content="Cron jobs fail without alerting you. Here's why and how to detect it before users do."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-silent-failures.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Why Your Cron Jobs Are Failing Silently (and How to Know)</h1>
+
+<p class="meta">The nightly sync ran Thursday. It hasn't run since. You found out on Monday — from a user.</p>
+
+<p>Cron jobs are the invisible infrastructure of most applications. They run reports, clean up old data, sync records, send scheduled emails, process queues. They usually work fine. When they stop working, they often do it in the least observable way possible: they just stop running. No error, no alert, no indication that anything is wrong.</p>
+
+<p>This article explains why cron job failures are so hard to detect, what failure looks like across common platforms, and how to add the minimum monitoring necessary to catch it before your users do.</p>
+
+<hr/>
+
+<h2>Why cron failures are invisible by default</h2>
+
+<p>The core problem is that cron is a fire-and-forget system. The scheduler dispatches a job and records nothing about whether it succeeded. If your script exits with a non-zero code, cron might send an email to the local system user — but nobody's reading that. If the process crashes silently, or the underlying service it depends on is unavailable, cron just moves on to the next scheduled run.</p>
+
+<p>This means the default state of a failed cron job is: <strong>the job stops producing output, and nothing tells you</strong>.</p>
+
+<p>Three specific scenarios that cause silent failures:</p>
+
+<h3>The dependency disappears</h3>
+<p>Your job connects to a database, an external API, or a file path. The connection string changes, the API key rotates, the path moves. The job can't connect, throws an exception, exits with code 1. In crontab, that exception goes to <code>/dev/null</code> unless you've specifically redirected output to a log file. The next run, same thing. Nobody knows.</p>
+
+<h3>The script is too slow and gets killed</h3>
+<p>A data processing job that used to run in 2 minutes now takes 35 minutes because the dataset grew. The server or orchestration system kills it after a timeout. The job doesn't complete. The output from a partial run looks plausible until someone checks timestamps and realizes the last full run was three weeks ago.</p>
+
+<h3>The scheduler itself stops</h3>
+<p>On managed platforms, the scheduler process can crash, get OOMed, or fail to restart after a deployment. All the jobs that should have run in the gap simply don't run. There's no backfill, no catch-up, no alert — just a missing time window in your data.</p>
+
+<hr/>
+
+<h2>What silent failure looks like on common platforms</h2>
+
+<h3>crontab</h3>
+<p>Linux crontab sends output to the local mail spool by default. On most production servers, nobody reads the mail spool. The way to get visible output is to explicitly redirect:</p>
+
+<pre><code># Redirects both stdout and stderr to a log file
+0 3 * * * /usr/bin/python3 /opt/jobs/sync.py >> /var/log/nightly-sync.log 2>&1</code></pre>
+
+<p>But even with log files, you have to go looking. You need to check the log, notice the missing entries, and realize the gap is meaningful. There's no push notification. The job doesn't call you when it fails.</p>
+
+<h3>GitHub Actions</h3>
+<p>GitHub Actions cron jobs are more observable — failed workflows turn the workflow icon red and appear in the Actions tab. But: GitHub only emails the repository owner if a workflow fails, not if it simply stops running. If the cron expression stops triggering (which can happen if a branch is deleted or the repository goes dormant), you get nothing. And many teams mute GitHub notification emails entirely.</p>
+
+<pre><code>on:
+  schedule:
+    - cron: '0 3 * * *'  # runs nightly
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python sync.py
+        # if this silently succeeds but produces wrong output, GitHub won't tell you</code></pre>
+
+<h3>AWS EventBridge / Lambda</h3>
+<p>Scheduled Lambda functions invoked via EventBridge can fail silently when the Lambda returns successfully (exit code 0) but the business logic inside throws a caught exception. CloudWatch Logs receives the invocation logs, but nobody is watching CloudWatch Logs unless you've set up a metric filter and an alarm. Most teams haven't.</p>
+
+<hr/>
+
+<h2>The simplest reliable detection: dead man's switch</h2>
+
+<p>The most effective pattern for detecting missed cron jobs is the dead man's switch (also called a heartbeat ping). The idea: your cron job sends an HTTP request to a monitoring service at the end of each successful run. If the monitoring service doesn't receive the ping within an expected window, it fires an alert.</p>
+
+<p>Implementation takes one line at the end of your job:</p>
+
+<pre><code># crontab
+0 3 * * * /opt/jobs/sync.py && curl -s https://cron.watch/ping/your-job-id
+
+# GitHub Actions
+- name: Run sync
+  run: python sync.py
+- name: Notify CronWatch
+  if: success()
+  run: curl -s https://cron.watch/ping/your-job-id</code></pre>
+
+<p>The <code>&&</code> means the ping only fires if the job exits successfully. If the job fails, exits with non-zero, or never runs — the monitoring service notices the missing ping and alerts you.</p>
+
+<div class="callout">
+  <strong>The key property</strong>
+  You get alerted for three different failure modes with one mechanism: (1) job runs but fails, (2) job never starts, (3) job is killed before completing. All three result in a missing ping. All three trigger the same alert.
+</div>
+
+<h3>Log-based detection (secondary)</h3>
+<p>For jobs with complex output, a second approach is log-based: check the timestamp of the most recent log entry against the expected schedule. If the last successful run was more than 2× the schedule interval ago, alert. This requires infrastructure (a checker job, log access) but catches subtle failures where the job "runs" but produces stale or incorrect output.</p>
+
+<hr/>
+
+<h2>Minimum viable monitoring for your cron jobs</h2>
+
+<p>The fastest thing you can do today, in order of effort:</p>
+
+<ol>
+  <li><strong>Redirect cron output to a log file</strong> — <code>>> /var/log/job.log 2>&1</code> on every crontab entry. Takes 10 seconds. Gives you something to look at when investigating.</li>
+  <li><strong>Check GitHub Actions notification settings</strong> — ensure you receive emails on workflow failure, not just the default "notify me on changes." Settings → Notifications → Actions.</li>
+  <li><strong>Add a dead man's switch ping</strong> — pick any heartbeat monitoring service and add one line to your most critical jobs. This is the only approach that catches missed runs (not just failures).</li>
+  <li><strong>Set up a CloudWatch alarm</strong> — if your jobs run on Lambda, create a metric filter on errors and attach an SNS alert. The AWS console makes this about 10 minutes of configuration.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>📟 Automated cron job monitoring</h3>
+  <p>CronWatch monitors your scheduled jobs across every platform — crontab, GitHub Actions, Heroku Scheduler, AWS EventBridge, Kubernetes CronJob. Get alerted in Slack or email within minutes of a missed window or error.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-silent-failures',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
