@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AI Crawlers Are Spiking Your Hosting Bill (Here's How to Know Which One)</title>
+<meta name="description" content="GPTBot, ClaudeBot, and meta-externalagent are crawling sites far more aggressively than Googlebot ever did. Here's how AI crawlers spike your Vercel or AWS bill — and how to find out which one is doing it."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ai-crawlers-spiking-hosting-bill.html"/>
+<meta property="og:title" content="AI Crawlers Are Spiking Your Hosting Bill (Here's How to Know Which One)"/>
+<meta property="og:description" content="GPTBot, ClaudeBot, and meta-externalagent crawl far more aggressively than Googlebot. Here's what that does to your bandwidth bill — and how to see which bot is responsible."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ai-crawlers-spiking-hosting-bill.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="AI Crawlers Are Spiking Your Hosting Bill (Here's How to Know Which One)"/>
+<meta name="twitter:description" content="GPTBot, ClaudeBot, and meta-externalagent are crawling more aggressively than Googlebot ever did. Here's how to find out which one is spiking your bill."/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout-red { background: #fff1f2; border-left: 4px solid #f43f5e; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout-red strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.4em 0; font-size: 0.9rem; }
+  th { text-align: left; padding: 8px 12px; background: #f4f4f5; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>AI Crawlers Are Spiking Your Hosting Bill (Here's How to Know Which One)</h1>
+
+<p class="meta">You wake up to a Vercel invoice 10× higher than last month. The culprit isn't your users.</p>
+
+<p>A developer posted to Hacker News last year that their Vercel bandwidth bill jumped from $40 to $500 in a single month. Their traffic was the same as always. Their users were fine. What changed was that several major AI companies had started crawling the entire web — aggressively, repeatedly, and by default with no bandwidth limits — and their site happened to be in the path.</p>
+
+<p>This is happening more frequently. Here's why, what's different about AI crawlers versus search crawlers, and how to find out which bot is responsible for your bill.</p>
+
+<hr/>
+
+<h2>How AI crawlers are different from Googlebot</h2>
+
+<p>Search crawlers like Googlebot have operated under informal norms for years. They crawl politely: they respect <code>Crawl-delay</code> in robots.txt, they don't hammer a server all at once, and they're indexing for a product (search) that directly benefits site owners. Google has real incentive to stay in publishers' good graces.</p>
+
+<p>AI training crawlers have different incentives. They're building datasets for model training, not search indexes. They need as much text as possible, as quickly as possible, to hit training deadlines. And critically: <strong>they don't necessarily benefit site owners the way search indexing does</strong>.</p>
+
+<p>The behavioral differences are significant:</p>
+
+<ul>
+  <li><strong>Crawl frequency.</strong> Googlebot typically revisits a given page every few days to a few weeks. AI training crawlers have been documented revisiting pages multiple times per day.</li>
+  <li><strong>Concurrency.</strong> AI crawlers often run massive parallel requests. A single bot can open dozens of simultaneous connections to the same origin.</li>
+  <li><strong>Scale.</strong> OpenAI's GPTBot is documented to crawl a substantial fraction of the indexable web every few months. Each full-web crawl round generates enormous aggregate bandwidth.</li>
+  <li><strong>Robots.txt compliance.</strong> Google respects robots.txt because their business model depends on not being blocked. Some AI crawlers have had more ambiguous track records — some comply, some have historically ignored the file, and some honor the standard User-Agent but continue under a different one.</li>
+</ul>
+
+<div class="callout">
+  <strong>The bandwidth reality</strong>
+  If a page is 200KB (HTML + inline CSS/JS, no images), and five AI crawlers each crawl it 10 times per day, that's 10MB of bandwidth per day from bots alone — before a single real user visits. On a 1,000-page site, that's 10GB/day, well into paid territory on most hosting platforms.
+</div>
+
+<hr/>
+
+<h2>Why your robots.txt probably isn't blocking them</h2>
+
+<p>The traditional assumption is: add a robots.txt rule and bots stop. For Googlebot, this largely works. For AI crawlers, the situation is more complicated.</p>
+
+<p>First, most robots.txt files don't include AI crawlers at all. The standard template most developers start with has rules for Googlebot, maybe Bingbot, and a wildcard <code>User-agent: *</code> with paths to disallow. It was written before GPTBot existed.</p>
+
+<p>Second, AI companies use multiple User-Agent strings. OpenAI crawls under <code>GPTBot</code> for training and <code>ChatGPT-User</code> for real-time browsing. Blocking one doesn't block the other. Anthropic uses both <code>ClaudeBot</code> and <code>anthropic-ai</code>. Meta uses <code>meta-externalagent</code> and has historically also crawled under <code>FacebookBot</code>.</p>
+
+<p>Third — and this is the one that surprises developers — even if your robots.txt is correct, you may not know whether it's actually working. Bots don't confirm compliance. You write the rules, but unless you're monitoring your server logs and matching User-Agents against your rules, you have no idea if the requests are actually stopping.</p>
+
+<div class="callout-red">
+  <strong>The invisible problem</strong>
+  Most hosting dashboards show bandwidth and request counts. They don't break them down by bot. A 10× bill spike is visible. Knowing which bot caused it requires server log access — which many managed hosting platforms (Vercel, Netlify) don't expose easily.
+</div>
+
+<hr/>
+
+<h2>The major AI crawlers and their bandwidth impact</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Bot</th>
+      <th>Company</th>
+      <th>User-Agent</th>
+      <th>Typical Aggressiveness</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>GPTBot</td>
+      <td>OpenAI</td>
+      <td><code>GPTBot</code></td>
+      <td>High — full-web crawl, repeated</td>
+    </tr>
+    <tr>
+      <td>ClaudeBot</td>
+      <td>Anthropic</td>
+      <td><code>ClaudeBot</code></td>
+      <td>Medium–high</td>
+    </tr>
+    <tr>
+      <td>anthropic-ai</td>
+      <td>Anthropic</td>
+      <td><code>anthropic-ai</code></td>
+      <td>Medium (legacy crawler)</td>
+    </tr>
+    <tr>
+      <td>meta-externalagent</td>
+      <td>Meta</td>
+      <td><code>meta-externalagent</code></td>
+      <td><strong>Very high</strong> — most cited in bill spikes</td>
+    </tr>
+    <tr>
+      <td>Bytespider</td>
+      <td>ByteDance</td>
+      <td><code>Bytespider</code></td>
+      <td>High — documented ignoring rules</td>
+    </tr>
+    <tr>
+      <td>PerplexityBot</td>
+      <td>Perplexity</td>
+      <td><code>PerplexityBot</code></td>
+      <td>Medium</td>
+    </tr>
+    <tr>
+      <td>Google-Extended</td>
+      <td>Google</td>
+      <td><code>Google-Extended</code></td>
+      <td>Low–medium (respects rules)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>meta-externalagent</strong> (Meta's crawler) stands out in the data. It's consistently cited in the most severe hosting bill spikes because it runs at high concurrency and has historically been less restrained than crawlers from companies with a longer search-engine track record. It was also one of the last major AI crawlers to get widely added to block lists — meaning most sites that blocked GPTBot years ago still had open doors to Meta's bot.</p>
+
+<hr/>
+
+<h2>How to check what's actually hitting your site right now</h2>
+
+<p>The fastest way: check your robots.txt configuration against the actual list of AI crawlers that exist. Use the free <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> — paste your domain and it will fetch your live robots.txt and tell you which major AI crawlers are currently allowed in.</p>
+
+<p>For bandwidth diagnosis, you need server logs. On platforms that give you log access:</p>
+
+<pre><code># Find top bandwidth consumers by User-Agent in nginx/Apache logs
+cat access.log | grep -oP '"[^"]*"$' | sort | uniq -c | sort -rn | head -20
+
+# More targeted: find all AI crawler requests
+grep -E "(GPTBot|ClaudeBot|anthropic-ai|meta-externalagent|Bytespider|PerplexityBot)" access.log | wc -l
+
+# Bandwidth estimate per bot (approximate, bytes-based)
+grep "GPTBot" access.log | awk '{sum += $10} END {print sum/1048576 " MB"}'</code></pre>
+
+<p>On Vercel: Vercel doesn't expose raw access logs on most plans. You can instrument your Next.js middleware to log User-Agents to an external service, or use Vercel's Firewall (Pro plan) which does show bot traffic breakdowns.</p>
+
+<p>On AWS CloudFront: enable access logging to S3, then query with Athena using the standard CloudFront partition schema. Filter on <code>cs-user-agent</code>.</p>
+
+<hr/>
+
+<h2>The minimum fix: update your robots.txt today</h2>
+
+<p>Adding rules for the major AI crawlers takes five minutes and can meaningfully reduce bot traffic. At minimum, add these to your <code>robots.txt</code>:</p>
+
+<pre><code>User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /</code></pre>
+
+<p>After updating, use the <a href="https://lior-seats.github.io/crawl-check/">crawl-check tool</a> to verify the rules are actually present and parseable in your live robots.txt. The most common mistake is updating the wrong file, having a caching layer serve the old version, or a subtle robots.txt syntax error that causes parsers to skip the rule.</p>
+
+<p>For a complete reference guide to robots.txt AI crawler blocking — including a full per-bot table, notes on compliance, and every major User-Agent string — see <a href="https://lior-seats.github.io/blog/how-to-block-ai-crawlers.html">How to Block AI Crawlers in robots.txt</a>.</p>
+
+<div class="cta-box">
+  <h3>🔍 Check your site's exposure right now</h3>
+  <p>The free AI Crawler Check tool fetches your live robots.txt and tells you which major AI crawlers currently have access to your site — in about 5 seconds.</p>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn">Check your robots.txt →</a>
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/" class="btn btn-secondary">Get CrawlGuard monitoring</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard waitlist</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ai-crawlers-spiking-hosting-bill',{mode:'no-cors'});}());</script>
+</body>
+</html>
