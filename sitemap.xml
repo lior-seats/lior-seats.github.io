@@ -21,14 +21,6 @@
   <url><loc>https://lior-seats.github.io/blog/api-deprecation-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/api-deprecation-no-warning.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url>
-    <loc>https://lior-seats.github.io/blog/llm-api-cost-monitoring.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://lior-seats.github.io/blog/openai-api-cost-optimization.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
+  <url><loc>https://lior-seats.github.io/blog/llm-api-cost-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/openai-api-cost-optimization.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
