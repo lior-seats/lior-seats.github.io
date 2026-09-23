@@ -3,20 +3,22 @@
   <url><loc>https://lior-seats.github.io/</loc></url>
   <url><loc>https://lior-seats.github.io/blog/</loc></url>
   <url><loc>https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://lior-seats.github.io/blog/block-ai-crawlers-guide.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/staging-env-cost.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/cron-job-silent-failures.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/cron-job-monitoring-tools.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/git-changelog-automation.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/api-deprecation-monitoring.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/webhook-failure-silent-debugging.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/stripe-webhook-failures.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/webhook-failures-silent.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/webhook-monitoring-tools.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/api-deprecation-no-warning.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html</loc></url>
-  <url><loc>https://lior-seats.github.io/blog/pushlog-changelog-automation.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://lior-seats.github.io/blog/changelog-tools-developers.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/block-ai-crawlers-guide.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/ai-crawlers-spiking-hosting-bill.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/how-to-block-ai-crawlers.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/staging-env-cost.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/idle-staging-environments-cost.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/staging-environment-cost-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cron-job-silent-failures.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cron-job-monitoring-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/git-changelog-automation.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/pushlog-changelog-automation.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/changelog-tools-developers.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/webhook-failure-silent-debugging.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/stripe-webhook-failures.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/webhook-failures-silent.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/webhook-monitoring-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/api-deprecation-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/api-deprecation-no-warning.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
