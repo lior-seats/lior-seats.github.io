@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Your Staging Environments Are Running 24/7 (And Nobody Is Using Them)</title>
+<meta name="description" content="A $100/month staging environment running at 5% utilization wastes $95/month. Here's how idle staging instances silently inflate cloud bills and what to do about it."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/idle-staging-environments-cost.html"/>
+<meta property="og:title" content="Your Staging Environments Are Running 24/7 (And Nobody Is Using Them)"/>
+<meta property="og:description" content="A $100/mo staging env at 5% utilization wastes $95/mo. Here's how idle cloud instances inflate your bill invisibly."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/idle-staging-environments-cost.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; September 2026</p>
+
+<h1>Your Staging Environments Are Running 24/7 (And Nobody Is Using Them)</h1>
+
+<p class="meta">Friday 5pm. Deploy to staging. Long weekend. Monday morning: staging has been running 60 hours with zero requests.</p>
+
+<p>Staging and preview environments exist to test software before it reaches production. They're useful during working hours, during active development cycles, and when QA is actively running test scenarios. They are not useful at 3am on a Saturday. They are not useful over a three-day weekend. They are not useful while the engineer who created them is on vacation.</p>
+
+<p>But they run anyway. Continuously. Because that's the default.</p>
+
+<hr/>
+
+<h2>How idle staging costs accumulate</h2>
+
+<p>Cloud pricing for compute is simple: you pay for the instance while it exists, whether or not it receives requests. An EC2 t3.medium at $0.0416/hour costs the same amount at full utilization and at zero utilization. The provider doesn't discount for idle time.</p>
+
+<p>For a typical small SaaS team with 3 developers, a realistic staging footprint might look like:</p>
+
+<table>
+  <thead><tr><th>Environment</th><th>Instance</th><th>Monthly cost</th><th>Typical utilization</th><th>Waste</th></tr></thead>
+  <tbody>
+    <tr><td>staging-api</td><td>t3.medium</td><td>$30</td><td>~8%</td><td>$27.60</td></tr>
+    <tr><td>staging-db</td><td>db.t3.micro (RDS)</td><td>$15</td><td>~8%</td><td>$13.80</td></tr>
+    <tr><td>staging-worker</td><td>t3.small</td><td>$15</td><td>~5%</td><td>$14.25</td></tr>
+    <tr><td>preview/feature-xyz</td><td>t3.small</td><td>$15</td><td>~2%</td><td>$14.70</td></tr>
+    <tr><td><strong>Total</strong></td><td></td><td><strong>$75/mo</strong></td><td></td><td><strong>$70.35/mo wasted</strong></td></tr>
+  </tbody>
+</table>
+
+<p>$70 in waste per month is $840 per year. For a small team burning through runway, that's not trivial — but more importantly, it's money that provides zero business value. The instances are running. Nothing is happening on them.</p>
+
+<div class="callout">
+  <strong>The utilization math</strong>
+  A developer working 9am–6pm weekdays uses a staging environment for 45 hours/week. A month has ~730 hours. That's 6% utilization. If your staging stack costs $100/month, you're getting $6 of value and paying $94 in idle compute.
+</div>
+
+<hr/>
+
+<h2>Why this stays invisible in billing dashboards</h2>
+
+<p>Cloud billing dashboards show total spend by service, by region, by tag — but not by utilization rate. AWS Cost Explorer can show you that an EC2 instance cost $30 last month. It won't tell you that the instance received 12 requests last month.</p>
+
+<p>Most teams don't have utilization monitoring on staging environments. Utilization monitoring is for production — you add CloudWatch metrics, alerts, auto-scaling. For staging, you spin up an instance, point a DNS record at it, and forget about it. It becomes a line item in the cloud bill that nobody questions because it was always there.</p>
+
+<p>The cost is also too small to trigger individual scrutiny. A $30 EC2 instance doesn't get reviewed. The aggregate staging spend ($70-150/month for a typical team) doesn't get optimized because no single instance is obviously wasteful enough to act on.</p>
+
+<hr/>
+
+<h2>The real cost is amplified by preview environments</h2>
+
+<p>The idle compute problem is bad for staging. It's significantly worse for preview environments — the per-branch or per-PR environments that modern CD platforms create automatically.</p>
+
+<p>Vercel, Railway, Render, and similar platforms spin up a new environment for every PR. That's the feature: every PR gets its own deployment, with its own URL, for isolated testing. The anti-feature: those environments stay running until the PR is merged or closed — which can be days or weeks.</p>
+
+<p>A team with 5 open PRs at any time has 5 preview environments running continuously, each consuming compute. If the team is active (10 PRs/month), that's potentially 10 × (average PR lifetime) environments running simultaneously. Most are idle within hours of being created.</p>
+
+<hr/>
+
+<h2>Manual workarounds and why they break</h2>
+
+<h3>Terraform destroy / recreate scripts</h3>
+<p>A common approach: write a script that destroys the staging infrastructure at the end of the day (5pm) and recreates it at the start of the next day (8am). This works in theory and can reduce idle time to ~40%. In practice:</p>
+
+<ul>
+  <li>Recreate scripts fail when Terraform state drifts from actual infrastructure</li>
+  <li>Engineers who stay late or work across time zones need staging unexpectedly</li>
+  <li>Database state is lost unless you implement snapshots (adding complexity)</li>
+  <li>The script needs maintenance as infrastructure changes</li>
+</ul>
+
+<h3>Cron-based instance stop/start</h3>
+<p>Similar pattern using AWS Lambda or GitHub Actions cron to stop EC2 instances at night and start them in the morning. Better than nothing, but:</p>
+
+<ul>
+  <li>Cold start latency when the first developer needs staging in the morning</li>
+  <li>No adaptation to actual usage — the schedule is fixed, not responsive</li>
+  <li>Stopped instances still incur EBS storage costs</li>
+</ul>
+
+<h3>Just accepting it</h3>
+<p>Most teams choose this option implicitly. The cost is low enough to not justify the engineering effort to address it. The problem is that "low enough per team" becomes "collectively significant" across thousands of teams.</p>
+
+<hr/>
+
+<h2>What auto-hibernation looks like</h2>
+
+<p>The better pattern: staging environments hibernate automatically when idle (no requests for N minutes) and wake up automatically when needed (on push, on PR open, on incoming request). The environment is always available; it's just not burning compute when nobody is using it.</p>
+
+<p>This requires:</p>
+<ol>
+  <li>An activity signal — detecting when an environment is actually receiving requests</li>
+  <li>A hibernation mechanism — stopping or suspending the compute without losing state</li>
+  <li>A wake mechanism — spinning the compute back up in response to a trigger</li>
+  <li>A startup signal — routing the first request to wait for the environment to be ready</li>
+</ol>
+
+<p>Some platforms do this natively: Render's free tier suspends services after 15 minutes of inactivity. Railway has a sleep mode. But these are tied to specific platforms, and none provide a cross-platform solution for teams running staging on EC2, ECS, or Kubernetes.</p>
+
+<div class="cta-box">
+  <h3>💤 Auto-hibernation for staging environments</h3>
+  <p>IdleDown detects when your staging environments are idle and hibernates them automatically — across AWS, GCP, Fly.io, and Render. Wake on push, on request, or on schedule. Early access pricing for waitlist members.</p>
+  <a href="https://lior-seats.github.io/idledown-waitlist/" class="btn">Join the IdleDown waitlist →</a>
+  <a href="https://lior-seats.github.io/staging-cost-calculator/" class="btn btn-secondary">Calculate your staging waste</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/staging-environment-cost-tools.html">Best tools to reduce staging costs →</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/blog/staging-env-cost.html">Staging environment cost data →</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/blog/">← All articles</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=idle-staging-environments-cost',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
