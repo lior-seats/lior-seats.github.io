@@ -4,10 +4,10 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Blog — lior-seats.github.io</title>
-<meta name="description" content="Writing on AI crawlers, infrastructure, and developer tools."/>
+<meta name="description" content="Writing on AI crawlers, infrastructure, webhooks, APIs, and developer tools."/>
 <link rel="canonical" href="https://lior-seats.github.io/blog/"/>
 <meta property="og:title" content="Blog — lior-seats.github.io"/>
-<meta property="og:description" content="Writing on AI crawlers, infrastructure, and developer tools."/>
+<meta property="og:description" content="Writing on AI crawlers, infrastructure, webhooks, APIs, and developer tools."/>
 <meta property="og:url" content="https://lior-seats.github.io/blog/"/>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,53 +52,65 @@
 <div class="container">
 
 <h1>Blog</h1>
-<p class="subtitle">Writing on AI crawlers, infrastructure, and developer tools.</p>
+<p class="subtitle">Writing on AI crawlers, infrastructure, webhooks, APIs, and developer tools.</p>
 
 <ul class="post-list">
 
   <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/openai-api-cost-optimization.html">
-      <h2>How to Reduce Your OpenAI API Costs: A Practical Guide (2026)</h2>
-      <p>Practical techniques to cut OpenAI and Anthropic API bills: model selection, token optimization, caching, and per-feature cost attribution. Real numbers included.</p>
+    <a href="https://lior-seats.github.io/blog/ai-crawlers-spiking-hosting-bill.html">
+      <h2>AI Crawlers Are Spiking Your Hosting Bill (Here's How to Know Which One)</h2>
+      <p>GPTBot, ClaudeBot, and meta-externalagent crawl far more aggressively than Googlebot. Here's what that does to your Vercel/AWS bill — and how to find out which bot is responsible.</p>
       <span class="post-meta">
-        <span class="tag">LLM</span>
-        <span class="tag">cost</span>
+        <span class="tag">AI crawlers</span>
+        <span class="tag">hosting costs</span>
         September 2026
       </span>
     </a>
   </li>
 
   <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/llm-api-cost-monitoring.html">
-      <h2>Why Your LLM API Bill Is Unpredictable (And How to Fix It)</h2>
-      <p>LLM API costs spike without warning because billing is opaque by default. Here's how to add real-time cost monitoring and per-feature attribution to your app.</p>
+    <a href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html">
+      <h2>Which Developer Platforms Are Actually Blocking AI Crawlers? We Checked 20 Sites</h2>
+      <p>We fetched robots.txt from 20 developer platforms on September 22, 2026. Only 1 of 140 platform-and-bot combinations results in a full block. The Vercel irony, GitHub's careful curation, and why meta-externalagent is blocked by nobody.</p>
       <span class="post-meta">
-        <span class="tag">LLM</span>
-        <span class="tag">monitoring</span>
+        <span class="tag">AI crawlers</span>
+        <span class="tag">data</span>
         September 2026
       </span>
     </a>
   </li>
 
   <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/staging-environment-cost-tools.html">
-      <h2>Best Tools to Reduce Staging Environment Costs (2026)</h2>
-      <p>Honest comparison: Kubernetes hibernation operators, Render suspend, Railway sleep, manual scripts, and IdleDown. Feature table and when to use each.</p>
+    <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">
+      <h2>How to block AI crawlers on your site (Nginx, Cloudflare, Vercel, Apache, and more)</h2>
+      <p>Copy-paste configs for every major platform. Covers GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and 12 more.</p>
       <span class="post-meta">
-        <span class="tag">staging</span>
-        <span class="tag">cloud costs</span>
+        <span class="tag">AI crawlers</span>
+        <span class="tag">guide</span>
         September 2026
       </span>
     </a>
   </li>
 
   <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/idle-staging-environments-cost.html">
-      <h2>Your Staging Environments Are Running 24/7 (And Nobody Is Using Them)</h2>
-      <p>A $100/mo staging env at 5% utilization wastes $95/mo. How idle cloud instances inflate your bill invisibly — and what to do about it.</p>
+    <a href="https://lior-seats.github.io/blog/how-to-block-ai-crawlers.html">
+      <h2>How to Block AI Crawlers in robots.txt (GPTBot, ClaudeBot, Meta-externalagent, and more)</h2>
+      <p>Complete reference. Every major AI crawler, the exact User-Agent string, compliance notes, and a copy-paste block-all snippet for robots.txt.</p>
       <span class="post-meta">
-        <span class="tag">staging</span>
-        <span class="tag">cloud costs</span>
+        <span class="tag">AI crawlers</span>
+        <span class="tag">robots.txt</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/stripe-webhook-failures.html">
+      <h2>Stripe webhooks fail silently — and most developers don't know until a customer complains</h2>
+      <p>Stripe retries failed webhooks for 72 hours, but your app never gets notified when they all fail. Here's how to detect it before it costs you orders.</p>
+      <span class="post-meta">
+        <span class="tag">webhooks</span>
+        <span class="tag">Stripe</span>
         September 2026
       </span>
     </a>
@@ -107,7 +119,19 @@
   <li class="post-item">
     <a href="https://lior-seats.github.io/blog/webhook-failures-silent.html">
       <h2>Why Your Stripe Webhooks Are Failing Silently (and How to Know)</h2>
-      <p>Stripe retries failed webhooks for 72h then gives up with no alert. Real scenarios: missed order fulfillment, lost refund callbacks, broken GitHub Actions triggers.</p>
+      <p>Webhooks fail silently after retry exhaustion. Stripe retries for 72h then gives up with no alert. Here's the retry mechanics, real failure scenarios, and minimum viable webhook monitoring.</p>
+      <span class="post-meta">
+        <span class="tag">webhooks</span>
+        <span class="tag">monitoring</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/webhook-failure-silent-debugging.html">
+      <h2>Why your Stripe webhooks fail silently — and how to stop missing orders</h2>
+      <p>Stripe retries for 72 hours then gives up without telling you. Here's the retry schedule, why failures are invisible, and a Node.js handler that actually alerts you.</p>
       <span class="post-meta">
         <span class="tag">webhooks</span>
         <span class="tag">Stripe</span>
@@ -131,10 +155,22 @@
   <li class="post-item">
     <a href="https://lior-seats.github.io/blog/api-deprecation-no-warning.html">
       <h2>What Happens When an API You Depend On Gets Deprecated Without Warning</h2>
-      <p>Stripe, Twilio, SendGrid, GitHub all send deprecation notices to billing emails nobody reads. Production breaks on a Tuesday. Here&#39;s how to catch it in advance.</p>
+      <p>Stripe, Twilio, SendGrid, GitHub all send deprecation notices to billing emails nobody reads. Production breaks on a Tuesday. Here's how to catch it in advance.</p>
       <span class="post-meta">
         <span class="tag">APIs</span>
         <span class="tag">deprecation</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/api-deprecation-monitoring.html">
+      <h2>How to detect API deprecation before it breaks your production app</h2>
+      <p>The 90-day notice was in the changelog. Nobody subscribed. Here's how to monitor Sunset headers, parse changelogs, and write synthetic tests before the Thursday outage.</p>
+      <span class="post-meta">
+        <span class="tag">APIs</span>
+        <span class="tag">monitoring</span>
         September 2026
       </span>
     </a>
@@ -153,12 +189,96 @@
   </li>
 
   <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/ai-crawlers-robots-txt.html">
-      <h2>Which Developer Platforms Are Actually Blocking AI Crawlers? We Checked 20 Sites</h2>
-      <p>We fetched robots.txt from 20 developer platforms on September 22, 2026. Only 1 of 140 platform-and-bot combinations results in a full block. The Vercel irony, GitHub's careful curation, and why meta-externalagent is blocked by nobody.</p>
+    <a href="https://lior-seats.github.io/blog/staging-env-cost.html">
+      <h2>I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising</h2>
+      <p>Real cloud pricing data: most staging environments sit idle 86% of the time. A typical 3-service team wastes $60–150/month on unused compute.</p>
       <span class="post-meta">
-        <span class="tag">AI crawlers</span>
-        <span class="tag">data</span>
+        <span class="tag">staging</span>
+        <span class="tag">cloud costs</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/idle-staging-environments-cost.html">
+      <h2>Your Staging Environments Are Running 24/7 (And Nobody Is Using Them)</h2>
+      <p>A $100/mo staging env at 5% utilization wastes $95/mo. How idle cloud instances inflate your bill invisibly — and what to do about it.</p>
+      <span class="post-meta">
+        <span class="tag">staging</span>
+        <span class="tag">cloud costs</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/staging-environment-cost-tools.html">
+      <h2>Best Tools to Reduce Staging Environment Costs (2026)</h2>
+      <p>Honest comparison: Kubernetes hibernation operators, Render suspend, Railway sleep, manual scripts, and IdleDown. Feature table and when to use each.</p>
+      <span class="post-meta">
+        <span class="tag">staging</span>
+        <span class="tag">cloud costs</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">
+      <h2>Why Your Cron Jobs Are Failing Silently (and How to Know)</h2>
+      <p>The nightly sync stopped Thursday. You found out Monday — from a user. Here's why cron fails invisibly and how to add a dead man's switch in one line.</p>
+      <span class="post-meta">
+        <span class="tag">cron</span>
+        <span class="tag">monitoring</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/cron-job-monitoring-tools.html">
+      <h2>Best Cron Job Monitoring Tools for Indie Developers (2026)</h2>
+      <p>Honest comparison of healthchecks.io, UptimeRobot, Dead Man's Snitch, Cronitor, and DIY approaches. What to use and when.</p>
+      <span class="post-meta">
+        <span class="tag">cron</span>
+        <span class="tag">tools</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/llm-api-cost-monitoring.html">
+      <h2>Why Your LLM API Bill Is Unpredictable (And How to Fix It)</h2>
+      <p>LLM API costs spike without warning because billing is opaque by default. Here's how to add real-time cost monitoring and per-feature attribution to your app.</p>
+      <span class="post-meta">
+        <span class="tag">LLM</span>
+        <span class="tag">monitoring</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/openai-api-cost-optimization.html">
+      <h2>How to Reduce Your OpenAI API Costs: A Practical Guide (2026)</h2>
+      <p>Practical techniques to cut OpenAI and Anthropic API bills: model selection, token optimization, caching, and per-feature cost attribution. Real numbers included.</p>
+      <span class="post-meta">
+        <span class="tag">LLM</span>
+        <span class="tag">cost</span>
+        September 2026
+      </span>
+    </a>
+  </li>
+
+  <li class="post-item">
+    <a href="https://lior-seats.github.io/blog/git-changelog-automation.html">
+      <h2>Why your git history is useless to stakeholders — and how to auto-generate changelogs that aren't</h2>
+      <p>47 commits: "fix typo", "WIP", "more fixes". Here's how to pipe git log into an LLM and generate a real changelog automatically, with a GitHub Actions workflow included.</p>
+      <span class="post-meta">
+        <span class="tag">git</span>
+        <span class="tag">changelogs</span>
         September 2026
       </span>
     </a>
@@ -188,186 +308,10 @@
     </a>
   </li>
 
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/ai-crawlers-spiking-hosting-bill.html">
-      <h2>AI Crawlers Are Spiking Your Hosting Bill (Here's How to Know Which One)</h2>
-      <p>GPTBot, ClaudeBot, and meta-externalagent crawl far more aggressively than Googlebot. Here's what that does to your Vercel/AWS bill — and how to find out which bot is responsible.</p>
-      <span class="post-meta">
-        <span class="tag">AI crawlers</span>
-        <span class="tag">hosting costs</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/how-to-block-ai-crawlers.html">
-      <h2>How to Block AI Crawlers in robots.txt (GPTBot, ClaudeBot, Meta-externalagent, and more)</h2>
-      <p>Complete reference. Every major AI crawler, the exact User-Agent string, compliance notes, and a copy-paste block-all snippet for robots.txt.</p>
-      <span class="post-meta">
-        <span class="tag">AI crawlers</span>
-        <span class="tag">robots.txt</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/webhook-failures-silent.html">
-      <h2>Why Your Stripe Webhooks Are Failing Silently (and How to Know)</h2>
-      <p>Webhooks fail silently after retry exhaustion. Stripe retries for 72h then gives up with no alert. Here's the retry mechanics, real failure scenarios, and minimum viable webhook monitoring.</p>
-      <span class="post-meta">
-        <span class="tag">webhooks</span>
-        <span class="tag">monitoring</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/webhook-monitoring-tools.html">
-      <h2>Best Webhook Monitoring Tools for Indie Developers (2026)</h2>
-      <p>Honest comparison of Hookdeck, webhook.site, RequestCatcher, DIY logging, and WebhookPulse early access. Feature/price table and when to use each.</p>
-      <span class="post-meta">
-        <span class="tag">webhooks</span>
-        <span class="tag">tools</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/api-deprecation-no-warning.html">
-      <h2>What Happens When an API You Depend On Gets Deprecated Without Warning</h2>
-      <p>Stripe, Twilio, SendGrid, GitHub all deprecate API versions. Notices go to billing emails nobody checks. Production breaks on a Tuesday. Here's how to monitor for it.</p>
-      <span class="post-meta">
-        <span class="tag">APIs</span>
-        <span class="tag">deprecation</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/api-deprecation-monitoring-tools.html">
-      <h2>Best API Deprecation Monitoring Tools for Developers (2026)</h2>
-      <p>Honest comparison of manual changelog monitoring, Optic, Bump.sh, DIY header parsing, and APIWatch early access. Find the right fit for your team.</p>
-      <span class="post-meta">
-        <span class="tag">APIs</span>
-        <span class="tag">tools</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/block-ai-crawlers-guide.html">
-      <h2>How to block AI crawlers on your site (Nginx, Cloudflare, Vercel, Apache, and more)</h2>
-      <p>Copy-paste configs for every major platform. Covers GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and 12 more.</p>
-      <span class="post-meta">
-        <span class="tag">AI crawlers</span>
-        <span class="tag">guide</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/staging-env-cost.html">
-      <h2>I calculated what common staging environments actually cost when left running 24/7 — the numbers are surprising</h2>
-      <p>Real cloud pricing data: most staging environments sit idle 86% of the time. A typical 3-service team wastes $60–150/month on unused compute.</p>
-      <span class="post-meta">
-        <span class="tag">staging</span>
-        <span class="tag">cloud costs</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">
-      <h2>Why Your Cron Jobs Are Failing Silently (and How to Know)</h2>
-      <p>The nightly sync stopped Thursday. You found out Monday — from a user. Here’s why cron fails invisibly and how to add a dead man’s switch in one line.</p>
-      <span class="post-meta">
-        <span class="tag">cron</span>
-        <span class="tag">monitoring</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/cron-job-monitoring-tools.html">
-      <h2>Best Cron Job Monitoring Tools for Indie Developers (2026)</h2>
-      <p>Honest comparison of healthchecks.io, UptimeRobot, Dead Man’s Snitch, Cronitor, and DIY approaches. What to use and when.</p>
-      <span class="post-meta">
-        <span class="tag">cron</span>
-        <span class="tag">tools</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/git-changelog-automation.html">
-      <h2>Why your git history is useless to stakeholders — and how to auto-generate changelogs that aren't</h2>
-      <p>47 commits: "fix typo", "WIP", "more fixes". Here's how to pipe git log into an LLM and generate a real changelog automatically, with a GitHub Actions workflow included.</p>
-      <span class="post-meta">
-        <span class="tag">git</span>
-        <span class="tag">changelogs</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/api-deprecation-monitoring.html">
-      <h2>How to detect API deprecation before it breaks your production app</h2>
-      <p>The 90-day notice was in the changelog. Nobody subscribed. Here's how to monitor Sunset headers, parse changelogs, and write synthetic tests before the Thursday outage.</p>
-      <span class="post-meta">
-        <span class="tag">APIs</span>
-        <span class="tag">monitoring</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/webhook-failure-silent-debugging.html">
-      <h2>Why your Stripe webhooks fail silently — and how to stop missing orders</h2>
-      <p>Stripe retries for 72 hours then gives up without telling you. Here's the retry schedule, why failures are invisible, and a Node.js handler that actually alerts you.</p>
-      <span class="post-meta">
-        <span class="tag">webhooks</span>
-        <span class="tag">Stripe</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-  <li class="post-item">
-    <a href="https://lior-seats.github.io/blog/stripe-webhook-failures.html">
-      <h2>Stripe webhooks fail silently — and most developers don't know until a customer complains</h2>
-      <p>Stripe retries failed webhooks for 72 hours, but your app never gets notified when they all fail. Here's how to detect it before it costs you orders.</p>
-      <span class="post-meta">
-        <span class="tag">webhooks</span>
-        <span class="tag">Stripe</span>
-        September 2026
-      </span>
-    </a>
-  </li>
-
-    <li>
-      <a href="llm-api-cost-monitoring.html">Why Your LLM API Bill Is Unpredictable (And How to Fix It)</a>
-      <span class="meta">LLM costs &bull; September 2026</span>
-    </li>
-    <li>
-      <a href="openai-api-cost-optimization.html">How to Reduce Your OpenAI API Costs: A Practical Guide (2026)</a>
-      <span class="meta">LLM costs &bull; September 2026</span>
-    </li>
-  </ul>
+</ul>
 
 <div class="cta-box">
-  🔍 Free tools: <a href="https://lior-seats.github.io/crawl-check/">Check if your site is blocking AI crawlers</a> · <a href="https://lior-seats.github.io/ai-crawler-cost/">Estimate your AI crawler hosting cost</a>
+  🔍 Free tools: <a href="https://lior-seats.github.io/crawl-check/">Check if your site is blocking AI crawlers</a> · <a href="https://lior-seats.github.io/ai-crawler-cost/">Estimate your AI crawler hosting cost</a> · <a href="https://lior-seats.github.io/git-changelog-generator/">Auto-generate a changelog from git commits</a> · <a href="https://lior-seats.github.io/api-deprecation-checker/">Check API deprecation headers</a> · <a href="https://lior-seats.github.io/cron-expression-parser/">Parse cron expressions</a> · <a href="https://lior-seats.github.io/llm-cost-calculator/">Estimate LLM API costs</a>
 </div>
 
 <footer>
