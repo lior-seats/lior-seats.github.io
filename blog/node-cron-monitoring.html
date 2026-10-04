@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Node.js Cron Job Monitoring: Alerts When node-cron or Agenda Jobs Stop Running</title>
+<meta name="description" content="node-cron, Agenda.js, and node-schedule all share the same blind spot: when a job silently fails, you find out from users. Here's how to add heartbeat monitoring."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/node-cron-monitoring.html"/>
+<meta name="keywords" content="node-cron monitoring, node-cron job failed, agenda.js monitoring, node.js scheduled task monitoring, node cron job alert"/>
+<meta property="og:title" content="Node.js Cron Job Monitoring: Alerts When node-cron or Agenda Jobs Stop Running"/>
+<meta property="og:description" content="node-cron, Agenda.js, and node-schedule all share the same blind spot: when a job silently fails, you find out from users. Here's how to add heartbeat monitoring."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/node-cron-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Node.js Cron Job Monitoring: Alerts When node-cron or Agenda Jobs Stop Running</h1>
+
+<p class="meta">Your nightly email digest stopped sending four days ago. node-cron is still scheduled — the process is running, no errors in the logs. You found out when a subscriber asked why they hadn't heard from you.</p>
+
+<p>Node.js gives developers a rich ecosystem of scheduler libraries: <code>node-cron</code>, <code>Agenda</code>, <code>node-schedule</code>, <code>cron-schedule</code>, <code>BullMQ</code>. They're all excellent for getting jobs <em>running</em>. None of them tell you when a job <em>stops</em>.</p>
+
+<p>This article covers the specific failure modes unique to Node.js schedulers, how to add proper error handling, and how to wire up heartbeat monitoring so you get alerted before your users notice.</p>
+
+<hr/>
+
+<h2>Why Node.js cron failures are different</h2>
+
+<p>Traditional crontab failures are mostly about the scheduler not executing. Node.js scheduler failures are sneakier — the scheduler <em>does</em> execute, but the job itself swallows the error and exits cleanly. Three patterns cause this constantly:</p>
+
+<h3>Uncaught promise rejections</h3>
+<p>This is the most common silent failure mode in Node.js scheduled jobs. If your job function is <code>async</code> and throws inside a <code>.then()</code> chain without a <code>catch</code>, the rejection floats unhandled. In Node.js 14 and earlier this was completely silent. In newer versions it terminates the process — but with <code>node-cron</code>, the <em>scheduler</em> process dies, taking all other jobs with it:</p>
+
+<pre><code>// This silently drops the error in older Node; crashes everything in newer Node
+cron.schedule('0 * * * *', async () => {
+  const result = await fetchDataFromApi(); // throws on network failure
+  await saveToDatabase(result);            // never reached — no alert fired
+});</code></pre>
+
+<h3>Process restarts losing in-memory schedules</h3>
+<p><code>node-cron</code> and <code>node-schedule</code> store schedules in memory. When your Node process restarts — deploy, OOM kill, PM2 restart — all scheduled jobs are re-registered from your startup code. But if a deploy fails halfway, or your startup crashes after the scheduler initializes but before all jobs are registered, you end up with a subset of your jobs silently missing. No error, no log line, no alert.</p>
+
+<h3>Missing error handlers on Agenda and BullMQ</h3>
+<p><code>Agenda.js</code> jobs emit <code>'fail'</code> events that are completely silent unless you listen for them explicitly. Same with BullMQ's <code>'failed'</code> queue event. Most tutorials show you how to define a job — they don't show you what happens when it throws:</p>
+
+<pre><code>// Agenda — the fail event is silently swallowed without this listener
+agenda.on('fail', (err, job) => {
+  console.error(`Agenda job ${job.attrs.name} failed:`, err);
+  // Without this, you'll never know the job errored
+});
+
+// BullMQ — same pattern
+worker.on('failed', (job, err) => {
+  console.error(`BullMQ job ${job?.name} failed:`, err);
+});</code></pre>
+
+<hr/>
+
+<h2>Adding proper error handling to node-cron</h2>
+
+<p>Every <code>node-cron</code> job should wrap its body in a try/catch and send a heartbeat ping on success. The heartbeat is what makes silent failures detectable from the outside:</p>
+
+<pre><code>import cron from 'node-cron';
+import fetch from 'node-fetch';
+
+cron.schedule('0 * * * *', async () => {
+  try {
+    await runMyJob();
+
+    // Signal successful completion to your monitoring service
+    await fetch('https://your-monitor/heartbeat/YOUR_TOKEN', {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000), // don't let the ping hang the job
+    });
+  } catch (err) {
+    console.error('Job failed:', err);
+    // Optionally: notify an error tracker like Sentry here
+  }
+});</code></pre>
+
+<p>Key details: the heartbeat fires only on success (inside try, not finally). The ping has a 5-second timeout so a slow monitoring endpoint never blocks your job. The catch logs the error so it appears in your process logs.</p>
+
+<div class="callout">
+  <strong>Don't skip the AbortSignal.timeout()</strong>
+  A hanging HTTP request inside a cron callback will block the Node.js event loop for that tick. If your monitoring service is slow or down, your cron job will appear to stall. Always set a short timeout on heartbeat pings.
+</div>
+
+<hr/>
+
+<h2>External heartbeat monitoring — the dead man's switch pattern</h2>
+
+<p>The heartbeat pattern works like this: your job pings a URL at the end of each successful run. A monitoring service tracks those pings. If it doesn't receive a ping within the expected window (e.g., within 70 minutes of an hourly job), it fires an alert.</p>
+
+<p>This is called a <strong>dead man's switch</strong>. It catches three failure classes with one mechanism:</p>
+
+<ul>
+  <li>Job runs but throws an uncaught error → no ping → alert</li>
+  <li>Job never runs at all (process died, deploy failed) → no ping → alert</li>
+  <li>Job is killed mid-run before completing → no ping → alert</li>
+</ul>
+
+<p>You get notified for all three with a single <code>fetch()</code> call inside the try block.</p>
+
+<h3>Applying the pattern to Agenda.js</h3>
+
+<pre><code>agenda.define('send-weekly-digest', async (job) => {
+  await generateAndSendDigest();
+
+  // Heartbeat — only fires on successful completion
+  await fetch('https://your-monitor/heartbeat/AGENDA_DIGEST_TOKEN', {
+    signal: AbortSignal.timeout(5000),
+  });
+});
+
+// Always attach a fail listener — Agenda won't surface errors otherwise
+agenda.on('fail', (err, job) => {
+  console.error(`[Agenda] ${job.attrs.name} failed:`, err);
+});</code></pre>
+
+<h3>The same pattern works across the Node.js scheduler ecosystem</h3>
+<p>Whether you're using <code>node-cron</code>, <code>Agenda</code>, <code>BullMQ</code>, <code>node-schedule</code>, or <code>cron-schedule</code>, the heartbeat pattern is the same: run the job body, ping the monitor on success, wrap in error handling. The scheduler library doesn't matter. The monitoring service doesn't care what dispatched the job — it only cares whether the ping arrived on time.</p>
+
+<hr/>
+
+<h2>Choosing the right monitoring window</h2>
+
+<p>When you register a monitor, you set a grace period: how long after the expected run time to wait before alerting. The right value depends on your job's typical runtime and how much latency is acceptable.</p>
+
+<p>A few practical guidelines:</p>
+
+<ul>
+  <li><strong>Hourly jobs:</strong> 10–15 minute grace. Catches missed runs within an hour.</li>
+  <li><strong>Daily jobs:</strong> 30–60 minute grace. Allows for slow startup or brief service delays.</li>
+  <li><strong>Long-running jobs (>30 min):</strong> Set the grace to at least 2× the typical runtime.</li>
+  <li><strong>Business-critical jobs:</strong> Shorter grace, PagerDuty or SMS alert destination.</li>
+</ul>
+
+<p>If you're not sure how long your job actually takes, check your process logs for the last 10 runs and set the grace to 1.5× the 95th-percentile duration.</p>
+
+<hr/>
+
+<h2>Checklist: Node.js cron monitoring in 15 minutes</h2>
+
+<ol>
+  <li><strong>Add try/catch to every async job body</strong> — no naked <code>async () => { await ... }</code> without error handling.</li>
+  <li><strong>Attach Agenda's <code>fail</code> event listener</strong> if you use Agenda — one line, immediately after <code>agenda.define()</code>.</li>
+  <li><strong>Add heartbeat pings on success</strong> — one <code>fetch()</code> call with a 5-second timeout inside the try block.</li>
+  <li><strong>Register each monitored job</strong> with a heartbeat monitoring service and set an appropriate grace window.</li>
+  <li><strong>Test the alert</strong> — intentionally skip a ping and confirm you receive the notification.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>📟 Monitor all your Node.js cron jobs</h3>
+  <p>CronWatch monitors scheduled jobs across every Node.js scheduler — node-cron, Agenda.js, BullMQ, node-schedule, and cron-schedule. Add a single heartbeat ping to each job and get alerted in Slack or email within minutes of a missed window or failure.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-node-cron-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
