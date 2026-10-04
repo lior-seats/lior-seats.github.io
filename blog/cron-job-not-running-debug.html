@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Not Running? A Practical Debug Guide | CronWatch Blog</title>
+<meta name="description" content="Your cron job isn't running and you don't know why. This guide covers the most common causes — PATH issues, permissions, environment variables, silent errors — with fix commands for each."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-not-running-debug.html"/>
+<meta property="og:title" content="Cron Job Not Running? A Practical Debug Guide"/>
+<meta property="og:description" content="The most common reasons a cron job stops running — PATH, permissions, environment, syntax errors — and how to diagnose and fix each one fast."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-not-running-debug.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #15803d; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+  .checklist { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .checklist li { margin-bottom: 0.6em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Not Running? A Practical Debug Guide</h1>
+
+<p class="meta">The job is in your crontab. The time has passed. Nothing happened. Here's how to find out why.</p>
+
+<p>You added a cron job, waited for it to fire, and nothing happened. No output, no error, no log entry — just silence. This is one of the most frustrating debugging situations in Linux because cron gives you almost no feedback by default.</p>
+
+<p>The good news: there are a fixed number of things that can cause a cron job to not run, and you can check each one in about ten minutes. This guide walks through them in order of how often they come up.</p>
+
+<div class="summary-box">
+  <strong>Most common causes — in order of frequency:</strong>
+  <ul>
+    <li><strong>PATH is different in cron's environment</strong> — commands that work in your shell aren't found by cron</li>
+    <li><strong>Syntax error in crontab</strong> — one bad line silently disables the whole file on some distros</li>
+    <li><strong>Script not executable</strong> — the file exists but <code>chmod +x</code> was never run</li>
+    <li><strong>Working directory assumptions</strong> — the script uses relative paths that don't resolve from cron's default directory</li>
+    <li><strong>Environment variables not set</strong> — your script needs <code>HOME</code>, <code>DATABASE_URL</code>, or other vars that cron doesn't provide</li>
+    <li><strong>Cron daemon isn't running</strong> — the scheduler itself stopped</li>
+    <li><strong>Wrong crontab (user vs. root)</strong> — the job is in the wrong user's crontab</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> Check that cron is actually running</h2>
+
+<p>Before debugging the job itself, verify the scheduler is alive:</p>
+
+<pre><code># Linux (systemd)
+systemctl status cron       # Ubuntu/Debian
+systemctl status crond      # RHEL/CentOS/Amazon Linux
+
+# Linux (non-systemd)
+service cron status
+
+# macOS
+launchctl list | grep cron</code></pre>
+
+<p>If it's stopped:</p>
+
+<pre><code>sudo systemctl start cron       # Ubuntu/Debian
+sudo systemctl start crond      # RHEL/CentOS</code></pre>
+
+<p>On managed cloud platforms (Heroku Scheduler, GitHub Actions, AWS EventBridge) this isn't applicable — the scheduler is outside your control. Jump to step 3.</p>
+
+<hr/>
+
+<h2><span class="step-num">2</span> Check cron logs for your job</h2>
+
+<p>Cron logs tell you whether the daemon even attempted to run your job:</p>
+
+<pre><code># Ubuntu/Debian (journald)
+journalctl -u cron --since "1 hour ago"
+
+# Ubuntu/Debian (syslog)
+grep CRON /var/log/syslog | tail -50
+
+# RHEL/CentOS
+grep cron /var/log/cron | tail -50
+
+# macOS
+log show --predicate 'subsystem == "com.apple.xpc.launchd"' --last 1h | grep cron</code></pre>
+
+<p>What you're looking for:</p>
+<ul>
+  <li><code>CMD (/path/to/script.sh)</code> — the daemon ran it; the problem is in the script itself</li>
+  <li>No entry at the expected time — the daemon didn't attempt it (syntax error, wrong crontab, daemon not running)</li>
+  <li><code>RELOAD</code> or <code>ERROR</code> — crontab reload failed, often due to a syntax error</li>
+</ul>
+
+<hr/>
+
+<h2><span class="step-num">3</span> Validate your crontab syntax</h2>
+
+<p>A single syntax error in <code>crontab -e</code> can silently disable the entire crontab on some distributions. Always edit with <code>crontab -e</code> rather than editing the file directly — it validates before saving.</p>
+
+<pre><code># View your current crontab
+crontab -l
+
+# Edit safely (validates before saving)
+crontab -e</code></pre>
+
+<p>Common syntax mistakes:</p>
+
+<pre><code># Wrong: missing fields
+*/5 * * /path/to/script.sh          # only 3 fields before command — needs 5
+
+# Wrong: space inside a field
+0  9  * * 1-5 /path/to/script.sh   # double space — usually fine, but check
+
+# Wrong: percent sign in command (unescaped)
+0 9 * * * echo "today: $(date +%Y-%m-%d)"   # %Y, %m, %d — percent signs must be escaped as \%
+0 9 * * * echo "today: $(date +\%Y-\%m-\%d)"   # correct</code></pre>
+
+<div class="callout">
+  <strong>The % gotcha:</strong> In crontab, an unescaped <code>%</code> is treated as a newline. Commands using <code>date +%Y-%m-%d</code>, Python format strings, or printf with <code>%s</code> will silently fail or produce unexpected output unless every <code>%</code> is escaped as <code>\%</code>.
+</div>
+
+<p>Use an expression parser if you're unsure about the schedule fields: <a href="https://lior-seats.github.io/cron-expression-parser/">validate your cron expression here</a> to see the plain-English schedule and next run times.</p>
+
+<hr/>
+
+<h2><span class="step-num">4</span> Fix the PATH problem</h2>
+
+<p>This is the most common cause of "runs fine from terminal, does nothing in cron." Cron runs with a minimal PATH:</p>
+
+<pre><code>/usr/bin:/bin</code></pre>
+
+<p>Your interactive shell has a much richer PATH from <code>.bashrc</code>, <code>.profile</code>, or <code>.zshrc</code>. Commands like <code>node</code>, <code>python3</code>, <code>npm</code>, <code>php</code>, <code>composer</code>, <code>aws</code>, or anything installed to <code>/usr/local/bin</code> or <code>/home/user/.local/bin</code> are not found.</p>
+
+<h3>Diagnose it</h3>
+
+<p>Add a PATH-dump job temporarily:</p>
+
+<pre><code>* * * * * env > /tmp/cron-env.txt</code></pre>
+
+<p>Wait a minute, then check what PATH cron actually has:</p>
+
+<pre><code>grep PATH /tmp/cron-env.txt</code></pre>
+
+<h3>Fix it — three options</h3>
+
+<p><strong>Option 1: Set PATH at the top of your crontab</strong> (applies to all jobs in the file):</p>
+
+<pre><code>PATH=/usr/local/bin:/usr/bin:/bin:/home/youruser/.local/bin
+0 9 * * * /path/to/script.sh</code></pre>
+
+<p><strong>Option 2: Use absolute paths in your script</strong>:</p>
+
+<pre><code># Instead of:
+node index.js
+
+# Use:
+/usr/local/bin/node /home/youruser/myapp/index.js</code></pre>
+
+<p><strong>Option 3: Source your profile inside the script</strong>:</p>
+
+<pre><code>#!/bin/bash
+source /home/youruser/.bashrc
+# rest of your script</code></pre>
+
+<hr/>
+
+<h2><span class="step-num">5</span> Check script permissions and shebang</h2>
+
+<p>Two quick checks:</p>
+
+<pre><code># Is the script executable?
+ls -la /path/to/script.sh
+
+# Fix if not:
+chmod +x /path/to/script.sh</code></pre>
+
+<p>Also verify the shebang line is correct and points to an existing interpreter:</p>
+
+<pre><code>head -1 /path/to/script.sh
+# Should be: #!/bin/bash  or  #!/usr/bin/env python3  etc.
+
+# Verify the interpreter exists:
+which bash
+which python3</code></pre>
+
+<div class="callout">
+  <strong>Windows line endings:</strong> If the script was edited on Windows, it may have <code>\r\n</code> line endings. The shebang line <code>#!/bin/bash\r</code> will fail with <code>bad interpreter</code>. Fix with: <code>sed -i 's/\r$//' script.sh</code>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">6</span> Check the working directory and relative paths</h2>
+
+<p>Cron sets the working directory to your home directory (<code>~</code>), not the directory where your script lives. Any relative path inside the script — <code>./config.json</code>, <code>../data/</code>, <code>logs/app.log</code> — will resolve relative to home, not relative to the script.</p>
+
+<p>The fix: <code>cd</code> to your project directory at the top of your script:</p>
+
+<pre><code>#!/bin/bash
+set -e
+cd /home/youruser/myapp    # absolute path to your project
+
+# Now relative paths work as expected
+./run.sh
+python3 process.py
+node dist/index.js</code></pre>
+
+<p>Or do it inline in the crontab:</p>
+
+<pre><code>0 9 * * * cd /home/youruser/myapp && ./run.sh</code></pre>
+
+<hr/>
+
+<h2><span class="step-num">7</span> Check environment variables</h2>
+
+<p>Cron doesn't load your <code>.bashrc</code>, <code>.profile</code>, or any shell startup file. Environment variables your script depends on — <code>DATABASE_URL</code>, <code>API_KEY</code>, <code>HOME</code>, <code>LANG</code> — won't be set unless you set them explicitly.</p>
+
+<p><strong>Option 1: Set them in the crontab file</strong>:</p>
+
+<pre><code>DATABASE_URL=postgres://user:pass@localhost/mydb
+API_KEY=sk-abc123
+0 9 * * * /path/to/script.sh</code></pre>
+
+<p><strong>Option 2: Load a <code>.env</code> file inside your script</strong>:</p>
+
+<pre><code>#!/bin/bash
+set -a
+source /home/youruser/myapp/.env
+set +a
+# rest of your script</code></pre>
+
+<p><strong>Option 3: Use a systemd timer instead of cron</strong> — systemd's <code>EnvironmentFile=</code> directive gives you a clean way to inject env vars into scheduled jobs:</p>
+
+<pre><code># /etc/systemd/system/myjob.service
+[Service]
+Type=oneshot
+EnvironmentFile=/home/youruser/myapp/.env
+ExecStart=/home/youruser/myapp/script.sh</code></pre>
+
+<hr/>
+
+<h2><span class="step-num">8</span> Confirm you're editing the right crontab</h2>
+
+<p>Cron has separate crontab files per user. If your job needs to run as root (to access certain files or ports), it won't appear in <code>crontab -l</code> as a regular user:</p>
+
+<pre><code># Your own crontab
+crontab -l
+
+# Root's crontab
+sudo crontab -l
+
+# Another user's crontab (as root)
+sudo crontab -l -u www-data</code></pre>
+
+<p>Also check system-wide cron directories — jobs placed here by package managers or sysadmins run on their own schedules:</p>
+
+<pre><code>ls /etc/cron.d/
+ls /etc/cron.daily/
+ls /etc/cron.hourly/</code></pre>
+
+<hr/>
+
+<h2>Quick diagnostic checklist</h2>
+
+<p>If you're not sure where to start, run through this in order:</p>
+
+<ol class="checklist">
+  <li>Run the script manually as the same user cron would use: <code>sudo -u cronuser /path/to/script.sh</code>. Does it succeed?</li>
+  <li>Check the cron log for an attempt entry at the expected time.</li>
+  <li>Add <code>* * * * * env > /tmp/cron-env.txt</code> temporarily — confirm PATH and env vars.</li>
+  <li>Run the script with the cron-like environment: <code>env -i HOME=/home/youruser PATH=/usr/bin:/bin /path/to/script.sh</code></li>
+  <li>Redirect output to catch hidden errors: <code>0 9 * * * /path/to/script.sh >> /tmp/myjob.log 2>&1</code></li>
+  <li>Verify the cron daemon is running and no reload errors are in the log.</li>
+</ol>
+
+<p>Step 5 — redirecting both stdout and stderr to a log file — is the single most useful debugging tool. If cron is attempting your job but the job is failing silently, that log file will show you exactly what went wrong.</p>
+
+<hr/>
+
+<h2>Once you've fixed it — don't rely on manual checking again</h2>
+
+<p>Debugging a failed cron job after the fact is slow and stressful. The better long-term solution is monitoring that alerts you the moment a job misses its window, before a user or customer notices first.</p>
+
+<div class="cta-box">
+  <h3>📟 CronWatch monitors your jobs and alerts you instantly</h3>
+  <p>Once your job is running correctly, add a dead man's switch so you'll know the moment it stops — without grepping logs or waiting for a complaint. CronWatch monitors crontab, GitHub Actions scheduled workflows, Heroku Scheduler, and AWS EventBridge from a single dashboard.</p>
+  <a class="btn" href="https://lior-seats.github.io/cronwatch-waitlist/">Join the CronWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cron-expression-parser/">Validate your cron expression</a>
+</div>
+
+<p>Not sure whether your schedule expression is correct in the first place? <a href="https://lior-seats.github.io/cron-expression-parser/">Use the free cron expression parser</a> to see the plain-English description and the next five run times before you deploy the job.</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-not-running-debug',{mode:'no-cors'});}());</script>
+</body>
+</html>
