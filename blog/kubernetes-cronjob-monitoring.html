@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Kubernetes CronJob Monitoring: How to Get Alerts When Jobs Fail</title>
+<meta name="description" content="Kubernetes CronJobs fail silently. Learn how to monitor k8s CronJob failures, set up alerts, and know immediately when a scheduled job misses or crashes."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/kubernetes-cronjob-monitoring.html"/>
+<meta property="og:title" content="Kubernetes CronJob Monitoring: How to Get Alerts When Jobs Fail"/>
+<meta property="og:description" content="Kubernetes CronJobs fail silently. Learn how to monitor k8s CronJob failures and get alerts when a scheduled job misses or crashes."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/kubernetes-cronjob-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Kubernetes CronJob Monitoring: How to Get Alerts When Jobs Fail</h1>
+
+<p class="meta">The nightly database backup CronJob has been failing for six days. The alert fires when someone notices the backup folder stopped growing.</p>
+
+<p>Kubernetes CronJobs schedule containerized workloads — backups, data pipelines, report generation, cache warming, cleanup tasks. Like all cron systems, Kubernetes has a fundamental gap: <strong>it schedules jobs but doesn't tell you when they fail</strong>. A CronJob that crashes, times out, or quietly stops running produces no automatic notification unless you build one.</p>
+
+<p>This guide covers what Kubernetes CronJob failures look like, how to detect them with native tooling, and how to add the monitoring needed to catch a missed or failed job before your users do.</p>
+
+<hr/>
+
+<h2>Why Kubernetes CronJob failures are easy to miss</h2>
+
+<p>The Kubernetes scheduler fires a CronJob on schedule by creating a Job object. The Job creates a Pod. The Pod runs your container. If the container exits with a non-zero code or the Pod fails to start, Kubernetes records the failure — but it does not send an alert. The next scheduled run creates a new Job and Pod, regardless of whether the previous one succeeded.</p>
+
+<p>This means the default failure mode for a Kubernetes CronJob is: <strong>the job stops producing correct output, and nothing notifies you</strong>.</p>
+
+<p>Common scenarios:</p>
+
+<h3>The Pod crashes silently</h3>
+<p>Your container throws an unhandled exception and exits with code 1. Kubernetes marks the Job as failed, retries according to <code>backoffLimit</code>, eventually stops retrying. The CronJob keeps scheduling new runs. Each run fails. Nobody knows.</p>
+
+<h3>The job runs too long and times out</h3>
+<p>Kubernetes has an <code>activeDeadlineSeconds</code> field on Jobs. If your job exceeds it, the Job is terminated and marked failed. The partial work it completed may look like success until someone compares timestamps.</p>
+
+<h3>ConcurrencyPolicy silently drops runs</h3>
+<p>If you set <code>concurrencyPolicy: Forbid</code> and a previous run is still active, Kubernetes skips the new run entirely — no error, no log, just a skipped execution. With <code>startingDeadlineSeconds</code> misconfigured, runs can be missed due to controller downtime without any visible trace.</p>
+
+<h3>The schedule expression is wrong</h3>
+<p>Kubernetes CronJob schedules use standard five-field cron syntax in UTC. A job scheduled at <code>0 9 * * 1-5</code> runs at 9:00 AM UTC, which is 1:00 AM Pacific. If the author intended 9:00 AM Pacific, the job runs at the wrong time. It runs successfully — just not when expected. This is an intent mismatch, not a failure, but it has the same downstream effect.</p>
+
+<div class="callout">
+  <strong>Check your cron expression first</strong>
+  Before diagnosing failures, verify the schedule expression matches your intent. <a href="https://lior-seats.github.io/cron-expression-parser/">Paste your expression here</a> to see plain-English description and next run times.
+</div>
+
+<hr/>
+
+<h2>How to detect CronJob failures with kubectl</h2>
+
+<p>Start with what's already there:</p>
+
+<h3>Check recent Job history</h3>
+<pre><code># List all Jobs created by a CronJob
+kubectl get jobs -n my-namespace --selector=cronjob-name=my-cronjob
+
+# Or use label selectors Kubernetes creates automatically
+kubectl get jobs -n my-namespace -l job-name</code></pre>
+
+<p>Look at the <code>COMPLETIONS</code> column — a <code>0/1</code> that doesn't flip to <code>1/1</code> within the expected window is a failed job.</p>
+
+<h3>Inspect the most recent Job</h3>
+<pre><code>kubectl describe job/my-cronjob-28760400 -n my-namespace</code></pre>
+
+<p>The <code>Events</code> section will show <code>BackoffLimitExceeded</code> if retries were exhausted, or <code>DeadlineExceeded</code> if the job timed out.</p>
+
+<h3>Read the failing Pod logs</h3>
+<pre><code># Find the Pod from a failed Job
+kubectl get pods -n my-namespace --selector=job-name=my-cronjob-28760400
+
+# Read its logs
+kubectl logs my-cronjob-28760400-xxxxx -n my-namespace
+
+# If the Pod already terminated
+kubectl logs my-cronjob-28760400-xxxxx -n my-namespace --previous</code></pre>
+
+<h3>Check for recent missed schedules</h3>
+<pre><code>kubectl describe cronjob my-cronjob -n my-namespace</code></pre>
+
+<p>The <code>Events</code> section will show <code>MissSchedule</code> events if Kubernetes skipped runs due to controller downtime or ConcurrencyPolicy.</p>
+
+<hr/>
+
+<h2>Adding active alerting: three approaches</h2>
+
+<p>Checking manually is fine for debugging. It's not monitoring. Real monitoring means you receive an alert within minutes of a failure — not hours after a user complaint.</p>
+
+<h3>Option 1: Prometheus + Alertmanager</h3>
+
+<p>If you're already running Prometheus in your cluster (common with kube-prometheus-stack), you can add a CronJob failure alert rule:</p>
+
+<pre><code>groups:
+  - name: cronjob.rules
+    rules:
+      - alert: KubeCronJobFailed
+        expr: |
+          kube_job_status_failed > 0
+          and
+          kube_job_owner{owner_kind="CronJob"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CronJob {{ $labels.job_name }} failed"
+          description: "Job {{ $labels.job_name }} in namespace {{ $labels.namespace }} has failed."
+
+      - alert: KubeCronJobNotScheduled
+        expr: |
+          time() - kube_cronjob_next_schedule_time > 3600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CronJob {{ $labels.cronjob }} hasn't run in over an hour"</code></pre>
+
+<p>Route these through Alertmanager to Slack, PagerDuty, or email. This approach gives you granular control but requires a running Prometheus stack.</p>
+
+<h3>Option 2: Dead man's switch (heartbeat monitoring)</h3>
+
+<p>The most reliable pattern for CronJob monitoring is a <strong>dead man's switch</strong>: the job pings an external service at the end of each successful run. If the ping doesn't arrive within the expected window, the external service alerts you.</p>
+
+<p>Add a final step to your CronJob container that fires a heartbeat on success:</p>
+
+<pre><code>command: ["/bin/sh", "-c"]
+args:
+  - |
+    python /app/my_job.py && \
+    curl -s "https://cron.watch/ping/YOUR_JOB_TOKEN" --retry 3</code></pre>
+
+<p>If the job crashes before reaching the <code>curl</code>, the heartbeat never fires, and the monitor alerts you. This approach is simple and catches both job crashes and missed schedules — even when the scheduler itself fails.</p>
+
+<p>The key advantage over Prometheus: it works even if your cluster monitoring stack goes down. The heartbeat either arrives or it doesn't.</p>
+
+<h3>Option 3: Event-driven alerting via a sidecar or init container</h3>
+
+<p>For teams that want alerting without an external dependency, you can add an <code>initContainer</code> that registers a "job started" event, and a completion hook via <code>lifecycle.postStart</code> or a wrapper script that sends a "job ended" event on both success and failure to an internal service.</p>
+
+<p>This is the most complex option and requires maintaining the alerting sidecar. Most teams find the dead man's switch approach simpler and equally reliable.</p>
+
+<hr/>
+
+<h2>CronJob monitoring configuration checklist</h2>
+
+<p>These settings affect observability and should be set on every production CronJob:</p>
+
+<pre><code>apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: my-cronjob
+spec:
+  schedule: "0 9 * * 1-5"         # UTC — verify this matches your intent
+  concurrencyPolicy: Forbid        # Prevent overlapping runs
+  startingDeadlineSeconds: 300     # Allow 5 min window after scheduled time
+  successfulJobsHistoryLimit: 3    # Keep 3 recent successful job records
+  failedJobsHistoryLimit: 5        # Keep 5 recent failed job records (for debugging)
+  jobTemplate:
+    spec:
+      backoffLimit: 2              # Retry up to 2 times before marking failed
+      activeDeadlineSeconds: 3600  # Kill the job after 1 hour (adjust per job)
+      template:
+        spec:
+          restartPolicy: Never     # Don't restart the container — retry via Job
+          containers:
+            - name: my-job
+              image: my-image:latest
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"</code></pre>
+
+<p>Important settings:</p>
+<ul>
+  <li><strong><code>startingDeadlineSeconds</code></strong>: if the controller is down when a job is scheduled, Kubernetes counts missed schedules. More than 100 missed schedules causes the CronJob to stop scheduling. Setting this to a short window (5–15 min) prevents cascading misses.</li>
+  <li><strong><code>failedJobsHistoryLimit</code></strong>: higher values preserve debugging history. Lower values reduce cluster overhead. 3–5 is a reasonable default.</li>
+  <li><strong><code>restartPolicy: Never</code></strong>: for Jobs, <code>Never</code> means Kubernetes creates a new Pod for each retry instead of restarting in place. This preserves logs from each attempt.</li>
+</ul>
+
+<hr/>
+
+<h2>Comparing Kubernetes CronJob monitoring approaches</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Approach</th>
+      <th>Setup complexity</th>
+      <th>Catches missed schedules</th>
+      <th>Works if cluster is down</th>
+      <th>Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>kubectl manual checks</td>
+      <td>None</td>
+      <td>✓ (manual)</td>
+      <td>✗</td>
+      <td>Free</td>
+    </tr>
+    <tr>
+      <td>Prometheus alerts</td>
+      <td>High</td>
+      <td>Partial</td>
+      <td>✗</td>
+      <td>Free (infra cost)</td>
+    </tr>
+    <tr>
+      <td>Dead man's switch</td>
+      <td>Low (one curl)</td>
+      <td>✓</td>
+      <td>✓</td>
+      <td>Free–$9/mo</td>
+    </tr>
+    <tr>
+      <td>Datadog / New Relic</td>
+      <td>Medium</td>
+      <td>✓</td>
+      <td>✓</td>
+      <td>$$$ (enterprise pricing)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For small to medium teams running a handful of CronJobs, the dead man's switch pattern is typically the best tradeoff: low setup cost, reliable, and works independently of the Kubernetes cluster's health.</p>
+
+<hr/>
+
+<h2>Common Kubernetes CronJob failure root causes</h2>
+
+<h3>ImagePullBackOff</h3>
+<p>The container image can't be pulled — wrong tag, registry auth expired, private registry unreachable. The Pod status shows <code>ImagePullBackOff</code>. Check <code>kubectl describe pod</code> for the specific error. The job never starts.</p>
+
+<h3>OOMKilled</h3>
+<p>The container exceeded its memory limit and was killed by the kernel. The exit code is 137. Increase <code>resources.limits.memory</code> or fix the memory leak. The job ends abruptly, often producing partial output that looks like success.</p>
+
+<h3>Config or secret not found</h3>
+<p>A ConfigMap or Secret the job depends on was deleted or renamed. The Pod status shows <code>CreateContainerConfigError</code>. The job never starts.</p>
+
+<h3>RBAC permission denied</h3>
+<p>The job's ServiceAccount doesn't have permission to access the Kubernetes API resources it needs. The container starts but fails on the first API call. Logs show permission denied errors.</p>
+
+<h3>Timezone confusion</h3>
+<p>Kubernetes CronJob schedules are always in UTC. A developer in Pacific time writing <code>0 9 * * *</code> expects 9 AM local — it runs at 2 AM local. The job runs, but at the wrong time. Use a <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression parser</a> to confirm what UTC time your schedule actually fires.</p>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>Get alerted when your Kubernetes CronJob misses a run</h3>
+  <p>Add one line to your CronJob container command. CronWatch sends an alert if the ping doesn't arrive within the expected window — catching crashes, timeouts, missed schedules, and scheduler downtime in a single check.</p>
+  <pre style="background:#e7f5e7;border-color:#bbf7d0;margin:12px 0"><code>command: ["/bin/sh", "-c"]
+args: ["python job.py && curl -s https://cron.watch/ping/TOKEN"]</code></pre>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Get early access — $9/mo</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Verify your cron schedule</a>
+</div>
+
+<h2>Summary</h2>
+
+<p>Kubernetes CronJobs fail silently by default. The three most important steps to add monitoring:</p>
+
+<ol>
+  <li><strong>Set <code>failedJobsHistoryLimit</code> to 3–5</strong> so failed jobs are visible when you look.</li>
+  <li><strong>Add a dead man's switch heartbeat</strong> to the end of your job command — one <code>curl</code> line. This catches crashes, timeouts, and missed schedules without requiring Prometheus.</li>
+  <li><strong>Verify your schedule expression runs when you expect</strong> using a cron expression parser, since Kubernetes schedules are always UTC.</li>
+</ol>
+
+<p>The Prometheus alerting approach is more powerful if you already run kube-prometheus-stack, but for most small teams the dead man's switch pattern is faster to set up and more reliable.</p>
+
+<p><a href="https://lior-seats.github.io/blog/">← More articles</a></p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=kubernetes-cronjob-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
