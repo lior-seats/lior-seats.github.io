@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>robots.txt Generator for AI Crawlers: Block GPTBot, ClaudeBot &amp; More | CrawlGuard Blog</title>
+<meta name="description" content="Generate a robots.txt that blocks AI crawlers in seconds. Covers GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and 8 more. Free generator included."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/robots-txt-generator-ai-crawlers.html"/>
+<meta property="og:title" content="robots.txt Generator for AI Crawlers: Block GPTBot, ClaudeBot &amp; More"/>
+<meta property="og:description" content="Generate a robots.txt that blocks AI training crawlers in seconds. Choose from Block All AI, Allow Search Only, or Custom presets. Free tool — no account required."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/robots-txt-generator-ai-crawlers.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="robots.txt Generator for AI Crawlers: Block GPTBot, ClaudeBot &amp; More"/>
+<meta name="twitter:description" content="Generate a robots.txt that blocks AI training crawlers in seconds. Choose from Block All AI, Allow Search Only, or Custom presets. Free tool — no account required."/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout-blue { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout-blue strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.4em 0; font-size: 0.86rem; }
+  th { text-align: left; padding: 8px 10px; background: #f4f4f5; border: 1px solid #e4e4e7; font-weight: 700; white-space: nowrap; }
+  td { padding: 8px 10px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .yes { color: #15803d; font-weight: 600; }
+  .no { color: #dc2626; font-weight: 600; }
+  .partial { color: #b45309; font-weight: 600; }
+  .toc { background: #f8fafc; border: 1px solid #e4e4e7; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; font-size: 0.92rem; }
+  .toc ul { margin-bottom: 0; }
+  .toc li { margin-bottom: 0.2em; }
+  .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 1.4em 0; }
+  .preset-card { border: 1px solid #e4e4e7; border-radius: 8px; padding: 14px 16px; }
+  .preset-card h4 { margin: 0 0 6px; font-size: 0.95rem; font-weight: 700; }
+  .preset-card p { margin: 0; font-size: 0.88rem; color: #555; }
+  @media (max-width: 500px) { .preset-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>robots.txt Generator for AI Crawlers: Block GPTBot, ClaudeBot, and Others in Seconds</h1>
+
+<p class="meta">Generate a production-ready robots.txt with AI crawler blocking presets. Covers 13 bots across OpenAI, Anthropic, Meta, ByteDance, Common Crawl, Perplexity, Google, Apple, Amazon, and Cohere.</p>
+
+<p>There are now more than a dozen active AI training crawlers regularly hitting websites. Some consume significant bandwidth. Most offer no benefit to site owners — no search rankings, no referral traffic, just content scraping for model training. And writing a correct robots.txt that blocks all of them requires knowing the exact User-Agent string for each one.</p>
+
+<p>The <a href="https://lior-seats.github.io/robots-txt-generator/">free robots.txt generator</a> handles this for you. Pick a preset, review the output, copy it. Done in under a minute.</p>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#why-block">Why developers are blocking AI crawlers</a></li>
+    <li><a href="#what-robots-can-do">What robots.txt can and cannot do</a></li>
+    <li><a href="#generator">How to generate your robots.txt</a></li>
+    <li><a href="#bots">The 13 AI bots covered</a></li>
+    <li><a href="#manual">Manual directives for key bots</a></li>
+    <li><a href="#verify">Verify your rules are working</a></li>
+    <li><a href="#monitor">Monitor ongoing AI crawler activity</a></li>
+  </ul>
+</nav>
+
+<hr/>
+
+<h2 id="why-block">Why developers are blocking AI crawlers</h2>
+
+<p>Three reasons come up repeatedly:</p>
+
+<h3>Bandwidth costs</h3>
+<p>AI crawlers — especially <code>meta-externalagent</code> and <code>Bytespider</code> — have been the dominant driver of unexpected hosting bill spikes for independent developers. They crawl aggressively, often hitting pages at rates that resemble a small DDoS. On a pay-per-GB hosting plan, the cost is real and immediate.</p>
+
+<h3>Training data control</h3>
+<p>Your content feeds LLM training datasets whether you want it to or not, unless you explicitly opt out. robots.txt is the standard, documented mechanism for doing so. Major AI labs have publicly committed to honoring it — OpenAI, Anthropic, Google, and Apple all have. For well-behaved bots, it works.</p>
+
+<h3>No reciprocal value</h3>
+<p>Search crawlers index your content and drive traffic back to you. AI crawlers take content and surface it in chat interfaces that remove the user's need to ever visit your site. The value exchange is asymmetric. Many developers have concluded there's simply no reason to opt in.</p>
+
+<hr/>
+
+<h2 id="what-robots-can-do">What robots.txt can and cannot do for AI bots</h2>
+
+<p>robots.txt is a declaration of intent, not a technical barrier. The protocol works by convention: bots fetch your <code>/robots.txt</code> file before crawling and respect the rules it contains — if they choose to.</p>
+
+<p><strong>What it reliably does:</strong></p>
+<ul>
+  <li>Blocks well-behaved bots that honor the Robots Exclusion Protocol (OpenAI, Anthropic, Google, Apple, Cohere, Amazon)</li>
+  <li>Provides a documented, standardized signal of your preferences</li>
+  <li>Is sufficient for the majority of AI crawler traffic in practice</li>
+</ul>
+
+<p><strong>What it cannot do:</strong></p>
+<ul>
+  <li>Block crawlers that ignore it — notably <strong>Bytespider</strong> (ByteDance), which has documented history of crawling disallowed paths</li>
+  <li>Stop bots that mask their User-Agent or route through residential proxies</li>
+  <li>Retroactively remove content already scraped before you added rules</li>
+</ul>
+
+<div class="callout">
+  <strong>Bytespider requires server-level blocking</strong>
+  Multiple independent researchers have confirmed Bytespider crawls pages explicitly disallowed in robots.txt. For reliable protection against it, add a firewall or CDN rule in addition to your robots.txt directive. Your CDN's bot management feature or a simple User-Agent block in Nginx/Apache is the practical solution.
+</div>
+
+<p>For the vast majority of AI crawler traffic, robots.txt is the right first step and handles the bots most likely to be causing problems.</p>
+
+<hr/>
+
+<h2 id="generator">How to generate your robots.txt</h2>
+
+<p>The <a href="https://lior-seats.github.io/robots-txt-generator/">robots.txt generator</a> gives you four presets:</p>
+
+<div class="preset-grid">
+  <div class="preset-card">
+    <h4>🚫 Block all AI crawlers</h4>
+    <p>Blocks all 13 known AI training and retrieval bots. Leaves Google Search, Bing, and other search crawlers alone.</p>
+  </div>
+  <div class="preset-card">
+    <h4>🔍 Allow only search engines</h4>
+    <p>Blocks everything except Googlebot, Bingbot, and a small whitelist of search crawlers. Maximum restriction.</p>
+  </div>
+  <div class="preset-card">
+    <h4>✅ Allow all</h4>
+    <p>Generates a permissive robots.txt. Useful as a starting point if you want to allow everything and add specific exclusions.</p>
+  </div>
+  <div class="preset-card">
+    <h4>⚙️ Custom</h4>
+    <p>Toggle individual bots. Block the training crawlers you care about and allow the ones you want to permit.</p>
+  </div>
+</div>
+
+<p><strong>Three steps:</strong></p>
+<ol>
+  <li>Open the <a href="https://lior-seats.github.io/robots-txt-generator/">robots.txt generator</a></li>
+  <li>Select a preset (or use Custom to pick individual bots)</li>
+  <li>Copy the generated output and save it as <code>robots.txt</code> at the root of your site</li>
+</ol>
+
+<div class="cta-box">
+  <h3>⚡ Generate your robots.txt now</h3>
+  <p>Free tool. No account required. Covers 13 AI crawlers across 3 sections. Takes under a minute.</p>
+  <a href="https://lior-seats.github.io/robots-txt-generator/" class="btn">Open robots.txt generator →</a>
+</div>
+
+<hr/>
+
+<h2 id="bots">The 13 AI bots covered</h2>
+
+<p>The generator covers every major AI training and retrieval crawler as of October 2026:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Bot</th>
+      <th>Company</th>
+      <th>User-Agent</th>
+      <th>Respects robots.txt?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>GPTBot</strong></td>
+      <td>OpenAI</td>
+      <td><code>GPTBot</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>ChatGPT-User</strong></td>
+      <td>OpenAI</td>
+      <td><code>ChatGPT-User</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>OAI-SearchBot</strong></td>
+      <td>OpenAI</td>
+      <td><code>OAI-SearchBot</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>ClaudeBot</strong></td>
+      <td>Anthropic</td>
+      <td><code>ClaudeBot</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>anthropic-ai</strong></td>
+      <td>Anthropic</td>
+      <td><code>anthropic-ai</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>meta-externalagent</strong></td>
+      <td>Meta</td>
+      <td><code>meta-externalagent</code></td>
+      <td><span class="partial">Partial</span></td>
+    </tr>
+    <tr>
+      <td><strong>Bytespider</strong></td>
+      <td>ByteDance</td>
+      <td><code>Bytespider</code></td>
+      <td><span class="no">No</span></td>
+    </tr>
+    <tr>
+      <td><strong>CCBot</strong></td>
+      <td>Common Crawl</td>
+      <td><code>CCBot</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>PerplexityBot</strong></td>
+      <td>Perplexity</td>
+      <td><code>PerplexityBot</code></td>
+      <td><span class="partial">Partial</span></td>
+    </tr>
+    <tr>
+      <td><strong>Google-Extended</strong></td>
+      <td>Google</td>
+      <td><code>Google-Extended</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>Applebot-Extended</strong></td>
+      <td>Apple</td>
+      <td><code>Applebot-Extended</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>Amazonbot</strong></td>
+      <td>Amazon</td>
+      <td><code>Amazonbot</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+    <tr>
+      <td><strong>cohere-ai</strong></td>
+      <td>Cohere</td>
+      <td><code>cohere-ai</code></td>
+      <td><span class="yes">Yes</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout-blue">
+  <strong>Google-Extended does NOT affect Google Search</strong>
+  <code>Google-Extended</code> controls whether Google uses your content for Gemini and AI Overviews. It is a completely separate User-Agent from Googlebot. Adding it to your robots.txt has zero impact on your search rankings.
+</div>
+
+<hr/>
+
+<h2 id="manual">Manual directives for key bots</h2>
+
+<p>If you prefer to write or edit your robots.txt by hand, here are the exact directives for the bots most commonly cited in bandwidth spike reports:</p>
+
+<h3>Block GPTBot (OpenAI training crawler)</h3>
+<pre><code>User-agent: GPTBot
+Disallow: /</code></pre>
+
+<h3>Block ClaudeBot (Anthropic)</h3>
+<p>Block both User-Agents — Anthropic uses both, and the legacy one still shows up in logs:</p>
+<pre><code>User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /</code></pre>
+
+<h3>Block meta-externalagent (Meta)</h3>
+<p>This one is most frequently associated with hosting bill spikes. Block it explicitly — don't rely on a wildcard <code>User-agent: *</code> rule to catch it:</p>
+<pre><code>User-agent: meta-externalagent
+Disallow: /</code></pre>
+
+<h3>Block all AI crawlers (copy-paste)</h3>
+<p>For a complete block list with all 13 bots, use the <a href="https://lior-seats.github.io/robots-txt-generator/">generator</a> — it outputs a clean, correctly-formatted file with one click. Writing it manually at this scale introduces typo risk in User-Agent strings.</p>
+
+<div class="callout">
+  <strong>Typos in User-Agent strings silently break blocking</strong>
+  <code>User-Agent: GPTbot</code> (lowercase b) will not match <code>GPTBot</code>. robots.txt User-Agent matching is case-insensitive in the spec, but implementation varies across parsers — and more importantly, you won't get any error when a string is wrong; the bot simply isn't blocked. The generator handles the correct casing for all 13 bots.
+</div>
+
+<hr/>
+
+<h2 id="verify">Verify your rules are working</h2>
+
+<p>After deploying your robots.txt, verify the live file is what you intended. Three things silently break robots.txt updates:</p>
+
+<ul>
+  <li>CDN caching serving the old version</li>
+  <li>Deploying to the wrong path (file needs to be at <code>/robots.txt</code>, not <code>/static/robots.txt</code>)</li>
+  <li>A subtle syntax error causing parsers to skip your new rules</li>
+</ul>
+
+<p>The free <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check tool</a> fetches your live robots.txt, parses it, and tells you which major AI crawlers are currently blocked vs. allowed. It takes about 5 seconds and requires no account.</p>
+
+<div class="cta-box">
+  <h3>🔍 Verify your deployment</h3>
+  <p>Enter your domain and the tool checks your live robots.txt against all major AI crawlers instantly. Free, no signup.</p>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn">Check my site →</a>
+  <a href="https://lior-seats.github.io/robots-txt-generator/" class="btn btn-secondary">robots.txt generator →</a>
+</div>
+
+<hr/>
+
+<h2 id="monitor">Monitor ongoing AI crawler activity</h2>
+
+<p>robots.txt blocking tells crawlers to stay away. But it doesn't tell <em>you</em> whether they actually are — or whether new ones have appeared that aren't covered by your current rules.</p>
+
+<p>New AI crawlers emerge as new labs launch products. A bot that didn't exist six months ago might be hitting your site today. Static robots.txt rules don't update themselves.</p>
+
+<p>CrawlGuard monitors your site's crawler activity in real time, alerts you when new bots appear, and tracks whether blocked bots are actually staying away. It's designed for developers who want ongoing visibility, not just a one-time config.</p>
+
+<a href="https://lior-seats.github.io/crawlguard-waitlist/" class="btn">Join the CrawlGuard waitlist →</a>
+
+<hr/>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/robots-txt-generator/">robots.txt generator</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawl-check/">AI Crawler Check</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard waitlist</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=block-ai-crawlers-robots-txt',{mode:'no-cors'});}());</script>
+</body>
+</html>
