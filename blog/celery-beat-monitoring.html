@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Celery Beat Monitoring: How to Alert When Scheduled Tasks Stop Running</title>
+<meta name="description" content="Celery Beat tasks fail silently — no error logs, no alerts. Learn the three monitoring approaches that catch missed runs before your users notice."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/celery-beat-monitoring.html"/>
+<meta property="og:title" content="Celery Beat Monitoring: How to Alert When Scheduled Tasks Stop Running"/>
+<meta property="og:description" content="Celery Beat tasks fail silently — no error logs, no alerts. Learn the three monitoring approaches that catch missed runs before your users notice."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/celery-beat-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="keywords" content="celery beat monitoring, celery beat not running, celery beat task failed alert, monitor celery scheduled tasks, celery beat down alert"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Celery Beat Monitoring: How to Alert When Scheduled Tasks Stop Running</h1>
+
+<p class="meta">The nightly report didn't go out. The cleanup job hasn't run in three days. Celery Beat stopped — and nobody knew.</p>
+
+<p>Celery Beat is the scheduler at the heart of most Python and Django applications that need periodic tasks. It handles everything from sending daily digests to processing queued data to expiring old records. When it's working, it's invisible. When it stops — and it does stop — the silence is the problem.</p>
+
+<p>Unlike a crashed web server, a stopped Celery Beat process produces no error page, no 500 response, no alert. The tasks simply don't run. This article covers why Beat fails silently, the most common failure modes, and three monitoring approaches you can implement today.</p>
+
+<hr/>
+
+<h2>Why Celery Beat failures are invisible by default</h2>
+
+<p>Celery Beat is a separate process from your Celery workers. Its job is to push tasks onto the queue at the right time. If Beat crashes, the workers keep running — they're just waiting for tasks that never arrive. From the worker's perspective, everything is fine. No error surfaces anywhere in your observability stack.</p>
+
+<p>The default architecture gives you nothing to alert on. Beat writes to a schedule file (<code>celerybeat-schedule</code>) and logs task dispatch to stdout, but only if you're watching. There's no built-in dead-man detection, no "last ran at" metric exposed to Prometheus, no webhook on missed schedules.</p>
+
+<p>The result: your codebase believes the scheduled tasks are running because the schedule is configured correctly. The scheduler disagrees — it's not running at all.</p>
+
+<hr/>
+
+<h2>Common failure modes for Celery Beat</h2>
+
+<h3>Beat process crashes or doesn't restart</h3>
+<p>The most common cause. Beat runs as a separate process (<code>celery -A myapp beat</code>) and needs its own process supervisor entry. A deployment that restarts workers but not Beat, an OOM kill, or a missing <code>Restart=always</code> in the systemd unit leaves Beat silently dead. Workers keep running. Queue stays empty for periodic tasks.</p>
+
+<h3>Broker disconnection (Redis or RabbitMQ)</h3>
+<p>Beat dispatches tasks by publishing to the message broker. If Redis or RabbitMQ goes down — even briefly — Beat may fail to enqueue the task and log a connection error that nobody is watching. Depending on your Celery version and broker settings, Beat may recover automatically or it may require a restart. Either way, you lose the runs during the outage window, and there's no automatic catch-up for missed schedules.</p>
+
+<h3>Task queue backpressure</h3>
+<p>Beat can dispatch a task successfully while zero workers are available to consume it. The task sits in the queue, expires (if you've set <code>task_soft_time_limit</code>), and the next instance gets dispatched before the previous one finishes. This leads to silent data inconsistencies — your task "ran" from Beat's perspective, but the work never completed.</p>
+
+<h3>Timezone and DST issues causing missed runs</h3>
+<p>Celery Beat respects <code>CELERY_TIMEZONE</code>, but DST transitions can cause tasks to fire an hour early, an hour late, or twice in a row. If your schedule uses <code>crontab(hour=2, minute=0)</code> and your server switches from UTC-5 to UTC-4, the 2am window either doesn't exist or occurs at an unexpected wall-clock time. The logs will show the task ran, but at the wrong moment.</p>
+
+<hr/>
+
+<h2>Three monitoring approaches</h2>
+
+<h3>Approach 1: Heartbeat task (dead man's switch)</h3>
+
+<p>The most reliable pattern: add a dedicated heartbeat task to Beat's schedule and have it ping a monitoring URL every minute. If the monitoring service doesn't see a ping within the expected window, it fires an alert. This catches three failure modes at once — Beat not running, Beat running but failing to dispatch, and the heartbeat task itself failing.</p>
+
+<pre><code># celery.py
+from celery import Celery
+from celery.schedules import crontab
+
+app = Celery('myapp')
+
+app.conf.beat_schedule = {
+    # Your existing tasks...
+    'nightly-report': {
+        'task': 'myapp.tasks.generate_report',
+        'schedule': crontab(hour=2, minute=0),
+    },
+    # Add this heartbeat task:
+    'heartbeat': {
+        'task': 'myapp.tasks.send_heartbeat',
+        'schedule': 60.0,  # every 60 seconds
+    },
+}
+app.conf.timezone = 'UTC'</code></pre>
+
+<pre><code># tasks.py
+from celery import shared_task
+
+@shared_task
+def send_heartbeat():
+    import requests
+    try:
+        requests.get(
+            'https://your-monitor/heartbeat/TOKEN',
+            timeout=5
+        )
+    except Exception:
+        pass  # Don't let heartbeat failures affect other tasks</code></pre>
+
+<div class="callout">
+  <strong>Why 60 seconds?</strong>
+  A 60-second heartbeat gives you fast detection (alert within ~2 minutes of Beat going down) without significant overhead. For less critical applications, a 5-minute heartbeat is also common. Match the interval to your alert tolerance — the monitoring service's alert window should be 2–3× the heartbeat interval.
+</div>
+
+<p>This pattern works with both <strong>django-celery-beat</strong> (database-backed schedules) and the standard Beat scheduler. For django-celery-beat, add the heartbeat via the Django admin or a data migration rather than hardcoding it in <code>beat_schedule</code>.</p>
+
+<h3>Approach 2: External "last seen" check</h3>
+
+<p>Rather than a dedicated heartbeat task, have your most-critical existing task write a timestamp to Redis (or any fast store) at the end of each successful run. A separate lightweight checker — a cron job, Lambda, or health-check endpoint — reads that timestamp and alerts if it's stale.</p>
+
+<pre><code># tasks.py
+from celery import shared_task
+from django.core.cache import cache
+from django.utils import timezone
+
+@shared_task
+def generate_report():
+    # ... your task logic ...
+    
+    # Write last-success timestamp
+    cache.set('generate_report:last_success', timezone.now().isoformat(), timeout=None)
+
+
+# health_checks.py (called by a monitoring endpoint or separate cron)
+from django.core.cache import cache
+from django.utils import timezone
+from datetime import timedelta
+
+def celery_beat_is_healthy():
+    last = cache.get('generate_report:last_success')
+    if not last:
+        return False
+    last_run = timezone.datetime.fromisoformat(last)
+    expected_interval = timedelta(hours=24)
+    return (timezone.now() - last_run) < expected_interval * 1.5</code></pre>
+
+<p>The advantage here is that it tests actual task completion, not just dispatch. Beat could be running and enqueueing tasks that immediately fail on the worker — the heartbeat approach wouldn't catch that, but a last-success timestamp would.</p>
+
+<h3>Approach 3: Flower + alerting</h3>
+
+<p>Flower is the standard Celery monitoring UI. It gives you a real-time view of workers, tasks, and queues. For Beat monitoring specifically, it's most useful for investigating failures rather than preventing them — Flower doesn't natively fire alerts when a scheduled task misses its window.</p>
+
+<p>To get alerting from Flower, pair it with a tool that scrapes Flower's REST API and alerts on task failures or worker disconnections. Flower exposes task history at <code>/api/tasks</code>, which you can poll from a simple script:</p>
+
+<pre><code>import requests
+from datetime import datetime, timedelta
+
+# Check for recent failures of a specific task
+resp = requests.get('http://localhost:5555/api/tasks?limit=50')
+tasks = resp.json()
+
+for task_id, task in tasks.items():
+    if task['name'] == 'myapp.tasks.generate_report':
+        if task['state'] == 'FAILURE':
+            # Send alert
+            print(f"Task failed: {task['traceback']}")</code></pre>
+
+<p>Flower works well for Celery 4 and Celery 5 applications. In containerized environments, run it as a sidecar with <code>celery -A myapp flower --port=5555</code>.</p>
+
+<hr/>
+
+<h2>Minimum viable Beat monitoring checklist</h2>
+
+<ol>
+  <li><strong>Add a heartbeat task to your Beat schedule</strong> — one task, one ping URL, 60-second interval. The fastest path to Beat downtime detection.</li>
+  <li><strong>Supervise the Beat process separately</strong> — verify your <code>Procfile</code>, systemd unit, or container spec has Beat with <code>Restart=always</code> (or equivalent). It must restart independently of workers.</li>
+  <li><strong>Set <code>CELERY_TIMEZONE = 'UTC'</code></strong> — eliminates an entire class of DST-related missed runs. Override to local time only if your schedule is explicitly wall-clock dependent.</li>
+  <li><strong>Log Beat dispatch explicitly</strong> — run Beat with <code>--loglevel=info</code> and ship logs to a central store. Even without alerting, searchable logs let you reconstruct when Beat last dispatched a given task.</li>
+  <li><strong>Test Beat independently of workers</strong> — in staging, kill the Beat process and verify your monitoring alerts within the expected window before relying on it in production.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>📟 Monitor all your scheduled tasks</h3>
+  <p>CronWatch monitors Celery Beat tasks, cron jobs, GitHub Actions schedules, and AWS EventBridge — across every platform you use. Get alerted in Slack or email within minutes of a missed run or task failure. Works with django-celery-beat, Celery 4, and Celery 5.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-celery-beat-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
