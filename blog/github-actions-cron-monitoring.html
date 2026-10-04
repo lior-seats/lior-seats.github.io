@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GitHub Actions Cron Job Monitoring: Get Alerts When Scheduled Workflows Fail</title>
+<meta name="description" content="GitHub Actions scheduled workflows fail silently. Three approaches to monitor them — external heartbeat, Slack step, status badge — with a real YAML example."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/github-actions-cron-monitoring.html"/>
+<meta property="og:title" content="GitHub Actions Cron Job Monitoring: Get Alerts When Scheduled Workflows Fail"/>
+<meta property="og:description" content="GitHub Actions scheduled workflows fail silently. Three approaches to monitor them — external heartbeat, Slack step, status badge — with a real YAML example."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/github-actions-cron-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="keywords" content="github actions cron not running, github actions schedule monitoring, github actions cron job alert, monitor github actions scheduled workflow"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>GitHub Actions Cron Job Monitoring: Get Alerts When Scheduled Workflows Fail</h1>
+
+<p class="meta">Your nightly workflow ran Tuesday. It hasn't run since. You found out Friday — from a broken deploy.</p>
+
+<p>GitHub Actions <code>schedule:</code> triggers are convenient. You write a cron expression, commit a workflow file, and the job runs on a cadence. What the UI doesn't surface clearly: when a scheduled workflow stops running — or runs but fails — the default notification behavior is nearly silent. No dashboard alert. No Slack message. Often, just a quiet failure that nobody catches until downstream breakage appears.</p>
+
+<p>This article covers why GitHub Actions cron jobs fail silently, three concrete approaches to monitor them, and how to set up an external heartbeat monitor with a single workflow step.</p>
+
+<hr/>
+
+<h2>Why GitHub Actions scheduled workflows fail silently</h2>
+
+<p>There are three distinct failure modes, each with different observability characteristics.</p>
+
+<h3>The 60-day inactivity freeze</h3>
+<p>GitHub automatically disables scheduled workflows on repositories with no activity for 60 days. "Activity" means commits, pull requests, or other repository events — not workflow runs themselves. A repo that has only a scheduled job (and nothing else happening) is especially vulnerable: the workflow keeps the repo "active" in your mind, but GitHub doesn't count workflow runs as activity. When the freeze triggers, GitHub sends one email notification. If you miss it, the workflow just stops. For the full list of causes, see our post on <a href="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html">GitHub Actions scheduled workflows not running</a>.</p>
+
+<h3>Infrastructure-level skips</h3>
+<p>GitHub's scheduler is best-effort. Under high load, queued scheduled runs can be delayed or dropped entirely. The GitHub documentation acknowledges this. In practice it's rare, but for workflows with downstream dependencies — nightly data processing, billing cycles, time-sensitive cleanup — a dropped run at 2 AM may not surface until the next morning when something is obviously broken.</p>
+
+<h3>The job runs but the steps fail quietly</h3>
+<p>GitHub <em>does</em> send email on workflow failure — but only to the repository owner, and only if the failure is a hard exit. Steps marked <code>continue-on-error: true</code> swallow failures silently. Business logic that catches exceptions and exits with code 0 looks like success to GitHub. A workflow that completes in 2 seconds when it should take 4 minutes completed, technically, without error.</p>
+
+<div class="callout">
+  <strong>The core problem</strong>
+  GitHub notifies you when a workflow fails. It does not notify you when a workflow stops running. These are two different things, and the second one is usually harder to catch.
+</div>
+
+<hr/>
+
+<h2>Three approaches to monitor GitHub Actions scheduled workflows</h2>
+
+<h3>Approach 1: External heartbeat monitor (most reliable)</h3>
+
+<p>An external heartbeat monitor inverts the alerting logic. Instead of watching for a failure signal, you watch for the <em>absence</em> of a success signal. Your workflow sends an HTTP ping at the end of each successful run. If the monitor doesn't receive the ping within a defined window, it alerts you.</p>
+
+<p>This is the only approach that catches all three failure modes — job skipped, job failed, job ran too slowly — with a single mechanism. The monitor doesn't care why the ping didn't arrive. It just alerts when the expected heartbeat is missing.</p>
+
+<p>Tools in this space: <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a>, healthchecks.io, Better Uptime, and Dead Man's Snitch. See our <a href="https://lior-seats.github.io/blog/dead-mans-snitch-alternatives.html">comparison of cron monitoring tools</a> for a detailed breakdown.</p>
+
+<h3>Approach 2: Slack notification step in the workflow</h3>
+
+<p>Add a step that posts to Slack on failure. This is more visible than email but still only catches explicit failures — not missed runs. It's a good complement to a heartbeat monitor, not a replacement.</p>
+
+<pre><code>- name: Notify Slack on failure
+  if: failure()
+  uses: slackapi/slack-github-action@v1
+  with:
+    channel-id: 'C12345678'
+    slack-message: "Nightly sync failed in ${{ github.repository }}"
+  env:
+    SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}</code></pre>
+
+<p>The limitation: <code>if: failure()</code> only fires when the job actually runs and fails. A skipped or frozen workflow never triggers it.</p>
+
+<h3>Approach 3: Status badge monitoring</h3>
+
+<p>GitHub provides a workflow status badge URL for every workflow. You can embed this badge in your README or monitor it with an uptime checker. When a workflow fails, the badge changes from <code>passing</code> to <code>failing</code>.</p>
+
+<pre><code>![Nightly Sync](https://github.com/your-org/your-repo/actions/workflows/nightly.yml/badge.svg)</code></pre>
+
+<p>This is a passive approach — useful for at-a-glance status in a README, but it requires someone to look at it. An uptime monitor polling the badge URL can make it active, but you're now running infrastructure to monitor infrastructure.</p>
+
+<hr/>
+
+<h2>Setting up an external heartbeat monitor</h2>
+
+<p>The heartbeat approach requires two things: a monitoring service that expects periodic pings, and a workflow step that sends the ping on successful completion.</p>
+
+<p>The workflow step is one line:</p>
+
+<pre><code>- name: Heartbeat
+  if: success()
+  run: curl -s https://your-monitor-url/heartbeat/TOKEN</code></pre>
+
+<p>Here's a complete example of a monitored nightly workflow:</p>
+
+<pre><code>name: Nightly Data Sync
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 3 AM UTC every night
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run sync
+        run: python sync.py
+
+      - name: Heartbeat
+        if: success()
+        run: curl -s https://your-monitor-url/heartbeat/TOKEN</code></pre>
+
+<p>The <code>if: success()</code> condition ensures the heartbeat only fires when all previous steps passed. If <code>python sync.py</code> exits non-zero, the heartbeat step is skipped, the monitor sees a missing ping, and you get alerted.</p>
+
+<h3>Configuring the monitor window</h3>
+
+<p>Most heartbeat monitors let you configure a grace period — how long after an expected ping the monitor waits before alerting. For a daily job, a reasonable setting is 30–60 minutes. This absorbs GitHub's scheduler delay variance without generating false positives.</p>
+
+<p>For a weekly job (<code>0 3 * * 1</code>), set the grace period to 1–2 hours. The longer the schedule interval, the more margin you need for scheduler variance.</p>
+
+<h3>Validating your cron expression</h3>
+
+<p>Before deploying a monitored workflow, verify the cron expression fires when you expect it to. GitHub Actions uses UTC — a job at <code>0 9 * * *</code> is 9 AM UTC, which may be 1 AM or 2 AM Pacific depending on daylight saving. Use the <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression parser</a> to preview the next 10 run times before committing.</p>
+
+<hr/>
+
+<h2>What to monitor beyond the heartbeat</h2>
+
+<p>Once a heartbeat is in place, there are two additional signals worth capturing.</p>
+
+<h3>Job duration</h3>
+<p>A job that completes but takes 10× longer than usual is a signal — an API is slow, a dataset grew unexpectedly, or a resource is constrained. GitHub Actions records run duration in the workflow UI, but doesn't alert on anomalous duration. Some external monitors let you set a maximum expected duration alongside the grace period, alerting when a run takes too long even if it eventually succeeds.</p>
+
+<h3>Output validation</h3>
+<p>A job that succeeds structurally but produces wrong output — 0 rows synced, empty report, empty S3 object — is a silent failure that heartbeat monitoring won't catch. Add an explicit assertion step before the heartbeat ping:</p>
+
+<pre><code>- name: Validate output
+  run: |
+    ROW_COUNT=$(python -c "import json; d=json.load(open('output.json')); print(len(d['rows']))")
+    if [ "$ROW_COUNT" -lt "1" ]; then
+      echo "Output validation failed: 0 rows"
+      exit 1
+    fi
+
+- name: Heartbeat
+  if: success()
+  run: curl -s https://your-monitor-url/heartbeat/TOKEN</code></pre>
+
+<p>With this pattern, a zero-row sync fails the job explicitly, skips the heartbeat ping, and triggers the monitor alert — all without any separate alerting infrastructure.</p>
+
+<hr/>
+
+<h2>Putting it together</h2>
+
+<p>The minimum viable monitoring setup for a GitHub Actions scheduled workflow:</p>
+
+<ol>
+  <li><strong>Sign up for a heartbeat monitoring service</strong> — CronWatch, healthchecks.io, or similar. Create a monitor for your job with the expected schedule and a 30–60 minute grace period.</li>
+  <li><strong>Add one step to your workflow</strong> — <code>curl -s https://your-monitor-url/heartbeat/TOKEN</code> with <code>if: success()</code>.</li>
+  <li><strong>Add a Slack failure step</strong> — as a secondary alert for explicit failures.</li>
+  <li><strong>Validate your cron expression</strong> — use the <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression parser</a> to confirm the schedule fires when expected in UTC.</li>
+  <li><strong>Add output assertions before the heartbeat</strong> — catch silent logic failures that produce code 0 but wrong results.</li>
+</ol>
+
+<p>With this setup, you get alerted within an hour whether the workflow was frozen, failed, skipped, or ran but produced bad output. That covers the vast majority of real-world failure modes with less than 20 lines of additional YAML.</p>
+
+<div class="cta-box">
+  <h3>📟 Monitor all your cron jobs — including GitHub Actions</h3>
+  <p>CronWatch monitors your scheduled workflows across GitHub Actions, crontab, AWS EventBridge, Kubernetes CronJob, and more. Get alerted in Slack or email within minutes of a missed or failed run. One heartbeat URL. Every platform.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-github-actions-cron-monitoring')</script>
+</body>
+</html>
