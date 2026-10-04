@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Vercel Log Drains: How to Track AI Crawler Costs Per Bot | CrawlGuard Blog</title>
+<meta name="description" content="Vercel Log Drains pipe every request to your own endpoint. Here's how to use them to find out exactly which AI crawler (GPTBot, ClaudeBot, meta-externalagent) is costing you money."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/vercel-log-drains-ai-crawler-monitoring.html"/>
+<meta property="og:title" content="Vercel Log Drains: How to Track AI Crawler Costs Per Bot"/>
+<meta property="og:description" content="Vercel Log Drains pipe every request to your own endpoint. Here's how to use them to find out exactly which AI crawler is costing you money."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/vercel-log-drains-ai-crawler-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Vercel Log Drains: How to Track AI Crawler Costs Per Bot"/>
+<meta name="twitter:description" content="Vercel Log Drains pipe every request to your own endpoint. Here's how to find out exactly which AI crawler (GPTBot, ClaudeBot, meta-externalagent) is costing you money."/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout-blue { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout-blue strong { display: block; margin-bottom: 4px; }
+  .callout-red { background: #fff1f2; border-left: 4px solid #f43f5e; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout-red strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.4em 0; font-size: 0.9rem; }
+  th { text-align: left; padding: 8px 12px; background: #f4f4f5; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Vercel Log Drains: How to Track AI Crawler Costs Per Bot</h1>
+
+<p class="meta">Your Vercel bandwidth bill spiked. Log Drains will tell you exactly which AI crawler did it.</p>
+
+<p>Vercel's bandwidth pricing starts at $0.15–$0.40/GB depending on your plan. When AI crawlers like GPTBot, ClaudeBot, and meta-externalagent hit your site, they generate requests — and those requests consume bandwidth. The problem is that Vercel's dashboard only shows you total bandwidth. It doesn't break it down by requester, bot, or User-Agent.</p>
+
+<p>Vercel Log Drains solve this. They pipe every request — including every bot hit — to an endpoint you control, in real time. This guide explains how they work and how to use them to build a per-bot cost breakdown.</p>
+
+<hr/>
+
+<h2>What are Vercel Log Drains?</h2>
+
+<p>A Vercel Log Drain is a webhook that Vercel calls with every log event from your deployments. This includes HTTP access logs — one event per request, with the full request metadata: method, URL, status, response size, and critically, the <code>User-Agent</code> header.</p>
+
+<p>You configure a drain by giving Vercel an HTTPS endpoint URL. Vercel sends batched JSON payloads to that URL as your site receives traffic. You own the endpoint and decide what to do with the data.</p>
+
+<div class="callout-blue">
+  <strong>Log Drain availability</strong>
+  Log Drains are available on Vercel Pro and Enterprise plans. They are not available on the free Hobby plan. If you're on Hobby and your bill is spiking from bot traffic, that's a sign you're generating enough traffic to justify a Pro upgrade — or to aggressively block the crawlers at the robots.txt layer first.
+</div>
+
+<hr/>
+
+<h2>How to enable a Log Drain</h2>
+
+<p>Log Drains are configured per-team in your Vercel dashboard:</p>
+
+<ol>
+  <li>Go to your Vercel team settings (not project settings — team-level settings)</li>
+  <li>Navigate to <strong>Integrations → Log Drains</strong></li>
+  <li>Click <strong>Add Log Drain</strong></li>
+  <li>Enter your endpoint URL (must be HTTPS)</li>
+  <li>Select <strong>Sources: Access Logs</strong> — this gives you HTTP request logs, which contain User-Agent</li>
+  <li>Choose the projects to include, or select all projects</li>
+  <li>Save — drain activates immediately</li>
+</ol>
+
+<p>Vercel will start sending POST requests to your endpoint within seconds of the next deployment receiving traffic.</p>
+
+<hr/>
+
+<h2>What the payload looks like</h2>
+
+<p>Each POST from Vercel contains a JSON array of log entries. Access log entries look like this:</p>
+
+<pre><code>[
+  {
+    "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "message": "GET /api/data 200 1234ms",
+    "timestamp": 1728054000000,
+    "source": "edge",
+    "projectId": "prj_abc123",
+    "deploymentId": "dpl_xyz789",
+    "host": "yourdomain.com",
+    "path": "/api/data",
+    "statusCode": 200,
+    "duration": 1234,
+    "responseBodySize": 8421,
+    "userAgent": "Mozilla/5.0 ...",
+    "method": "GET",
+    "scheme": "https",
+    "region": "iad1"
+  }
+]</code></pre>
+
+<p>The field you care most about for AI crawler attribution is <code>userAgent</code>. It contains the raw User-Agent string of the requester. <code>responseBodySize</code> tells you how many bytes were transferred — this is what drives bandwidth costs.</p>
+
+<hr/>
+
+<h2>Identifying AI crawlers from User-Agent strings</h2>
+
+<p>Here are the User-Agent patterns for the major AI crawlers:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Bot</th>
+      <th>Company</th>
+      <th>User-Agent contains</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>GPTBot</td><td>OpenAI</td><td><code>GPTBot</code></td></tr>
+    <tr><td>ChatGPT-User</td><td>OpenAI (browsing)</td><td><code>ChatGPT-User</code></td></tr>
+    <tr><td>ClaudeBot</td><td>Anthropic</td><td><code>ClaudeBot</code></td></tr>
+    <tr><td>anthropic-ai</td><td>Anthropic</td><td><code>anthropic-ai</code></td></tr>
+    <tr><td>meta-externalagent</td><td>Meta</td><td><code>meta-externalagent</code></td></tr>
+    <tr><td>Bytespider</td><td>ByteDance / TikTok</td><td><code>Bytespider</code></td></tr>
+    <tr><td>PerplexityBot</td><td>Perplexity</td><td><code>PerplexityBot</code></td></tr>
+    <tr><td>CCBot</td><td>Common Crawl</td><td><code>CCBot</code></td></tr>
+    <tr><td>Diffbot</td><td>Diffbot</td><td><code>Diffbot</code></td></tr>
+    <tr><td>YouBot</td><td>You.com</td><td><code>YouBot</code></td></tr>
+  </tbody>
+</table>
+
+<p>A simple classification function in Node.js:</p>
+
+<pre><code>const AI_BOTS = [
+  'GPTBot',
+  'ChatGPT-User',
+  'ClaudeBot',
+  'anthropic-ai',
+  'meta-externalagent',
+  'Bytespider',
+  'PerplexityBot',
+  'CCBot',
+  'Diffbot',
+  'YouBot',
+];
+
+function classifyUserAgent(ua) {
+  if (!ua) return null;
+  for (const bot of AI_BOTS) {
+    if (ua.includes(bot)) return bot;
+  }
+  return null;
+}
+</code></pre>
+
+<hr/>
+
+<h2>Calculating per-bot bandwidth cost</h2>
+
+<p>Once you've classified the User-Agent, you can accumulate <code>responseBodySize</code> per bot and convert to cost:</p>
+
+<pre><code>// Vercel Pro bandwidth pricing: ~$0.40/GB
+const COST_PER_GB = 0.40;
+
+function bytesToCost(bytes) {
+  const gb = bytes / 1_000_000_000;
+  return gb * COST_PER_GB;
+}
+
+// Example: accumulate over a batch of log entries
+function processBatch(entries, botBandwidth) {
+  for (const entry of entries) {
+    const bot = classifyUserAgent(entry.userAgent);
+    if (bot) {
+      botBandwidth[bot] = (botBandwidth[bot] || 0) + (entry.responseBodySize || 0);
+    }
+  }
+}
+
+// Output
+function report(botBandwidth) {
+  for (const [bot, bytes] of Object.entries(botBandwidth)) {
+    const cost = bytesToCost(bytes);
+    console.log(`${bot}: ${(bytes / 1e6).toFixed(1)} MB — est. $${cost.toFixed(4)}`);
+  }
+}
+</code></pre>
+
+<div class="callout">
+  <strong>Caveat on bandwidth pricing</strong>
+  Vercel's actual bandwidth costs vary by region and plan. The $0.40/GB figure is a reasonable estimate for Pro. Your actual cost depends on your plan tier and whether traffic is served from CDN cache (which is cheaper) versus your serverless functions (which is not). Use this as a directional estimate, not a billing invoice.
+</div>
+
+<hr/>
+
+<h2>Building the drain endpoint</h2>
+
+<p>Your drain endpoint needs to be fast — Vercel will retry if it times out. Keep it simple: receive the payload, parse the entries, store the aggregated data, return 200 quickly.</p>
+
+<pre><code>// Express.js endpoint — runs on any Node server
+app.post('/api/drain', express.json({ limit: '10mb' }), async (req, res) => {
+  // Respond immediately — don't await heavy processing
+  res.json({ ok: true });
+
+  const entries = Array.isArray(req.body) ? req.body : [];
+  for (const entry of entries) {
+    const bot = classifyUserAgent(entry.userAgent);
+    if (bot) {
+      await db.insert({
+        botName: bot,
+        url: entry.path,
+        sizeBytes: entry.responseBodySize || 0,
+        hitAt: new Date(entry.timestamp),
+      });
+    }
+  }
+});
+</code></pre>
+
+<p>A few implementation notes:</p>
+
+<ul>
+  <li><strong>Respond before processing.</strong> Vercel considers a drain delivery successful only when you return a 2xx. If you await heavy DB writes before responding, you'll hit Vercel's 10-second timeout on retries. Respond with <code>{ ok: true }</code> immediately and process asynchronously.</li>
+  <li><strong>Authenticate the drain.</strong> Anyone who discovers your endpoint URL can send fake log data. Use a secret token in the URL (<code>/api/drain?token=your-secret</code>) or verify Vercel's HMAC signature if you're on Enterprise.</li>
+  <li><strong>Handle batching.</strong> Vercel batches multiple log entries per POST. Always treat the body as an array.</li>
+  <li><strong>Store aggregates, not raw rows.</strong> If you receive 100,000 requests per day, storing one DB row per request is expensive. Consider aggregating by (bot, day) in a summary table, or using a time-series approach.</li>
+</ul>
+
+<hr/>
+
+<h2>What to do with the data</h2>
+
+<p>Once you have per-bot bandwidth data, you have several options:</p>
+
+<h3>1. Block the expensive bots</h3>
+<p>Add the high-cost bots to your <code>robots.txt</code>. Start with the ones consuming the most bandwidth. A <code>Disallow: /</code> directive for a specific User-Agent costs nothing and can immediately stop the bleeding.</p>
+
+<pre><code>User-agent: GPTBot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+</code></pre>
+
+<p>Note: you need to block each User-Agent string separately. <code>User-agent: *</code> disallows paths for all bots but should only be used if you want to block everything including search engines.</p>
+
+<h3>2. Rate-limit at the edge</h3>
+<p>Vercel's <a href="https://vercel.com/docs/security/vercel-firewall">Firewall</a> can rate-limit by User-Agent. This is more nuanced than a blanket robots.txt block — you can allow the bot to crawl, but cap it at a bandwidth-safe rate.</p>
+
+<h3>3. Set an alert threshold</h3>
+<p>If a bot's daily bandwidth cost exceeds your threshold (e.g., $1/day = ~2.5 GB), you want to know. A simple daily scheduled job that queries your drain database and sends you a notification when any single bot exceeds the threshold gives you early warning before it becomes a billing crisis.</p>
+
+<div class="callout-red">
+  <strong>robots.txt isn't enough alone</strong>
+  A bot that already ignores your <code>robots.txt</code> won't be stopped by adding more rules to it. If your drain data shows a bot continuing to crawl after you've added a Disallow directive, you need firewall-level blocking — rate limits, IP blocks, or WAF rules targeting the specific User-Agent string.
+</div>
+
+<hr/>
+
+<h2>Putting it together: a minimal cost monitoring setup</h2>
+
+<p>Here's the full architecture for a minimal AI crawler cost monitor using Vercel Log Drains:</p>
+
+<ol>
+  <li><strong>Drain endpoint</strong> — a lightweight HTTP server (Node, Python, Go) that receives Vercel drain payloads and stores per-bot bandwidth aggregates in a database</li>
+  <li><strong>Vercel configuration</strong> — Log Drain pointed at your endpoint, Access Logs source selected, all projects included</li>
+  <li><strong>Dashboard query</strong> — a simple query that groups bytes by bot name and converts to estimated cost</li>
+  <li><strong>Alert</strong> — a daily or hourly check that fires when any bot's accumulated cost exceeds your threshold</li>
+</ol>
+
+<p>The actual volume of data is small. Even at 100,000 requests/day, if you only store AI crawler hits (typically 1–5% of total traffic), you're looking at a few thousand rows per day — easily handled by any database.</p>
+
+<hr/>
+
+<h2>The thing Vercel doesn't tell you</h2>
+
+<p>Vercel's built-in analytics show you traffic sources like "Direct", "Search", and "Social". They do not surface bot traffic separately, and they certainly don't break it down by crawler company. The only way to get bot-level attribution is through Log Drains or a third-party log analysis tool.</p>
+
+<p>This means most developers on Vercel are flying blind on AI crawler costs. They see the bandwidth total and assume it's user traffic. When the bill spikes, they look at their feature changes, their deployment frequency, their user acquisition. The actual culprit — a newly aggressive AI crawler — is invisible.</p>
+
+<p>Log Drains are the only Vercel-native mechanism to close this gap.</p>
+
+<div class="cta-box">
+  <h3>CrawlGuard: Log Drain monitoring without the setup</h3>
+  <p>Building and maintaining a drain endpoint, parsing User-Agents, storing aggregates, and setting up alerts takes a few days of engineering time. CrawlGuard does all of it: connect your Vercel project, get a per-bot cost dashboard and alerts immediately.</p>
+  <p>First, check whether your site is blocking AI crawlers today (takes 10 seconds):</p>
+  <a class="btn" href="https://lior-seats.github.io/crawl-check/">Check your site free →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/crawlguard-waitlist/">Get early access</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=vercel-log-drains-ai-crawler-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
