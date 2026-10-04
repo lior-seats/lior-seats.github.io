@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GitHub Actions Scheduled Workflow Not Running: Causes and Fixes | CronWatch Blog</title>
+<meta name="description" content="GitHub Actions scheduled workflows silently stop running. The 5 most common causes — including the 60-day inactivity freeze — and how to prevent silent failures."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html"/>
+<meta property="og:title" content="GitHub Actions Scheduled Workflow Not Running: Causes and Fixes"/>
+<meta property="og:description" content="GitHub Actions scheduled workflows silently stop running. The 5 most common causes and how to prevent missed executions."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>GitHub Actions Scheduled Workflow Not Running: Causes and Fixes</h1>
+
+<p class="meta">The scheduled run silently stopped. No error, no notification, no indication anything changed.</p>
+
+<p>GitHub Actions scheduled workflows (<code>on: schedule:</code>) are supposed to run reliably on a cron expression. In practice, they stop running more often than developers expect — and they do it silently. Your workflow simply doesn't appear in the Actions tab. No failure notification. No email. Just a gap in the run history.</p>
+
+<p>This is one of the more frustrating problems in developer tooling because the failure mode is invisible. Here are the five most common causes and how to handle each one.</p>
+
+<hr/>
+
+<h2>1. The repository inactivity freeze (the #1 cause)</h2>
+
+<p>This is the cause that surprises most people. GitHub automatically disables scheduled workflows on repositories that have had <strong>no activity for 60 days</strong>. "Activity" means pushes, pull requests, or other repository events — not workflow runs themselves. If you have a scheduled job that runs in an otherwise-idle repo, GitHub will disable it after 60 days and send you one email notification. If you miss that email, the workflow just stops.</p>
+
+<div class="callout">
+<strong>⚠️ Common scenario</strong>
+A monitoring script, nightly report, or cleanup job runs weekly in a repo where the code itself doesn't change often. After two months of inactivity in the repo, GitHub disables the workflow. The cleanup stops running. You don't find out until something downstream breaks.
+</div>
+
+<p><strong>How to check:</strong> Go to your repo → Actions → find the workflow → look for a yellow banner at the top saying the workflow was disabled.</p>
+
+<p><strong>How to fix:</strong> Click "Enable workflow" in the Actions tab. To prevent recurrence, add a <code>workflow_dispatch:</code> trigger as a second trigger — this doesn't require you to actually use it, but the existence of a manual trigger keeps the workflow considered "active".</p>
+
+<pre><code>on:
+  schedule:
+    - cron: '0 9 * * 1'   # Every Monday at 9am UTC
+  workflow_dispatch:        # Add this — prevents inactivity disable
+</code></pre>
+
+<hr/>
+
+<h2>2. Wrong cron expression syntax or timezone assumption</h2>
+
+<p>GitHub Actions cron syntax follows standard five-field cron format, but there are two important constraints:</p>
+
+<ul>
+  <li><strong>All times are UTC.</strong> There is no timezone support. If you write <code>0 9 * * *</code> expecting 9am Pacific, it will run at 9am UTC (1am PT or 2am PDT). This causes jobs to appear to not run at all if you're checking at the wrong time.</li>
+  <li><strong>The minimum interval is 5 minutes.</strong> GitHub throttles workflows scheduled more frequently than once every 5 minutes.</li>
+  <li><strong>GitHub does not support all cron extensions.</strong> The <code>@daily</code>, <code>@weekly</code>, and <code>@monthly</code> shorthands are supported, but <code>@reboot</code> is not. Non-standard extensions like <code>H</code> (Jenkins-style hash) are rejected.</li>
+</ul>
+
+<p>A subtle bug: writing <code>0 9 * * 1-5</code> to run on weekdays at 9am UTC works as expected, but <code>0 9 * * MON-FRI</code> (using day names) may not be supported depending on your runner version. Stick to numbers.</p>
+
+<div class="cta-box">
+<h3>🔍 Validate your cron expression</h3>
+<p>Before deploying a scheduled workflow, verify the expression parses correctly and runs at the times you expect.</p>
+<a href="https://lior-seats.github.io/cron-expression-parser/" class="btn">Parse cron expression →</a>
+</div>
+
+<hr/>
+
+<h2>3. Scheduled runs queue and drop under high load</h2>
+
+<p>GitHub's documentation acknowledges that scheduled workflows may be delayed or not run at all during periods of high load on GitHub's infrastructure. The scheduler is best-effort, not guaranteed. In practice this is rare — but for workflows where timing matters (nightly jobs with downstream dependencies, billing cycles, time-sensitive cleanup), a 15–60 minute delay or an occasional complete miss is within the expected behavior.</p>
+
+<p>The documented guidance is not to use GitHub Actions scheduled workflows for time-critical operations. If a job must run within a narrow window, use a dedicated scheduler (a cron daemon, AWS EventBridge, a monitoring service) that guarantees delivery.</p>
+
+<hr/>
+
+<h2>4. The workflow file is on the wrong branch</h2>
+
+<p>Scheduled workflows are only active on the <strong>default branch</strong> of your repository. If you add or modify a <code>schedule:</code> trigger in a feature branch, it won't run — even after a push. The schedule only takes effect once the workflow file is merged to the default branch (usually <code>main</code> or <code>master</code>).</p>
+
+<p>A common mistake: you add a scheduled workflow on a <code>feature/monitoring</code> branch for testing, it doesn't run, you assume the cron expression is wrong and start debugging the syntax, when the real problem is that the file hasn't been merged yet.</p>
+
+<p><strong>How to check:</strong> Confirm the workflow file exists in <code>.github/workflows/</code> on your default branch, not just on a feature branch.</p>
+
+<hr/>
+
+<h2>5. The job ran but the steps failed silently</h2>
+
+<p>Sometimes the workflow does run, but a step exits with a non-zero code that doesn't cause the overall job to fail because the step is configured with <code>continue-on-error: true</code>, or the failure is swallowed inside a shell script with <code>set -e</code> but the error-producing command is in a subshell or pipeline where exit codes are lost.</p>
+
+<p>This is different from the workflow not running — the run appears in the history as "Success" — but no actual work was done. The database wasn't updated. The email wasn't sent. The cleanup didn't happen.</p>
+
+<p><strong>How to check:</strong> Look at the workflow run log for each step. Check for outputs like "0 rows affected" or empty results that indicate the job ran but did nothing. If you're using shell scripts, add <code>set -euo pipefail</code> at the top of every script to surface errors that would otherwise be silently ignored.</p>
+
+<pre><code>steps:
+  - name: Run nightly sync
+    run: |
+      set -euo pipefail
+      node scripts/sync.js
+</code></pre>
+
+<hr/>
+
+<h2>Summary: checklist when a scheduled workflow stops running</h2>
+
+<table>
+<thead>
+<tr><th>Check</th><th>Where to look</th><th>Fix</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>Repository inactivity freeze</td>
+  <td>Actions tab → yellow banner</td>
+  <td>Re-enable + add <code>workflow_dispatch:</code></td>
+</tr>
+<tr>
+  <td>Wrong cron expression</td>
+  <td>Validate expression in a cron parser</td>
+  <td>Fix expression; remember UTC only</td>
+</tr>
+<tr>
+  <td>GitHub infrastructure delay</td>
+  <td>Check run history for missing slots</td>
+  <td>Use external scheduler for critical jobs</td>
+</tr>
+<tr>
+  <td>Workflow on wrong branch</td>
+  <td>Check <code>.github/workflows/</code> on default branch</td>
+  <td>Merge workflow file to <code>main</code></td>
+</tr>
+<tr>
+  <td>Job runs but steps fail silently</td>
+  <td>Workflow run logs, step-by-step output</td>
+  <td>Add <code>set -euo pipefail</code> to shell steps</td>
+</tr>
+</tbody>
+</table>
+
+<hr/>
+
+<h2>The deeper problem: scheduled jobs have no heartbeat</h2>
+
+<p>All five causes above share a common root: there is no heartbeat for scheduled jobs. When a cron job works, you never hear from it — which means when it stops working, you also never hear from it. The default state is silence in both cases.</p>
+
+<p>The inversion is monitoring from the outside: instead of waiting for a failure notification (which may never come), you configure an external service to expect a check-in at every scheduled interval. If the check-in doesn't arrive within the expected window, you get alerted. This is the dead man's switch pattern — a signal that must be renewed, rather than a signal sent only on failure.</p>
+
+<p>For GitHub Actions specifically, the pattern is straightforward:</p>
+
+<pre><code>steps:
+  - name: Run nightly sync
+    run: node scripts/sync.js
+
+  - name: Ping monitor
+    if: success()
+    run: curl -s https://your-monitor-url/ping/your-job-id
+</code></pre>
+
+<p>If step 1 fails, step 2 never runs. Your monitoring service sees a missed check-in and alerts you within minutes of the missed window — rather than days later when a user notices something is wrong.</p>
+
+<div class="cta-box">
+<h3>📟 Get alerted when your scheduled workflows miss their window</h3>
+<p>CronWatch monitors your scheduled jobs across GitHub Actions, Heroku Scheduler, crontab, and AWS EventBridge. When a job misses its window — for any reason — you get an alert within minutes.</p>
+<a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join CronWatch waitlist →</a>
+<a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Validate cron expression →</a>
+</div>
+
+<hr/>
+
+<h2>Related reading</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why Your Cron Jobs Are Failing Silently (and How to Know)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-monitoring-tools.html">Cron Job Monitoring Tools: A Practical Comparison</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=github-actions-scheduled-workflow-not-running',{mode:'no-cors'});}());</script>
+</body>
+</html>
