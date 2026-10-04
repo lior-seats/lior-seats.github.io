@@ -11,6 +11,7 @@
   <url><loc>https://lior-seats.github.io/blog/staging-environment-cost-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/cron-job-silent-failures.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/cron-job-monitoring-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/monitor-cron-jobs-alerts.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://lior-seats.github.io/blog/git-changelog-automation.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/pushlog-changelog-automation.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/changelog-tools-developers.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>

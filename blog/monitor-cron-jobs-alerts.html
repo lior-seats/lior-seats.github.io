@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor Cron Jobs and Get Alerted When They Fail</title>
+<meta name="description" content="Four practical ways to get alerted when a cron job fails or misses its schedule — from dead man's switch URLs to dedicated monitoring. Step-by-step setup included."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/monitor-cron-jobs-alerts.html"/>
+<meta property="og:title" content="How to Monitor Cron Jobs and Get Alerted When They Fail"/>
+<meta property="og:description" content="Four practical ways to get alerted when a cron job fails or misses its schedule — dead man's switch, wrapper scripts, log monitoring, and dedicated services."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/monitor-cron-jobs-alerts.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .approach-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #15803d; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .approach-header { display: flex; align-items: flex-start; gap: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Monitor Cron Jobs and Get Alerted When They Fail</h1>
+
+<p class="meta">Set up monitoring once. Stop finding out about missed jobs from users.</p>
+
+<p>Most cron jobs run without any monitoring. They work fine for months, so there's no urgency. Then one day a job stops running — a dependency breaks, a timeout gets hit, the scheduler itself crashes — and you don't find out until someone notices that the report wasn't generated, the cleanup didn't run, or the data is stale.</p>
+
+<p>This guide covers the four practical approaches to cron job monitoring, with actual setup steps for each. By the end you'll have at least one of them running.</p>
+
+<div class="summary-box">
+  <strong>The four approaches:</strong>
+  <ul>
+    <li><strong>Dead man's switch (heartbeat URL)</strong> — the job pings a URL on success; you get alerted if the ping doesn't arrive</li>
+    <li><strong>Wrapper scripts with on-failure notifications</strong> — wrap every job to catch non-zero exits and fire an alert</li>
+    <li><strong>Log monitoring</strong> — watch for error patterns or absence of expected output</li>
+    <li><strong>Dedicated cron monitoring service</strong> — handles all of the above with a single integration</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="approach-num">1</span> Dead man's switch (heartbeat URL)</h2>
+
+<p>This is the most reliable approach for detecting missed schedules. The idea: your job makes an HTTP request to a "heartbeat" URL at the end of every successful run. A monitoring service watches for that ping on the expected schedule. If the ping doesn't arrive within the window, you get alerted.</p>
+
+<p>It catches two failure modes that exit-code monitoring misses:</p>
+<ul>
+  <li>The job runs but <strong>doesn't complete</strong> (times out, crashes mid-run)</li>
+  <li>The job <strong>doesn't run at all</strong> (the scheduler itself failed)</li>
+</ul>
+
+<h3>Setup with healthchecks.io (free tier)</h3>
+
+<p>Create a free account at <a href="https://healthchecks.io" rel="noopener">healthchecks.io</a>, create a check with your expected schedule, and copy the ping URL. Then add one line to your cron job:</p>
+
+<pre><code># crontab entry
+0 9 * * 1-5 /path/to/my-job.sh && curl -fsS --retry 3 https://hc-ping.com/your-uuid-here</code></pre>
+
+<p>The <code>&&</code> means the ping only fires if the script exits 0. If the script fails, no ping. If healthchecks.io doesn't see a ping within your configured grace period, it emails you (or sends a Slack/webhook notification).</p>
+
+<h3>GitHub Actions equivalent</h3>
+
+<p>For scheduled workflows (<code>on: schedule:</code>), add a final step:</p>
+
+<pre><code>- name: Ping heartbeat
+  if: success()
+  run: curl -fsS https://hc-ping.com/your-uuid-here</code></pre>
+
+<div class="callout">
+  <strong>One caveat with GitHub Actions schedules</strong>
+  GitHub's scheduled workflows silently stop running on repos with no recent activity (approximately 60 days of inactivity). The scheduler doesn't alert you — the jobs just stop. If you're using <code>on: schedule:</code> for anything critical, add a heartbeat so you'll notice when this happens.
+</div>
+
+<hr/>
+
+<h2><span class="approach-num">2</span> Wrapper scripts with on-failure notifications</h2>
+
+<p>Instead of modifying every individual cron job, wrap your jobs in a shell function that captures exit codes and fires notifications on failure. This approach works well when you have many jobs and don't want to change each one.</p>
+
+<h3>Basic bash wrapper</h3>
+
+<pre><code>#!/bin/bash
+# /usr/local/bin/cron-wrapper
+# Usage: cron-wrapper "Job Name" /path/to/job.sh
+
+JOB_NAME="$1"
+shift
+
+"$@"
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+  MESSAGE="CRON FAILED: ${JOB_NAME} exited with code ${EXIT_CODE} at $(date)"
+  
+  # Option 1: Email (requires mailutils)
+  echo "$MESSAGE" | mail -s "Cron failure: ${JOB_NAME}" you@example.com
+  
+  # Option 2: Slack webhook
+  curl -s -X POST "$SLACK_WEBHOOK_URL" \
+    -H 'Content-type: application/json' \
+    -d "{\"text\":\"$MESSAGE\"}"
+fi
+
+exit $EXIT_CODE</code></pre>
+
+<p>Then update your crontab to use the wrapper:</p>
+
+<pre><code>0 9 * * 1-5 /usr/local/bin/cron-wrapper "Daily report" /path/to/report.sh
+0 2 * * *   /usr/local/bin/cron-wrapper "Nightly cleanup" /path/to/cleanup.sh</code></pre>
+
+<p>This catches exit-code failures but doesn't detect the job failing to run at all. Combine it with the heartbeat approach for full coverage.</p>
+
+<hr/>
+
+<h2><span class="approach-num">3</span> Log monitoring</h2>
+
+<p>If your jobs already write to log files, you can monitor the logs rather than the jobs themselves. There are two useful patterns:</p>
+
+<h3>Alert on error patterns</h3>
+
+<p>Tools like Papertrail, Datadog, Logtail, or self-hosted Grafana Loki can alert when log lines match patterns like <code>ERROR</code>, <code>FATAL</code>, or <code>Traceback</code>. Set up an alert that fires within a few minutes of a matching line appearing.</p>
+
+<h3>Alert on absence of expected output</h3>
+
+<p>More subtle: alert when a job that should have logged something <em>doesn't</em>. Most log monitoring tools support "absence alerts" — fire if no log line matching <code>"daily-report: completed"</code> appears between 9:00am and 9:30am.</p>
+
+<pre><code># In your job script, log a completion marker:
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) daily-report: completed rows_processed=${ROW_COUNT}"</code></pre>
+
+<p>Then configure your log monitoring to alert if that marker doesn't appear on schedule.</p>
+
+<div class="callout">
+  <strong>Limitation:</strong> Log monitoring adds latency. By the time you're alerted, the job has already been missing for the duration of your alert window. For time-sensitive jobs, the heartbeat approach gives faster detection.
+</div>
+
+<hr/>
+
+<h2><span class="approach-num">4</span> Dedicated cron monitoring service</h2>
+
+<p>If you have more than a handful of scheduled jobs, managing heartbeat URLs, wrappers, and log alerts becomes overhead in itself. Dedicated cron monitoring services handle all of this with a single integration:</p>
+
+<ul>
+  <li>Register your jobs and their schedules once</li>
+  <li>Each job pings a unique URL on completion</li>
+  <li>The service alerts you (email, Slack, PagerDuty) when a job misses its window, exits with an error, or runs longer than expected</li>
+  <li>You get a dashboard showing run history, durations, and failure patterns</li>
+</ul>
+
+<h3>The options</h3>
+
+<p><strong>healthchecks.io</strong> — open source, free tier (20 checks), solid reliability. Good for most indie use cases.</p>
+
+<p><strong>Cronitor</strong> — more polished UI, better dashboards, paid from $10/mo. Worth it if you're monitoring 10+ jobs for a production product.</p>
+
+<p><strong>Dead Man's Snitch</strong> — dead simple, email-only on free tier, $5/mo for more. Very low friction to set up.</p>
+
+<p><strong>CronWatch</strong> (early access) — monitoring across crontab, GitHub Actions, Heroku Scheduler, and AWS EventBridge from a single dashboard. Designed for indie developers with jobs spread across multiple platforms.</p>
+
+<hr/>
+
+<h2>Which approach should you use?</h2>
+
+<p>For a single critical job with no existing infrastructure: <strong>dead man's switch</strong>. One extra line in your crontab, five-minute setup, catches both failure modes.</p>
+
+<p>For a large number of jobs on a single server: <strong>wrapper script</strong> + <strong>heartbeat</strong> for critical jobs.</p>
+
+<p>For jobs spread across platforms (crontab, GitHub Actions, Heroku, AWS): <strong>dedicated service</strong>. The overhead of managing separate integrations per platform adds up fast.</p>
+
+<div class="cta-box">
+  <h3>📟 CronWatch monitors your jobs across every platform</h3>
+  <p>One dashboard for crontab, GitHub Actions scheduled workflows, Heroku Scheduler, and AWS EventBridge. Get alerted the moment a job misses its window — without setting up separate integrations for each platform.</p>
+  <a class="btn" href="https://lior-seats.github.io/cronwatch-waitlist/">Join the CronWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cron-expression-parser/">Free cron expression parser</a>
+</div>
+
+<hr/>
+
+<h2>Quick-start checklist</h2>
+
+<p>Pick one and do it today:</p>
+
+<ol>
+  <li>Identify your one most critical cron job — the one whose failure would cause the most damage if unnoticed for 24 hours</li>
+  <li>Sign up for <a href="https://healthchecks.io">healthchecks.io</a> (free), create a check with your job's schedule</li>
+  <li>Add <code>&amp;&amp; curl -fsS https://hc-ping.com/YOUR_UUID</code> to the end of that job's crontab entry</li>
+  <li>Disable the job manually, wait for the grace period, verify you get the alert</li>
+  <li>Re-enable the job and repeat for your next most critical job</li>
+</ol>
+
+<p>The first one takes 10 minutes. After that it's mostly copy-paste. If you have more than five jobs or jobs on multiple platforms, <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> handles it from a single place.</p>
+
+<p>Not sure what your cron expression actually does? <a href="https://lior-seats.github.io/cron-expression-parser/">Parse it here</a> to see the plain-English description and next run times before you monitor it.</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=monitor-cron-jobs-alerts',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>
