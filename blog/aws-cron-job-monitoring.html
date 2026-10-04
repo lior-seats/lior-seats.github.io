@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor AWS Cron Jobs (Lambda, CloudWatch Events, ECS Scheduled Tasks)</title>
+<meta name="description" content="AWS Lambda and CloudWatch Events cron jobs fail silently. Learn the three AWS scheduling patterns and the simplest approach to get alerted when they stop running."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/aws-cron-job-monitoring.html"/>
+<meta property="og:title" content="How to Monitor AWS Cron Jobs (Lambda, CloudWatch Events, ECS Scheduled Tasks)"/>
+<meta property="og:description" content="AWS cron jobs fail silently. Learn the three AWS scheduling patterns and how to get alerted when they stop running."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/aws-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Monitor AWS Cron Jobs (Lambda, CloudWatch Events, ECS Scheduled Tasks)</h1>
+
+<p class="meta">Your nightly Lambda ran at midnight last Tuesday. It hasn't run since. You found out when a customer asked why their report was blank.</p>
+
+<p>AWS gives you three solid ways to schedule recurring work. What it doesn't give you — by default — is any alert when that work quietly stops happening. This article covers the three main AWS scheduling patterns, why native monitoring falls short, and the simplest approach to know when a scheduled job fails or disappears.</p>
+
+<hr/>
+
+<h2>The three AWS patterns for scheduled work</h2>
+
+<h3>1. Lambda + EventBridge (formerly CloudWatch Events)</h3>
+<p>The most common serverless scheduling pattern. You create an EventBridge rule with a cron or rate expression, point it at a Lambda function, and AWS invokes the function on schedule.</p>
+
+<pre><code># EventBridge cron expression — runs every day at 03:00 UTC
+cron(0 3 * * ? *)</code></pre>
+
+<p>EventBridge is reliable at triggering. The silent failure happens inside the Lambda: an uncaught exception, a timeout, a downstream dependency that's unavailable. The invocation record appears in CloudWatch Logs as a success because Lambda received and ran the function — even if the business logic failed internally.</p>
+
+<h3>2. ECS Scheduled Tasks</h3>
+<p>For containerized workloads, you can use EventBridge to trigger an ECS task on a schedule instead of a Lambda. The container runs, does its work, and exits. ECS scheduled tasks are useful when your job needs more memory, a longer timeout, or a richer runtime environment than Lambda allows.</p>
+
+<p>The monitoring challenge is the same: ECS reports the task as complete once the container exits with code 0. If your application catches its own exceptions and exits cleanly despite an internal failure, the orchestration layer sees a success.</p>
+
+<h3>3. EC2 cron via SSM or traditional crontab</h3>
+<p>For jobs that need to run on an EC2 instance, you either use traditional crontab directly or AWS Systems Manager (SSM) Run Command / Maintenance Windows to dispatch scheduled shell commands. SSM gives you centralized execution history, but the fundamental observability problem is identical: a job that runs and exits 0 is recorded as successful regardless of what it actually did.</p>
+
+<hr/>
+
+<h2>Native AWS monitoring options — and why they're complex</h2>
+
+<p>AWS provides several mechanisms to observe Lambda and EventBridge behavior, but assembling them into reliable job-failure alerts takes real effort.</p>
+
+<h3>CloudWatch Alarms on Lambda metrics</h3>
+<p>You can create CloudWatch Alarms on the <code>Errors</code> metric for a Lambda function, which fires when the invocation throws an unhandled exception. This catches hard crashes. It does <strong>not</strong> catch: silent logic failures, jobs that time out gracefully, jobs that stop being invoked entirely (e.g. the EventBridge rule gets disabled), or Lambda functions that return success while doing nothing useful.</p>
+
+<h3>Lambda Destinations</h3>
+<p>Lambda Destinations let you route asynchronous invocation results to an SQS queue, SNS topic, EventBridge event bus, or another Lambda — separately for success and failure. This is useful for building pipelines but still requires you to wire up a downstream failure handler and does nothing for missed runs.</p>
+
+<h3>CloudWatch Logs metric filters</h3>
+<p>You can create a metric filter that scans your Lambda logs for the string <code>ERROR</code> or any pattern you choose, increment a counter, and alarm on that counter. This works if your code writes structured errors to stdout. It's fragile if your error messages vary, and it still doesn't catch a Lambda that simply stops being invoked.</p>
+
+<div class="callout">
+  <strong>The gap all three leave open</strong>
+  None of these approaches alert you when a scheduled job <em>stops running entirely</em>. A disabled EventBridge rule, a deleted Lambda, a misconfigured IAM role — the job just disappears. CloudWatch only knows about things that happened; it has no model of things that were supposed to happen and didn't.
+</div>
+
+<hr/>
+
+<h2>The dead man's switch pattern: simpler and more complete</h2>
+
+<p>The most reliable approach to AWS cron job monitoring doesn't involve CloudWatch Alarms at all. It inverts the problem: instead of watching for errors, you watch for the <em>absence of success</em>.</p>
+
+<p>At the end of each successful job run, send a ping to a monitoring service. If the service doesn't receive the ping within the expected window, it fires an alert.</p>
+
+<p>For a Lambda function, it's one line:</p>
+
+<pre><code>import urllib.request
+
+def handler(event, context):
+    # ... your job logic ...
+    do_the_work()
+
+    # Ping only fires if do_the_work() completes without exception
+    urllib.request.urlopen(
+        "https://cron.watch/ping/your-job-id",
+        timeout=5
+    )
+</code></pre>
+
+<p>Or with curl from a shell-based ECS task or EC2 cron:</p>
+
+<pre><code># ECS task entrypoint
+python /app/jobs/nightly_sync.py && \
+  curl -s https://cron.watch/ping/your-job-id
+</code></pre>
+
+<p>The <code>&&</code> means the ping only fires on a clean exit. A failure, timeout, or crash means the ping never arrives. The monitoring service alerts you.</p>
+
+<p>This single pattern covers all three failure modes:</p>
+
+<ul>
+  <li><strong>Job runs but throws an exception</strong> — the ping line is never reached</li>
+  <li><strong>Job never starts</strong> — the EventBridge rule is broken, IAM permissions are wrong, Lambda is misconfigured; no ping arrives</li>
+  <li><strong>Job is killed before finishing</strong> — Lambda timeout, container OOM, SSM command abort; no ping</li>
+</ul>
+
+<p>You don't need separate alarms for each failure mode. One missing ping catches all of them.</p>
+
+<hr/>
+
+<h2>Putting it together for AWS</h2>
+
+<p>A practical setup for a Lambda + EventBridge job:</p>
+
+<ol>
+  <li><strong>Add the ping at the end of your Lambda handler</strong> — after all meaningful work completes, before returning.</li>
+  <li><strong>Set the expected interval</strong> in your monitoring service to match the EventBridge schedule, with a small grace window (e.g. for a daily job, alert if no ping in 25 hours).</li>
+  <li><strong>Test the alert path</strong> — disable the EventBridge rule and confirm you get an alert within the grace window. Then re-enable it.</li>
+  <li><strong>Optionally keep a CloudWatch Alarm on Lambda Errors</strong> as a secondary signal for hard crashes that happen before your ping line.</li>
+</ol>
+
+<p>For ECS Scheduled Tasks, the same approach applies: the ping goes at the end of the container's main process. For EC2 cron via SSM, it goes at the end of the shell command.</p>
+
+<div class="cta-box">
+  <h3>📟 Monitor your AWS cron jobs with one line</h3>
+  <p>CronWatch uses exactly this pattern. Add one <code>curl</code> line to your Lambda, ECS task, or EC2 cron job and get alerted by email or Slack if it stops running. No CloudWatch Alarms to configure. No metric filters to maintain. $9/month early access.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join CronWatch early access →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-aws-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
