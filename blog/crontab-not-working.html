@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Crontab Not Working? 7 Common Fixes (with Examples)</title>
+<meta name="description" content="Crontab not working? Here are the 7 most common reasons cron jobs fail silently on Linux and how to fix each one with examples."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/crontab-not-working.html"/>
+<meta property="og:title" content="Crontab Not Working? 7 Common Fixes (with Examples)"/>
+<meta property="og:description" content="Crontab not working? Here are the 7 most common reasons cron jobs fail silently on Linux and how to fix each one with examples."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/crontab-not-working.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Crontab Not Working? 7 Common Fixes (with Examples)</h1>
+
+<p class="meta">You added the job, the time came and went, nothing happened. Here's why.</p>
+
+<p>Crontab is one of those tools that feels simple until it silently does nothing. The job is in the crontab file, the time has passed, and nothing ran — or something ran but produced no output. Most crontab failures come down to one of seven predictable causes. This guide walks through each one with a concrete diagnosis command or fix.</p>
+
+<p>Before diving in: make sure output is visible by adding <code>2>&amp;1 | tee /tmp/cronjob.log</code> to your cron line. Most debugging starts by finding out what cron is actually saying.</p>
+
+<hr/>
+
+<h2>1. Missing newline at end of crontab file</h2>
+
+<p>POSIX requires every line in a crontab file to end with a newline — including the last one. If the final line has no trailing newline, some cron implementations silently ignore it. The job is never scheduled. No error is logged anywhere.</p>
+
+<p>This is one of the most common causes of a <em>crontab not running</em> at all, and the hardest to spot visually.</p>
+
+<pre><code># Check whether a trailing newline exists
+# If the last character is NOT a newline, xxd will show no 0a at the end
+crontab -l | xxd | tail -3
+
+# Fix: open with crontab -e, go to the last line, press Enter, save</code></pre>
+
+<div class="callout">
+  <strong>Quick fix</strong>
+  Always end crontab entries with a blank line. Open with <code>crontab -e</code>, press Enter after the last entry, and save.
+</div>
+
+<hr/>
+
+<h2>2. Wrong path — cron uses a minimal PATH</h2>
+
+<p>When you run a command in your shell, it searches a rich PATH that includes <code>/usr/local/bin</code>, <code>/home/you/.local/bin</code>, and wherever your tools are installed. Cron's default PATH is bare: typically just <code>/usr/bin:/bin</code>. A script that works perfectly in your terminal fails in cron because the executable can't be found — and you get <code>crontab command not found</code> in the mail spool nobody reads.</p>
+
+<p>The fix is to either set PATH explicitly in the crontab or use absolute paths for every binary in your script.</p>
+
+<pre><code># At the top of your crontab, set PATH explicitly:
+PATH=/usr/local/bin:/usr/bin:/bin:/home/you/.local/bin
+
+# Or use absolute paths in every command:
+0 3 * * * /usr/bin/python3 /opt/jobs/sync.py >> /var/log/sync.log 2>&1
+
+# Find the absolute path of a binary:
+which python3
+# /usr/local/bin/python3 — use that exact path in cron</code></pre>
+
+<hr/>
+
+<h2>3. Environment variables not set</h2>
+
+<p>Cron runs with a stripped environment. Variables like <code>HOME</code>, <code>SHELL</code>, <code>LANG</code>, and any custom exports you've added to <code>~/.bashrc</code> or <code>~/.profile</code> are not available. Scripts that read <code>$DATABASE_URL</code>, <code>$API_KEY</code>, or any custom env var will silently use empty strings — often causing a quiet failure with exit code 0.</p>
+
+<p>The most reliable fix is to source your environment inside the script, or define variables directly in the crontab file above the job lines.</p>
+
+<pre><code># Define env vars at the top of your crontab:
+DATABASE_URL=postgres://user:pass@localhost/mydb
+SLACK_WEBHOOK=https://hooks.slack.com/...
+
+# Or source your profile inside the script:
+#!/bin/bash
+source /home/you/.profile
+# ... rest of script
+
+# Debug: print the cron environment to a file
+* * * * * env > /tmp/cron-env.txt</code></pre>
+
+<hr/>
+
+<h2>4. Script not executable</h2>
+
+<p>If your cron entry calls a script directly (rather than via <code>bash /path/to/script.sh</code>), the script file must have the executable bit set. Without it, cron tries to execute the file, the OS refuses with <code>Permission denied</code>, and the job fails silently — especially if output is going to <code>/dev/null</code>.</p>
+
+<p>This is a one-command fix that's easy to miss when you've created a new script and dropped it straight into a cron job.</p>
+
+<pre><code># Check permissions:
+ls -la /opt/jobs/myscript.sh
+# -rw-r--r-- means NOT executable — cron will fail
+
+# Fix: make it executable
+chmod +x /opt/jobs/myscript.sh
+
+# Verify:
+ls -la /opt/jobs/myscript.sh
+# -rwxr-xr-x — now executable</code></pre>
+
+<hr/>
+
+<h2>5. Wrong cron expression syntax</h2>
+
+<p>Cron expressions have five fields — minute, hour, day-of-month, month, day-of-week — and it's easy to get them wrong. A common mistake is treating the fields as hour/minute (backwards), or using <code>*/1</code> thinking it means "every hour" when it actually means "every minute." An invalid expression is silently skipped on many systems; a valid-but-wrong expression fires at the wrong time.</p>
+
+<p>Use our <a href="https://lior-seats.github.io/cron-expression-parser/">free cron expression parser</a> to verify your cron syntax before deploying — it explains exactly when your expression will fire next.</p>
+
+<pre><code># Field order: minute hour day-of-month month day-of-week
+# Common mistakes:
+
+# WRONG: fires every minute (not every hour at minute 0)
+* 0 * * * /opt/jobs/report.sh
+
+# RIGHT: fires at midnight every day
+0 0 * * * /opt/jobs/report.sh
+
+# WRONG: "every 5 hours" — actually fires at minute 0, hours 0/5/10/15/20
+0 */5 * * * /opt/jobs/report.sh
+
+# RIGHT: every 5 minutes
+*/5 * * * * /opt/jobs/report.sh
+
+# Validate with: crontab -l | crontab -  (re-reads and flags syntax errors)</code></pre>
+
+<hr/>
+
+<h2>6. Cron daemon not running</h2>
+
+<p>If no cron jobs are running at all — not just one — the cron daemon itself may not be active. On Debian/Ubuntu the service is called <code>cron</code>; on RHEL/CentOS/Fedora it's typically <code>crond</code>. After a reboot, a failed system update, or a resource-constrained environment, the daemon can stop without obvious notification.</p>
+
+<p>This is the first thing to check when <em>nothing</em> in crontab is running, rather than one specific job.</p>
+
+<pre><code># Debian/Ubuntu:
+systemctl status cron
+
+# RHEL/CentOS/Fedora:
+systemctl status crond
+
+# If not running, start it:
+sudo systemctl start cron        # or crond
+sudo systemctl enable cron       # ensure it starts on reboot
+
+# Confirm cron is active and jobs are being dispatched:
+grep CRON /var/log/syslog | tail -20        # Debian/Ubuntu
+grep CRON /var/log/cron | tail -20          # RHEL/CentOS</code></pre>
+
+<hr/>
+
+<h2>7. Output not captured — errors go to /dev/null silently</h2>
+
+<p>By default, cron mails stdout and stderr to the local system user. On most production servers the mail spool is never read, and many minimal Docker/cloud images don't even have a mail transport installed. The practical result: any error your script emits is lost. You see no output, assume the job ran fine, and miss the real failure entirely.</p>
+
+<p>The fix is to redirect output explicitly. Do this for every cron job — it costs nothing and makes debugging immediate.</p>
+
+<pre><code># Redirect both stdout and stderr to a log file:
+0 3 * * * /opt/jobs/sync.py >> /var/log/sync.log 2>&1
+
+# Append with timestamp to distinguish runs:
+0 3 * * * echo "=== $(date) ===" >> /var/log/sync.log 2>&1; /opt/jobs/sync.py >> /var/log/sync.log 2>&1
+
+# Suppress ALL output only when you're certain the job works:
+0 3 * * * /opt/jobs/sync.py > /dev/null 2>&1
+
+# Tail the log to watch a job in real time:
+tail -f /var/log/sync.log</code></pre>
+
+<div class="callout">
+  <strong>Pro tip</strong>
+  Add <code>MAILTO=""</code> at the top of your crontab to suppress the local mail noise, but only after you've redirected output to real log files. Never suppress output and redirect to <code>/dev/null</code> at the same time — that's how silent failures happen.
+</div>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>📟 Once your cron job runs reliably…</h3>
+  <p>…the next problem is knowing when it <em>stops</em> running. A correctly configured crontab can still miss jobs after a reboot, a deployment, or a resource spike — and you won't know until something downstream breaks.</p>
+  <p>CronWatch sends an alert when a job is late or didn't check in. One line added to your cron job is all it takes.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=crontab-not-working',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

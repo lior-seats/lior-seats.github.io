@@ -34,4 +34,5 @@
   <url><loc>https://lior-seats.github.io/blog/celery-beat-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/github-actions-cron-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/node-cron-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/crontab-not-working.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
