@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AWS SSL Certificate Monitoring: Track ACM and Custom Cert Expiry</title>
+<meta name="description" content="How to monitor SSL certificate expiry on AWS — ACM imported certs, EC2 custom certs, and ALB listeners. Get alerts before your certificates expire in production."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/aws-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="AWS SSL Certificate Monitoring: Track ACM and Custom Cert Expiry"/>
+<meta property="og:description" content="How to monitor SSL certificate expiry on AWS — ACM imported certs, EC2 custom certs, and ALB listeners. Get alerts before your certificates expire in production."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/aws-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>AWS SSL Certificate Monitoring: Track ACM and Custom Cert Expiry</h1>
+
+<p class="meta">Practical approaches for imported certs, EC2 instances, and ALB listeners — plus what ACM auto-renewal misses.</p>
+
+<div class="warning">
+  <strong>The ACM auto-renewal trap:</strong> AWS Certificate Manager auto-renews certificates it provisions &mdash; but only under specific conditions. Imported certificates, DNS validation failures, and email validation using inactive addresses all break the renewal loop silently. The certificate expires; your site goes down.
+</div>
+
+<p>AWS Certificate Manager (ACM) makes certificate provisioning easy enough that developers sometimes forget certificates can still expire. They can. In the cases where auto-renewal fails &mdash; which happen more often than the documentation implies &mdash; you get no warning until a browser shows the <em>Your connection is not private</em> error to real users.</p>
+
+<p>This guide covers every scenario where SSL certificate expiry becomes your problem on AWS, and how to monitor each one.</p>
+
+<hr/>
+
+<h2>When ACM Auto-Renewal Works (and When It Doesn&#8217;t)</h2>
+
+<p>ACM will automatically renew certificates it provisions, but only when these conditions hold:</p>
+
+<ul>
+  <li>The certificate uses <strong>DNS validation</strong> and the CNAME record in Route 53 is still present and resolving correctly</li>
+  <li>The certificate is <strong>actively attached</strong> to a resource (ALB, CloudFront, API Gateway) &mdash; ACM skips renewal for detached certs</li>
+  <li>Your AWS account is in <strong>good standing</strong> (no billing issues, no service restrictions)</li>
+</ul>
+
+<div class="callout">
+  <strong>When auto-renewal silently breaks:</strong>
+  <ul>
+    <li>You validated via email but the address no longer receives mail</li>
+    <li>You removed the cert from its ALB during a maintenance window and forgot to reattach it</li>
+    <li>The DNS CNAME record was removed after a Route 53 migration or a zone transfer</li>
+    <li>The certificate is in a different region than your load balancer (cross-region ACM certs aren&#8217;t supported for ALBs)</li>
+    <li>The domain changed ownership or DNS registrar and validation records weren&#8217;t migrated</li>
+  </ul>
+</div>
+
+<p>ACM sends email reminders to the AWS account&#8217;s contact email at 45, 30, and 7 days before expiry &mdash; but only for certs with email validation. DNS-validated certs that fail renewal get no proactive alert until 45 days before expiry, and only if ACM&#8217;s renewal attempt has already started failing.</p>
+
+<h2>Imported Certificates: Always Your Responsibility</h2>
+
+<p>ACM never automatically renews certificates that you imported from an external CA (Let&#8217;s Encrypt, DigiCert, Sectigo, or a self-signed CA). Imported certs are the highest-risk category because they look identical in the ACM console to managed certs, and developers sometimes assume ACM handles renewal for all certs it stores.</p>
+
+<p>Check your imported certs with the AWS CLI:</p>
+
+<pre><code>aws acm list-certificates \
+  --certificate-statuses ISSUED \
+  --query "CertificateSummaryList[?Type=='IMPORTED'].[CertificateArn,DomainName]" \
+  --output table</code></pre>
+
+<p>Get the expiry for each imported cert:</p>
+
+<pre><code>aws acm describe-certificate \
+  --certificate-arn arn:aws:acm:us-east-1:123456789:certificate/abc123 \
+  --query "Certificate.[NotAfter,DomainName,RenewalEligibility]" \
+  --output table</code></pre>
+
+<p>A quick script to find all imported certs expiring within 60 days:</p>
+
+<pre><code>#!/bin/bash
+REGION=${AWS_REGION:-us-east-1}
+THRESHOLD_DAYS=60
+THRESHOLD_TS=$(date -d "+${THRESHOLD_DAYS} days" +%s 2>/dev/null \
+  || date -v+${THRESHOLD_DAYS}d +%s)  # Linux/macOS compat
+
+aws acm list-certificates \
+  --region $REGION \
+  --certificate-statuses ISSUED \
+  --query "CertificateSummaryList[].CertificateArn" \
+  --output text | tr '\t' '\n' | while read arn; do
+    info=$(aws acm describe-certificate --region $REGION \
+      --certificate-arn "$arn" \
+      --query "Certificate.[DomainName,NotAfter,Type]" \
+      --output text)
+    domain=$(echo "$info" | awk '{print $1}')
+    expiry=$(echo "$info" | awk '{print $2}')
+    type=$(echo "$info" | awk '{print $3}')
+    
+    expiry_ts=$(date -d "$expiry" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%S" "${expiry%.*}" +%s)
+    days=$(( (expiry_ts - $(date +%s)) / 86400 ))
+    
+    if [ "$days" -le "$THRESHOLD_DAYS" ]; then
+      echo "⚠️  $domain ($type) — expires in $days days ($expiry)"
+    fi
+done</code></pre>
+
+<p>Run this as a daily cron job and pipe output to your alerting system (PagerDuty, Slack, email).</p>
+
+<hr/>
+
+<h2>EC2 Instances with Custom Certificates</h2>
+
+<p>If you&#8217;re terminating SSL directly on an EC2 instance (Nginx, Apache, or Node.js), ACM is not involved. You&#8217;re managing the certificate file yourself, and expiry monitoring is entirely your responsibility.</p>
+
+<p>Check an individual certificate on-disk:</p>
+
+<pre><code>openssl x509 -enddate -noout -in /etc/ssl/certs/your-cert.pem</code></pre>
+
+<p>Get days remaining:</p>
+
+<pre><code>openssl x509 -enddate -noout -in /etc/ssl/certs/your-cert.pem \
+  | awk -F= '{print $2}' \
+  | xargs -I{} date -d "{}" +%s \
+  | xargs -I{} sh -c 'echo $(( ({} - $(date +%s)) / 86400 )) days remaining'</code></pre>
+
+<p>Check the live certificate that a domain is actually serving (catches cases where the file on disk differs from what&#8217;s loaded):</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<p>For a fleet of EC2 instances, add a check to your monitoring cron:</p>
+
+<pre><code># In /etc/cron.daily/check-ssl-expiry
+#!/bin/bash
+DOMAIN="yourdomain.com"
+DAYS_WARN=30
+DAYS_CRIT=7
+
+days=$(echo | openssl s_client -connect $DOMAIN:443 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | awk -F= '{print $2}' \
+  | xargs -I{} date -d "{}" +%s \
+  | xargs -I{} sh -c 'echo $(( ({} - $(date +%s)) / 86400 ))')
+
+if [ "$days" -le "$DAYS_CRIT" ]; then
+  echo "CRITICAL: $DOMAIN SSL cert expires in $days days" | mail -s "SSL CRITICAL" ops@yourcompany.com
+elif [ "$days" -le "$DAYS_WARN" ]; then
+  echo "WARNING: $DOMAIN SSL cert expires in $days days" | mail -s "SSL WARNING" ops@yourcompany.com
+fi</code></pre>
+
+<hr/>
+
+<h2>Application Load Balancer (ALB) Certificate Monitoring</h2>
+
+<p>ALBs can have multiple certificates attached across multiple listeners. List them all:</p>
+
+<pre><code># List all ALB listener certificates in us-east-1
+aws elbv2 describe-load-balancers --region us-east-1 \
+  --query "LoadBalancers[].LoadBalancerArn" \
+  --output text | tr '\t' '\n' | while read alb_arn; do
+    aws elbv2 describe-listeners --load-balancer-arn "$alb_arn" \
+      --query "Listeners[?Protocol=='HTTPS'].ListenerArn" \
+      --output text | tr '\t' '\n' | while read listener_arn; do
+        aws elbv2 describe-listener-certificates \
+          --listener-arn "$listener_arn" \
+          --query "Certificates[].CertificateArn" \
+          --output text
+      done
+done</code></pre>
+
+<p>Once you have the certificate ARNs, use the ACM <code>describe-certificate</code> command above to get the expiry dates.</p>
+
+<div class="callout">
+  <strong>Default certificate vs. additional certificates:</strong> ALB HTTPS listeners have a default certificate and can have additional certificates for SNI routing. Both are visible in the ACM console but the additional certificates are easy to overlook in monitoring scripts. The <code>describe-listener-certificates</code> call above returns all of them.
+</div>
+
+<hr/>
+
+<h2>CloudFront Distributions</h2>
+
+<p>CloudFront uses ACM certificates in <code>us-east-1</code> regardless of where your origin is. If you&#8217;re using a custom SSL certificate on CloudFront (not the default CloudFront certificate), monitor it the same way as an ACM cert:</p>
+
+<pre><code>aws cloudfront list-distributions \
+  --query "DistributionList.Items[].{Domain:DomainName,Cert:ViewerCertificate.ACMCertificateArn}" \
+  --output table</code></pre>
+
+<p>Then describe each ACM cert ARN to get the expiry date.</p>
+
+<hr/>
+
+<h2>AWS Certificate Manager Expiry Events via CloudWatch</h2>
+
+<p>ACM emits an <code>ACM Certificate Approaching Expiration</code> event to EventBridge when a certificate is 45, 30, 15, 7, 3, and 1 days from expiry. You can route these to an SNS topic for email or Slack alerts without any custom monitoring code:</p>
+
+<pre><code># Terraform — EventBridge rule for ACM expiry events
+resource "aws_cloudwatch_event_rule" "acm_expiry" {
+  name        = "acm-certificate-expiry"
+  description = "Alert when ACM certificates approach expiry"
+  event_pattern = jsonencode({
+    "source" : ["aws.acm"],
+    "detail-type" : ["ACM Certificate Approaching Expiration"]
+  })
+}
+
+resource "aws_cloudwatch_event_target" "acm_expiry_sns" {
+  rule      = aws_cloudwatch_event_rule.acm_expiry.name
+  target_id = "SendToSNS"
+  arn       = aws_sns_topic.alerts.arn
+}</code></pre>
+
+<p>This catches ACM-managed and imported certificate expiry events without polling. The limitation: it only fires for certs in ACM. EC2 instance certs are not covered.</p>
+
+<hr/>
+
+<h2>The Monitoring Gap: External Verification</h2>
+
+<p>All of the AWS-side approaches above check what ACM <em>thinks</em> the expiry is. They don&#8217;t verify what certificate your endpoints are actually serving. These are different things.</p>
+
+<p>A certificate can show as valid in ACM while an old cached cert is being served at the edge. A Let&#8217;s Encrypt renewal can succeed and update the cert file but fail to reload Nginx. An ACM certificate update can fail to propagate to an ALB listener if the attachment failed silently.</p>
+
+<p>External monitoring — actually connecting to your domain and checking the certificate from outside your infrastructure — catches these cases. It&#8217;s the check that confirms what users actually see.</p>
+
+<div class="cta-box">
+  <h3>Check your SSL certificate right now</h3>
+  <p>Enter any domain to see the exact days remaining, expiry date, and issuer &mdash; from outside your infrastructure, the same view your users have.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Free SSL checker &rarr;</a>
+  <p style="margin-top:1em;font-size:0.9rem;color:#4a5568">Want automated alerts before your certificates expire? <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a> monitors your domains and sends email alerts at 30, 14, 7, and 1 days before expiry &mdash; no infrastructure required.</p>
+</div>
+
+<hr/>
+
+<h2>Summary: Which Approach for Which Scenario</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Scenario</th>
+      <th>Best monitoring approach</th>
+      <th>Auto-renews?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ACM-managed cert with DNS validation in Route 53</td>
+      <td>EventBridge ACM event → SNS + external checker</td>
+      <td>Yes (if DNS record intact)</td>
+    </tr>
+    <tr>
+      <td>ACM-managed cert with email validation</td>
+      <td>EventBridge ACM event → SNS + check email address is active</td>
+      <td>Yes (if email works)</td>
+    </tr>
+    <tr>
+      <td>Imported cert in ACM (Let&#8217;s Encrypt, DigiCert)</td>
+      <td>Daily <code>aws acm describe-certificate</code> script + alert</td>
+      <td><strong>No</strong> — manual renewal</td>
+    </tr>
+    <tr>
+      <td>EC2 instance cert (Nginx/Apache)</td>
+      <td>On-instance cron + <code>openssl</code> check + alert</td>
+      <td>No (unless certbot configured)</td>
+    </tr>
+    <tr>
+      <td>ALB with multiple SNI certs</td>
+      <td>EventBridge + script iterating listener certificates</td>
+      <td>If managed by ACM</td>
+    </tr>
+    <tr>
+      <td>CloudFront with custom cert</td>
+      <td>Same as ACM cert (must be us-east-1)</td>
+      <td>If managed by ACM</td>
+    </tr>
+    <tr>
+      <td>All of the above, externally verified</td>
+      <td>External SSL monitoring service</td>
+      <td>N/A</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The minimum viable setup for most AWS environments: EventBridge → SNS for ACM events, plus an external monitoring check on your production domains to catch anything the internal tooling misses.</p>
+
+<hr/>
+
+<h2>Further Reading</h2>
+
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/ssl-certificate-expiry-monitoring.html">SSL Certificate Expiry Monitoring: How to Get Alerts Before It Expires</a></li>
+  <li><a href="https://lior-seats.github.io/blog/ssl-monitoring-tools.html">Best SSL Certificate Monitoring Tools for Developers (2026)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/ssl-certificate-expiry-multiple-domains.html">How to Monitor SSL Certificate Expiry Across Multiple Domains</a></li>
+  <li><a href="https://lior-seats.github.io/blog/free-ssl-certificate-monitoring.html">Free SSL Certificate Monitoring — 5 Ways to Get Expiry Alerts</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=aws-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
