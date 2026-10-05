@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Expression Cheat Sheet: Every Field, Character, and Common Schedule</title>
+<meta name="description" content="The complete cron expression cheat sheet. Every field, every special character (*, /, -, ?, L, W, #), and 30+ common schedule patterns with plain-English explanations."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-expression-cheat-sheet.html"/>
+<meta property="og:title" content="Cron Expression Cheat Sheet: Every Field, Character, and Common Schedule"/>
+<meta property="og:description" content="The complete cron expression cheat sheet. Every field, every special character, and 30+ common schedule patterns with plain-English explanations."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-expression-cheat-sheet.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .expr { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.9em; background: #f4f4f5; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+  .field-header { background: #1a1a1a; color: #fff; }
+  .field-header th { background: #1a1a1a; color: #fff; border-color: #333; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Expression Cheat Sheet: Every Field, Character, and Common Schedule</h1>
+
+<p class="meta">A complete quick-reference for cron syntax — bookmark this one.</p>
+
+<p>Cron expressions pack a lot of power into five (or six) fields separated by spaces. The syntax is compact and efficient, but nobody memorizes all of it. This cheat sheet is the reference you reach for when you need to confirm a character, build a schedule, or quickly understand what an expression does.</p>
+
+<div class="cta-box">
+  <h3>⚡ Don't want to decode it yourself?</h3>
+  <p>Paste any cron expression into the free parser and get an instant plain-English explanation plus next 10 run times.</p>
+  <a class="btn" href="https://lior-seats.github.io/cron-expression-parser/">Try the Free Parser →</a>
+</div>
+
+<hr/>
+
+<h2>The five fields</h2>
+
+<p>A standard Unix/Linux cron expression has five fields:</p>
+
+<pre><code>┌─────────────── minute       (0–59)
+│ ┌───────────── hour         (0–23)
+│ │ ┌─────────── day of month (1–31)
+│ │ │ ┌───────── month        (1–12 or JAN–DEC)
+│ │ │ │ ┌─────── day of week  (0–6 or SUN–SAT, 0=Sunday)
+│ │ │ │ │
+* * * * *</code></pre>
+
+<p>Tools like Quartz Scheduler, Spring @Scheduled, and some cloud schedulers add a <strong>sixth field for seconds</strong> at the beginning, making it: <code>second minute hour day-of-month month day-of-week</code>. AWS EventBridge (CloudWatch Events) and GitHub Actions use a slightly different convention — check the platform docs.</p>
+
+<hr/>
+
+<h2>Field reference</h2>
+
+<table>
+  <thead class="field-header">
+    <tr><th>Field</th><th>Position</th><th>Allowed values</th><th>Allowed special chars</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Minute</td><td>1st</td><td>0–59</td><td>* , - /</td></tr>
+    <tr><td>Hour</td><td>2nd</td><td>0–23</td><td>* , - /</td></tr>
+    <tr><td>Day of month</td><td>3rd</td><td>1–31</td><td>* , - / ? L W</td></tr>
+    <tr><td>Month</td><td>4th</td><td>1–12 or JAN–DEC</td><td>* , - /</td></tr>
+    <tr><td>Day of week</td><td>5th</td><td>0–6 or SUN–SAT (0 = Sunday)</td><td>* , - / ? L #</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Special characters</h2>
+
+<table>
+  <thead>
+    <tr><th>Character</th><th>Meaning</th><th>Example</th><th>What it means</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>*</code></td>
+      <td>Any / every value</td>
+      <td><span class="expr">0 * * * *</span></td>
+      <td>Every hour at :00</td>
+    </tr>
+    <tr>
+      <td><code>,</code></td>
+      <td>List of values</td>
+      <td><span class="expr">0 9,17 * * *</span></td>
+      <td>At 9:00 AM and 5:00 PM every day</td>
+    </tr>
+    <tr>
+      <td><code>-</code></td>
+      <td>Range of values</td>
+      <td><span class="expr">0 9-17 * * *</span></td>
+      <td>Every hour from 9 AM to 5 PM</td>
+    </tr>
+    <tr>
+      <td><code>/</code></td>
+      <td>Step (every N)</td>
+      <td><span class="expr">*/15 * * * *</span></td>
+      <td>Every 15 minutes</td>
+    </tr>
+    <tr>
+      <td><code>?</code></td>
+      <td>No specific value (day-of-month or day-of-week only)</td>
+      <td><span class="expr">0 9 15 * ?</span></td>
+      <td>9 AM on the 15th; day-of-week not specified (Quartz)</td>
+    </tr>
+    <tr>
+      <td><code>L</code></td>
+      <td>Last — last day of month or last weekday (Quartz)</td>
+      <td><span class="expr">0 0 L * ?</span></td>
+      <td>Midnight on the last day of every month (Quartz)</td>
+    </tr>
+    <tr>
+      <td><code>W</code></td>
+      <td>Nearest weekday (Quartz — day-of-month only)</td>
+      <td><span class="expr">0 9 15W * ?</span></td>
+      <td>9 AM on the nearest weekday to the 15th (Quartz)</td>
+    </tr>
+    <tr>
+      <td><code>#</code></td>
+      <td>Nth weekday of month (Quartz — day-of-week only)</td>
+      <td><span class="expr">0 9 ? * MON#2</span></td>
+      <td>9 AM on the 2nd Monday of the month (Quartz)</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>⚠️ Platform differences matter</strong>
+  Standard crontab supports <code>* , - /</code> only. The <code>? L W #</code> characters are Quartz Scheduler extensions and are not valid in Linux crontab. AWS EventBridge has its own cron syntax that differs from both. Always verify against your platform's documentation.
+</div>
+
+<hr/>
+
+<h2>30 common cron schedules</h2>
+
+<h3>Every N minutes / hours</h3>
+
+<table>
+  <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="expr">* * * * *</span></td><td>Every minute</td></tr>
+    <tr><td><span class="expr">*/5 * * * *</span></td><td>Every 5 minutes</td></tr>
+    <tr><td><span class="expr">*/10 * * * *</span></td><td>Every 10 minutes</td></tr>
+    <tr><td><span class="expr">*/15 * * * *</span></td><td>Every 15 minutes</td></tr>
+    <tr><td><span class="expr">*/30 * * * *</span></td><td>Every 30 minutes</td></tr>
+    <tr><td><span class="expr">0 * * * *</span></td><td>Every hour (on the hour)</td></tr>
+    <tr><td><span class="expr">0 */2 * * *</span></td><td>Every 2 hours</td></tr>
+    <tr><td><span class="expr">0 */4 * * *</span></td><td>Every 4 hours</td></tr>
+    <tr><td><span class="expr">0 */6 * * *</span></td><td>Every 6 hours</td></tr>
+    <tr><td><span class="expr">0 */12 * * *</span></td><td>Every 12 hours</td></tr>
+  </tbody>
+</table>
+
+<h3>Daily schedules</h3>
+
+<table>
+  <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="expr">0 0 * * *</span></td><td>Every day at midnight (00:00)</td></tr>
+    <tr><td><span class="expr">0 6 * * *</span></td><td>Every day at 6:00 AM</td></tr>
+    <tr><td><span class="expr">0 9 * * *</span></td><td>Every day at 9:00 AM</td></tr>
+    <tr><td><span class="expr">0 12 * * *</span></td><td>Every day at noon</td></tr>
+    <tr><td><span class="expr">0 18 * * *</span></td><td>Every day at 6:00 PM</td></tr>
+    <tr><td><span class="expr">0 23 * * *</span></td><td>Every day at 11:00 PM</td></tr>
+    <tr><td><span class="expr">30 2 * * *</span></td><td>Every day at 2:30 AM</td></tr>
+  </tbody>
+</table>
+
+<h3>Weekly schedules</h3>
+
+<table>
+  <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="expr">0 9 * * 1</span></td><td>Every Monday at 9:00 AM</td></tr>
+    <tr><td><span class="expr">0 9 * * 1-5</span></td><td>Every weekday (Mon–Fri) at 9:00 AM</td></tr>
+    <tr><td><span class="expr">0 9 * * 6,0</span></td><td>Every weekend (Sat+Sun) at 9:00 AM</td></tr>
+    <tr><td><span class="expr">0 0 * * 0</span></td><td>Every Sunday at midnight</td></tr>
+    <tr><td><span class="expr">0 8 * * MON-FRI</span></td><td>Every weekday at 8:00 AM (using names)</td></tr>
+  </tbody>
+</table>
+
+<h3>Monthly schedules</h3>
+
+<table>
+  <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="expr">0 0 1 * *</span></td><td>First day of every month at midnight</td></tr>
+    <tr><td><span class="expr">0 0 15 * *</span></td><td>15th of every month at midnight</td></tr>
+    <tr><td><span class="expr">0 9 1,15 * *</span></td><td>1st and 15th of every month at 9 AM</td></tr>
+    <tr><td><span class="expr">0 0 28-31 * *</span></td><td>Days 28–31 of each month (approximates end-of-month)</td></tr>
+  </tbody>
+</table>
+
+<h3>Yearly / other</h3>
+
+<table>
+  <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="expr">0 0 1 1 *</span></td><td>January 1st at midnight (once a year)</td></tr>
+    <tr><td><span class="expr">0 0 1 * 1</span></td><td>First day of month OR every Monday at midnight (OR logic — see note)</td></tr>
+    <tr><td><span class="expr">0 9 * JAN,JUL *</span></td><td>9 AM every day in January and July</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Day-of-month + day-of-week: the OR trap</h2>
+
+<p>When you specify both a day-of-month value and a day-of-week value (neither is <code>*</code>), <strong>cron uses OR logic</strong>, not AND. The job runs if either condition is true.</p>
+
+<pre><code># This runs on the 1st of every month AND on every Monday
+# NOT "on the first Monday of every month"
+0 9 1 * 1</code></pre>
+
+<p>To target "first Monday of the month," you need application logic or a Quartz-style scheduler that supports the <code>#</code> character (<code>0 9 ? * MON#1</code>).</p>
+
+<hr/>
+
+<h2>Month and day-of-week names</h2>
+
+<p>Most cron implementations accept 3-letter abbreviations in addition to numbers:</p>
+
+<table>
+  <thead><tr><th>Month numbers</th><th>Month names</th><th>Day numbers</th><th>Day names</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>JAN</td><td>0</td><td>SUN</td></tr>
+    <tr><td>2</td><td>FEB</td><td>1</td><td>MON</td></tr>
+    <tr><td>3</td><td>MAR</td><td>2</td><td>TUE</td></tr>
+    <tr><td>4</td><td>APR</td><td>3</td><td>WED</td></tr>
+    <tr><td>5</td><td>MAY</td><td>4</td><td>THU</td></tr>
+    <tr><td>6</td><td>JUN</td><td>5</td><td>FRI</td></tr>
+    <tr><td>7</td><td>JUL</td><td>6</td><td>SAT</td></tr>
+    <tr><td>8</td><td>AUG</td><td></td><td></td></tr>
+    <tr><td>9</td><td>SEP</td><td></td><td></td></tr>
+    <tr><td>10</td><td>OCT</td><td></td><td></td></tr>
+    <tr><td>11</td><td>NOV</td><td></td><td></td></tr>
+    <tr><td>12</td><td>DEC</td><td></td><td></td></tr>
+  </tbody>
+</table>
+
+<p>Names are case-insensitive in most implementations: <code>MON</code>, <code>Mon</code>, and <code>mon</code> are all accepted.</p>
+
+<hr/>
+
+<h2>Platform-specific syntax differences</h2>
+
+<table>
+  <thead><tr><th>Platform</th><th>Fields</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Linux crontab</td>
+      <td>minute hour dom month dow</td>
+      <td>Standard. No seconds field. <code>? L W #</code> not supported.</td>
+    </tr>
+    <tr>
+      <td>Quartz Scheduler (Java)</td>
+      <td>second minute hour dom month dow [year]</td>
+      <td>6–7 fields. Adds <code>? L W #</code> characters. Widely used in Spring Boot.</td>
+    </tr>
+    <tr>
+      <td>AWS EventBridge (CloudWatch Events)</td>
+      <td>minute hour dom month dow year</td>
+      <td>6 fields (year required). Uses <code>?</code> like Quartz. No seconds.</td>
+    </tr>
+    <tr>
+      <td>GitHub Actions</td>
+      <td>minute hour dom month dow</td>
+      <td>Standard 5-field syntax, but always runs in UTC. Minimum interval: 5 minutes.</td>
+    </tr>
+    <tr>
+      <td>Kubernetes CronJob</td>
+      <td>minute hour dom month dow</td>
+      <td>Standard 5-field syntax. No seconds field.</td>
+    </tr>
+    <tr>
+      <td>Node.js (node-cron)</td>
+      <td>second minute hour dom month dow</td>
+      <td>Optional 6-field with seconds at position 1.</td>
+    </tr>
+    <tr>
+      <td>Python (APScheduler)</td>
+      <td>Flexible kwargs</td>
+      <td>Uses named parameters: <code>hour='9', minute='0', day_of_week='mon-fri'</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Common mistakes</h2>
+
+<h3>1. Wrong day-of-week numbering</h3>
+<p>Most systems use <code>0 = Sunday</code>. Some use <code>0 = Monday</code>. A few accept both <code>0</code> and <code>7</code> for Sunday. Verify against your platform if weekend/weekday schedules look off.</p>
+
+<h3>2. Timezone confusion</h3>
+<p>Cron on a server runs in the server's local timezone (typically UTC). <code>0 9 * * 1-5</code> means 9 AM UTC, which may be 5 AM ET or 2 AM PT. Set timezone explicitly if your platform supports it, or calculate the UTC equivalent of your intended local time.</p>
+
+<pre><code># GitHub Actions — runs at 9 AM ET (UTC-4 during EST / UTC-5 during EST)
+# To run at 9 AM ET during standard time (EST = UTC-5):
+0 14 * * 1-5   # 14:00 UTC = 9:00 AM EST</code></pre>
+
+<h3>3. Assuming "every N minutes" starts at 0</h3>
+<p><code>*/5 * * * *</code> runs at :00, :05, :10, :15... because it means "every 5th minute of the hour." It does not start counting from when the job was first created.</p>
+
+<h3>4. End-of-month scheduling</h3>
+<p>There is no standard way to schedule "last day of month" in Linux crontab. Common workaround:</p>
+<pre><code># Runs on 28th, 29th, 30th, and 31st — then filter in the script
+0 0 28-31 * * /usr/local/bin/check-and-run-if-last-day.sh</code></pre>
+
+<h3>5. Job overlap (missing lock)</h3>
+<p>If a job takes longer than its interval, multiple instances will run simultaneously. Use <code>flock</code> or a file-based lock to prevent overlap:</p>
+<pre><code>*/5 * * * * flock -n /tmp/myjob.lock /path/to/myjob.sh</code></pre>
+
+<hr/>
+
+<h2>Step syntax reference</h2>
+
+<p>The <code>/</code> character means "every N, starting from the left value":</p>
+
+<table>
+  <thead><tr><th>Expression</th><th>Equivalent to</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><span class="expr">*/15</span> (minutes)</td><td><span class="expr">0,15,30,45</span></td><td>Every 15 minutes</td></tr>
+    <tr><td><span class="expr">0/15</span> (minutes)</td><td><span class="expr">0,15,30,45</span></td><td>Same — starting at 0</td></tr>
+    <tr><td><span class="expr">5/15</span> (minutes)</td><td><span class="expr">5,20,35,50</span></td><td>Every 15 minutes, starting at :05</td></tr>
+    <tr><td><span class="expr">*/2</span> (hours)</td><td><span class="expr">0,2,4,6,8,10,12,14,16,18,20,22</span></td><td>Every even hour</td></tr>
+    <tr><td><span class="expr">1/2</span> (hours)</td><td><span class="expr">1,3,5,7,9,11,13,15,17,19,21,23</span></td><td>Every odd hour</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Validate before you deploy</h2>
+
+<p>The fastest way to avoid a misconfigured schedule in production is to test the expression before you commit it. Paste the expression into the free cron parser to see the plain-English description and next 10 run times — it catches timezone issues, OR-logic surprises, and day-numbering mistakes immediately.</p>
+
+<div class="cta-box">
+  <h3>🔍 Free Cron Expression Parser</h3>
+  <p>Paste any expression and get instant plain-English output + next 10 scheduled run times. No signup required.</p>
+  <a class="btn" href="https://lior-seats.github.io/cron-expression-parser/">Parse a Cron Expression →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cronwatch-waitlist/">Get Alerts When Crons Fail →</a>
+</div>
+
+<hr/>
+
+<h2>Related guides</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-not-running-debug.html">Cron Job Not Running? A Practical Debug Guide</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why Your Cron Jobs Fail Silently (and How to Know)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html">GitHub Actions Scheduled Workflow Not Running: Causes and Fixes</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-expression-examples.html">Cron Expression Examples: A Practical Reference Guide</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-expression-cheat-sheet',{mode:'no-cors'});}());</script>
+</body>
+</html>
