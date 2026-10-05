@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Block AI Crawlers With robots.txt (GPTBot, ClaudeBot, and More)</title>
+<meta name="description" content="Stop AI companies from training on your content. Exact robots.txt snippets for GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, CCBot, and more."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/block-ai-crawlers.html"/>
+<meta property="og:title" content="How to Block AI Crawlers With robots.txt (GPTBot, ClaudeBot, and More)"/>
+<meta property="og:description" content="Exact robots.txt snippets to stop GPTBot, ClaudeBot, meta-externalagent, Bytespider, PerplexityBot, and CCBot from training on your content."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/block-ai-crawlers.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; font-weight: 600; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Block AI Crawlers With robots.txt (GPTBot, ClaudeBot, and More)</h1>
+
+<p class="meta">AI companies are crawling your site to train their models. Here's exactly how to stop them.</p>
+
+<p>AI training crawlers operate differently from search engine bots. Googlebot crawls to index your content so users can find it — which benefits you. AI training crawlers crawl to ingest your content into datasets used to train commercial models — with no reciprocal benefit unless you've licensed the content. Several major AI companies now provide dedicated User-agent strings for their crawlers, which makes it straightforward to block them via <code>robots.txt</code>.</p>
+
+<p>This article covers the current list of known AI crawler User-agents, the exact robots.txt syntax to block each, and how to verify your rules are working.</p>
+
+<hr/>
+
+<h2>How robots.txt blocking works</h2>
+
+<p>The <code>robots.txt</code> file lives at the root of your domain (<code>https://yourdomain.com/robots.txt</code>) and uses a simple directive syntax. Each rule block starts with a <code>User-agent</code> line identifying which crawler the rule applies to, followed by one or more <code>Disallow</code> directives specifying which paths to block.</p>
+
+<p>To block a crawler from your entire site:</p>
+
+<pre><code>User-agent: GPTBot
+Disallow: /</code></pre>
+
+<p>To block a crawler from specific paths only:</p>
+
+<pre><code>User-agent: GPTBot
+Disallow: /private/
+Disallow: /api/</code></pre>
+
+<div class="callout">
+  <strong>robots.txt is a convention, not a technical barrier</strong>
+  Compliant crawlers respect robots.txt. AI training crawlers from major companies (OpenAI, Anthropic, Meta, Google DeepMind) have publicly committed to respecting these directives. Smaller, less reputable crawlers may ignore them. robots.txt is appropriate for compliant crawlers; for hostile scrapers, you need IP-level blocking or rate limiting at the CDN layer.
+</div>
+
+<hr/>
+
+<h2>The full AI crawler list (with current User-agents)</h2>
+
+<table>
+  <tr>
+    <th>Company</th>
+    <th>User-agent</th>
+    <th>Purpose</th>
+  </tr>
+  <tr>
+    <td>OpenAI</td>
+    <td><code>GPTBot</code></td>
+    <td>ChatGPT training data</td>
+  </tr>
+  <tr>
+    <td>OpenAI</td>
+    <td><code>ChatGPT-User</code></td>
+    <td>ChatGPT browsing plugin</td>
+  </tr>
+  <tr>
+    <td>Anthropic</td>
+    <td><code>ClaudeBot</code></td>
+    <td>Claude training data</td>
+  </tr>
+  <tr>
+    <td>Anthropic</td>
+    <td><code>anthropic-ai</code></td>
+    <td>Claude browsing/research</td>
+  </tr>
+  <tr>
+    <td>Meta</td>
+    <td><code>meta-externalagent</code></td>
+    <td>Meta AI training</td>
+  </tr>
+  <tr>
+    <td>Meta</td>
+    <td><code>FacebookBot</code></td>
+    <td>Meta content indexing</td>
+  </tr>
+  <tr>
+    <td>Google DeepMind</td>
+    <td><code>Google-Extended</code></td>
+    <td>Gemini/Bard training data</td>
+  </tr>
+  <tr>
+    <td>Perplexity AI</td>
+    <td><code>PerplexityBot</code></td>
+    <td>Perplexity AI training</td>
+  </tr>
+  <tr>
+    <td>ByteDance</td>
+    <td><code>Bytespider</code></td>
+    <td>ByteDance AI/TikTok training</td>
+  </tr>
+  <tr>
+    <td>Common Crawl</td>
+    <td><code>CCBot</code></td>
+    <td>Open dataset (used by many AI cos)</td>
+  </tr>
+  <tr>
+    <td>Amazon</td>
+    <td><code>Amazonbot</code></td>
+    <td>Alexa/Amazon AI training</td>
+  </tr>
+  <tr>
+    <td>Apple</td>
+    <td><code>Applebot-Extended</code></td>
+    <td>Apple AI/Siri training</td>
+  </tr>
+  <tr>
+    <td>Cohere</td>
+    <td><code>cohere-ai</code></td>
+    <td>Cohere model training</td>
+  </tr>
+</table>
+
+<p>Note: <code>Googlebot</code> itself (the standard search index crawler) is separate from <code>Google-Extended</code>. Blocking <code>Google-Extended</code> stops Google from using your content for AI training while preserving normal search indexing.</p>
+
+<hr/>
+
+<h2>The complete robots.txt block — copy and paste</h2>
+
+<p>Add this to your <code>robots.txt</code> file to block all major AI training crawlers:</p>
+
+<pre><code># Block AI training crawlers
+
+# OpenAI
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+# Anthropic
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+# Meta
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+# Google AI (does NOT affect standard Googlebot search indexing)
+User-agent: Google-Extended
+Disallow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Disallow: /
+
+# ByteDance
+User-agent: Bytespider
+Disallow: /
+
+# Common Crawl (open dataset used to train many AI models)
+User-agent: CCBot
+Disallow: /
+
+# Amazon
+User-agent: Amazonbot
+Disallow: /
+
+# Apple AI
+User-agent: Applebot-Extended
+Disallow: /
+
+# Cohere
+User-agent: cohere-ai
+Disallow: /</code></pre>
+
+<hr/>
+
+<h2>Blocking all AI crawlers in one directive</h2>
+
+<p>If you want a more compact format and are comfortable blocking any unrecognized bot, you can use a catch-all and then selectively allow known good bots. This is more aggressive but cleaner:</p>
+
+<pre><code># Block all crawlers by default
+User-agent: *
+Disallow: /
+
+# Allow standard search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Slurp
+Allow: /</code></pre>
+
+<div class="callout">
+  <strong>Use the catch-all approach with care</strong>
+  A blanket <code>Disallow: /</code> with selective Allow blocks will also stop monitoring tools, uptime checkers, link validators, and SEO crawlers from accessing your site. If you rely on any of these, use the individual User-agent approach instead and add blocking rules incrementally.
+</div>
+
+<hr/>
+
+<h2>Blocking specific sections instead of the whole site</h2>
+
+<p>If you publish content you want indexed by search engines but have sections you don't want in AI training datasets — documentation, forums, user-generated content, premium content — you can block those paths specifically:</p>
+
+<pre><code>User-agent: GPTBot
+Disallow: /docs/
+Disallow: /forum/
+Disallow: /users/
+
+User-agent: ClaudeBot
+Disallow: /docs/
+Disallow: /forum/
+Disallow: /users/</code></pre>
+
+<p>This is useful for content platforms that want Google to index their content for SEO but don't want that same content used for AI training.</p>
+
+<hr/>
+
+<h2>How to deploy your robots.txt update</h2>
+
+<h3>Static sites (GitHub Pages, Netlify, Vercel)</h3>
+<p>Add or edit <code>robots.txt</code> in the root of your repository and push. The file will be served at <code>https://yourdomain.com/robots.txt</code> automatically.</p>
+
+<pre><code># Verify it's live
+curl -s https://yourdomain.com/robots.txt | grep -A2 "GPTBot"</code></pre>
+
+<h3>Next.js / Node.js</h3>
+<p>In Next.js 13+, create <code>app/robots.ts</code> or place a static <code>robots.txt</code> in the <code>public/</code> directory.</p>
+
+<pre><code>// app/robots.ts
+import { MetadataRoute } from 'next'
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: [
+      { userAgent: 'GPTBot', disallow: '/' },
+      { userAgent: 'ClaudeBot', disallow: '/' },
+      { userAgent: 'Google-Extended', disallow: '/' },
+      // add remaining bots
+      { userAgent: ['Googlebot', 'Bingbot'], allow: '/' },
+    ],
+    sitemap: 'https://yourdomain.com/sitemap.xml',
+  }
+}</code></pre>
+
+<h3>WordPress</h3>
+<p>Use the Yoast SEO or Rank Math plugin's robots.txt editor (SEO → Tools → File editor), or edit <code>robots.txt</code> directly in your web root if it exists as a static file. Note: WordPress generates a virtual robots.txt if a physical one doesn't exist — check which applies to your installation.</p>
+
+<hr/>
+
+<h2>Verifying that your blocks are working</h2>
+
+<p>After deploying, confirm two things: the file is accessible and the directives are correct.</p>
+
+<pre><code># Check file is accessible
+curl -s https://yourdomain.com/robots.txt
+
+# Verify GPTBot is blocked
+curl -s https://yourdomain.com/robots.txt | grep -A2 "GPTBot"
+# Expected output:
+# User-agent: GPTBot
+# Disallow: /</code></pre>
+
+<p>You can also use our free crawl-check tool to verify which bots are allowed or blocked on your site, and to see the full parsed robots.txt as different crawlers would interpret it.</p>
+
+<hr/>
+
+<h2>What about meta tags?</h2>
+
+<p>For pages where you want AI-crawler-specific controls without modifying robots.txt, you can use the <code>X-Robots-Tag</code> HTTP header or a <code>&lt;meta name="robots"&gt;</code> tag:</p>
+
+<pre><code>&lt;!-- Prevent AI crawlers from using this page for training --&gt;
+&lt;meta name="robots" content="noai, noimageai"&gt;</code></pre>
+
+<p>The <code>noai</code> directive is recognized by some AI crawlers to signal that the content should not be used for training, even if the crawler is allowed to access the page for other purposes. Adoption is currently inconsistent across providers — robots.txt remains the most reliable method.</p>
+
+<div class="cta-box">
+  <h3>🛡️ Verify your crawl protection is working</h3>
+  <p>Use our free crawl-check tool to see which bots can access your site and verify your robots.txt rules are blocking the crawlers you intended. Then sign up for CrawlGuard to get alerts when new AI crawlers appear that aren't covered by your current rules.</p>
+  <a href="https://lior-seats.github.io/crawl-check/" class="btn">Check your crawl rules (free) →</a>
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/" class="btn btn-secondary">Get new crawler alerts</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawl-check/">Crawl checker</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=block-ai-crawlers',{mode:'no-cors'});}());</script>
+</body>
+</html>

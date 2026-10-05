@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Propagation: How Long It Takes and How to Check It</title>
+<meta name="description" content="DNS propagation can take 5 minutes or 48 hours. Here's why — TTL, resolver caches, BGP, anycast — and how to check propagation status for any DNS change."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-propagation.html"/>
+<meta property="og:title" content="DNS Propagation: How Long It Takes and How to Check It"/>
+<meta property="og:description" content="DNS propagation can take 5 minutes or 48 hours. Here's why TTL, resolver caches, and BGP affect how fast your DNS changes reach the world."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-propagation.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Propagation: How Long It Takes and How to Check It</h1>
+
+<p class="meta">You updated the A record. Your colleague sees the new IP. You still see the old one. This is normal — here's why.</p>
+
+<p>DNS propagation is the period between making a DNS change and that change being visible everywhere on the internet. It can take anywhere from a few minutes to 48 hours, and different people in different locations may see different results during that window. Understanding why helps you predict timelines, reduce wait times, and diagnose situations where propagation seems stuck.</p>
+
+<hr/>
+
+<h2>What DNS propagation actually means</h2>
+
+<p>When you update a DNS record — say, changing an A record from 1.2.3.4 to 5.6.7.8 — the change is immediate at your authoritative nameserver. Your DNS provider updates its own servers right away. But the internet doesn't query your authoritative nameserver for every DNS lookup. Most queries are answered by <strong>recursive resolvers</strong> — DNS servers operated by ISPs, cloud providers, and public services like 8.8.8.8 (Google) and 1.1.1.1 (Cloudflare) — that cache answers to avoid querying authoritative servers on every request.</p>
+
+<p>"DNS propagation" is really the process of those caches expiring and resolvers fetching fresh answers from your authoritative nameserver. Until a resolver's cached answer expires, it will return the old IP address regardless of what your authoritative nameserver says.</p>
+
+<hr/>
+
+<h2>TTL: the primary propagation control</h2>
+
+<p>Every DNS record has a TTL (Time To Live) value, measured in seconds. It tells recursive resolvers how long to cache the answer before querying again. When the TTL expires, the resolver fetches a fresh answer. Until it expires, the resolver serves the cached value.</p>
+
+<p>Common TTL values:</p>
+
+<ul>
+  <li><strong>300 seconds (5 minutes):</strong> low TTL, fast propagation, common for records you change frequently</li>
+  <li><strong>3600 seconds (1 hour):</strong> moderate TTL, typical default for most DNS providers</li>
+  <li><strong>86400 seconds (24 hours):</strong> high TTL, slow propagation, common for stable records</li>
+</ul>
+
+<p>The practical implication: if your A record has a TTL of 86400 and you just updated it, some resolvers will serve the old IP for up to 24 more hours. If the TTL is 300, most resolvers will have the new value within 5–10 minutes.</p>
+
+<div class="callout">
+  <strong>Lower your TTL before planned changes</strong>
+  If you know you're making a DNS change — migrating a server, cutting over to a new IP — lower the TTL of affected records 24–48 hours before the change. Drop it to 300 or 60 seconds. After the change is confirmed working, raise it back. This compresses your propagation window from hours to minutes.
+</div>
+
+<h3>Checking your current TTL</h3>
+<pre><code># macOS / Linux — check current TTL on an A record
+dig example.com A +noall +answer
+
+# You'll see something like:
+# example.com.  3600  IN  A  1.2.3.4
+#               ^^^^ this is the TTL in seconds</code></pre>
+
+<hr/>
+
+<h2>Why propagation times vary by location</h2>
+
+<p>Even with a low TTL, you'll observe that DNS changes appear at different times for users in different locations. This is because there are thousands of recursive resolvers operating independently around the world, each with its own cache state.</p>
+
+<h3>Resolver cache age</h3>
+<p>When a resolver cached your old record, it reset its TTL counter from the current value at that moment. If a resolver cached your record 45 minutes into a 3600-second TTL, it will serve the old answer for only 15 more minutes after your change — but a resolver that cached it 5 seconds ago will serve the old answer for another 3595 seconds.</p>
+
+<h3>ISP resolvers with extended caching</h3>
+<p>Some ISPs and enterprise DNS resolvers ignore or extend TTLs, caching records for longer than the TTL instructs. This is technically non-compliant but common in practice. Users behind such resolvers will see stale data longer than your TTL suggests. This is a known issue with certain large ISP resolvers in Asia, Eastern Europe, and Latin America.</p>
+
+<h3>Anycast routing and BGP</h3>
+<p>Major DNS providers like Cloudflare and AWS Route 53 use anycast routing — the same IP address is announced from multiple data centers simultaneously, and BGP routes your query to the nearest one. When you make a DNS change, the provider propagates it to all their anycast nodes, which takes a small amount of time (typically seconds to minutes for major providers). During that window, users routed to different nodes may see different answers.</p>
+
+<hr/>
+
+<h2>Typical propagation timelines</h2>
+
+<p>In practice, with a TTL of 300 seconds:</p>
+
+<ul>
+  <li>Users on Google (8.8.8.8) or Cloudflare (1.1.1.1): typically updated within 1–5 minutes</li>
+  <li>Users on most ISP resolvers in North America and Western Europe: within 10–30 minutes</li>
+  <li>Users on ISP resolvers with extended caching: up to a few hours</li>
+</ul>
+
+<p>With a TTL of 3600 seconds:</p>
+<ul>
+  <li>Most resolvers: 1–2 hours</li>
+  <li>Non-compliant caching resolvers: up to 6–12 hours</li>
+</ul>
+
+<p>With a TTL of 86400 seconds: up to 24–48 hours is realistic for global propagation. The "48 hours" number that's often cited represents the theoretical maximum for non-compliant resolvers with extended caching behavior.</p>
+
+<hr/>
+
+<h2>Record types that propagate differently</h2>
+
+<p>Not all DNS record types behave the same way:</p>
+
+<h3>A and AAAA records</h3>
+<p>Standard address records. Propagation is governed by TTL. Changing an A record is the most common DNS change operation.</p>
+
+<h3>CNAME records</h3>
+<p>Alias records. CNAME changes propagate like A records (TTL-governed), but note that a CNAME lookup chains to the target's A record, which has its own TTL. The effective propagation time is the max of both TTLs.</p>
+
+<h3>NS records (nameserver delegation)</h3>
+<p>Changing your domain's nameservers (e.g. migrating DNS providers) is slower. NS records are controlled by your domain registrar and cached by the root nameservers. Expect 24–48 hours for NS changes to propagate globally, regardless of TTL, because the parent zone (e.g. <code>.com</code>) has its own caching behavior that you don't control.</p>
+
+<h3>MX records</h3>
+<p>Mail exchanger records. Propagation is TTL-governed like A records, but email systems may also cache MX lookups independently. Keep old mail servers accepting email for 24–48 hours after an MX change to avoid lost mail during the transition.</p>
+
+<hr/>
+
+<h2>How to check DNS propagation status</h2>
+
+<p>The fastest way to check whether your DNS change has reached a given resolver is to query it directly:</p>
+
+<pre><code># Query Google's resolver (8.8.8.8) specifically
+dig @8.8.8.8 example.com A +short
+
+# Query Cloudflare's resolver (1.1.1.1)
+dig @1.1.1.1 example.com A +short
+
+# Query your local resolver (whatever your machine uses by default)
+dig example.com A +short</code></pre>
+
+<p>If the first two return different values, the change has reached Google and Cloudflare but not everywhere yet. If all three match, propagation is well advanced.</p>
+
+<p>To check propagation from multiple geographic locations simultaneously without running queries on servers around the world, use our free DNS checker tool — it queries from dozens of locations and shows you which ones have the new value and which are still cached on the old one.</p>
+
+<hr/>
+
+<h2>When propagation seems stuck</h2>
+
+<p>If propagation appears stuck after the expected window, diagnose in this order:</p>
+
+<ol>
+  <li><strong>Verify the change at the authoritative nameserver:</strong> query your authoritative NS directly — <code>dig @ns1.yourdnsprovider.com example.com A</code>. If this still returns the old value, your DNS provider hasn't saved the change correctly.</li>
+  <li><strong>Check for a negative cache entry:</strong> if the record didn't exist before and you just added it, some resolvers may have cached a NXDOMAIN (negative) response. Negative TTLs are set in the SOA record and are often shorter, but some resolvers cache them aggressively.</li>
+  <li><strong>Flush local resolver cache:</strong> macOS: <code>sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder</code>. Windows: <code>ipconfig /flushdns</code>. Linux: varies by resolver (systemd-resolved: <code>sudo systemd-resolve --flush-caches</code>).</li>
+  <li><strong>Check with a different network:</strong> if the new value is visible on your mobile data connection but not your office Wi-Fi, the office DNS resolver is still cached on the old value. Wait for its TTL to expire.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>🌐 Check DNS propagation worldwide</h3>
+  <p>Our free DNS checker queries from multiple global locations and shows you which resolvers have picked up your change and which are still cached — no login, no signup required.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check DNS propagation →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get DNS change alerts</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">DNS checker</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-propagation',{mode:'no-cors'});}());</script>
+</body>
+</html>

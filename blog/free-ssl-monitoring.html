@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Free SSL Certificate Monitoring: 5 Ways to Know Before Your Cert Expires</title>
+<meta name="description" content="SSL expiry causes outages. Here are 5 free ways to monitor SSL certificate expiration — from browser alerts to our free SSLWatch tool — so you're never caught off guard."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/free-ssl-monitoring.html"/>
+<meta property="og:title" content="Free SSL Certificate Monitoring: 5 Ways to Know Before Your Cert Expires"/>
+<meta property="og:description" content="SSL expiry causes outages. Here are 5 free ways to monitor SSL certificate expiration so you're never caught off guard."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/free-ssl-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Free SSL Certificate Monitoring: 5 Ways to Know Before Your Cert Expires</h1>
+
+<p class="meta">Your SSL certificate expired at 2am on a Tuesday. Users saw "Your connection is not private." Support queues filled before anyone noticed.</p>
+
+<p>SSL certificate expiration is one of the most preventable outages in software. The expiry date is stamped in the certificate itself — you can read it at any time. And yet teams get caught by it constantly, because there's no built-in alarm. The cert silently ticks toward expiration, and the first signal most teams get is a browser error page.</p>
+
+<p>This article covers five free approaches to SSL certificate monitoring, from quick manual checks to automated alerting, including our free SSLWatch tool that requires no signup to use.</p>
+
+<hr/>
+
+<h2>Why SSL expiry keeps catching teams off guard</h2>
+
+<p>Let's Encrypt certificates expire every 90 days. Traditional CA certificates typically expire every 1–2 years. In either case, the failure mode is the same: the renewal process breaks at some point — a cron job that stopped running, an ACME challenge that started failing, a DNS change that broke auto-renewal — and nobody notices until the cert is already expired.</p>
+
+<p>The problem is compounded by two factors:</p>
+
+<ul>
+  <li><strong>Auto-renewal breeds complacency.</strong> Teams set up Certbot, confirm auto-renewal works, and never check again. When auto-renewal silently breaks six months later, there's no alert.</li>
+  <li><strong>Wildcard certs mask subdomain risk.</strong> A team monitoring <code>example.com</code> may forget that <code>api.example.com</code> has its own cert on a different renewal schedule.</li>
+</ul>
+
+<p>Here are five free methods to close the gap.</p>
+
+<hr/>
+
+<h2>Method 1: Browser certificate inspector</h2>
+
+<p>Every browser shows certificate details including the expiry date. In Chrome: click the padlock icon → Connection is secure → Certificate is valid. In Firefox: padlock → Connection secure → More information → View Certificate.</p>
+
+<p>This works for one-off checks, but it requires someone to remember to check, which is why it fails in practice. Use it as a quick diagnostic when you suspect an issue — not as ongoing monitoring.</p>
+
+<pre><code># Quick check from the terminal — shows notAfter date
+openssl s_client -connect example.com:443 -servername example.com &lt;/dev/null 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<p>This prints the <code>notBefore</code> and <code>notAfter</code> dates for the certificate currently served. Run it on any domain to see exactly when it expires.</p>
+
+<hr/>
+
+<h2>Method 2: Google Search Console alerts</h2>
+
+<p>Google Search Console sends alerts when it encounters a security issue on your property — including certificate errors. If your cert expires and Googlebot hits the site, you'll receive an email under Security Issues in Search Console.</p>
+
+<p>The limitation: the alert arrives when Googlebot crawls the page after the expiry, not before. This is a reactive notification, not a proactive one. For high-traffic sites that Googlebot crawls frequently, you might hear about it within hours of expiry. For low-traffic sites, it may take days.</p>
+
+<p>Google Search Console is worth having regardless — it covers many security issue types beyond SSL — but it should not be your primary SSL expiry monitor.</p>
+
+<hr/>
+
+<h2>Method 3: Let's Encrypt expiry emails</h2>
+
+<p>If you issued your certificate through Let's Encrypt, they send expiry reminder emails at 20 days and 7 days before expiration — but only if auto-renewal hasn't already renewed the cert. The email goes to the address you provided during the initial ACME registration.</p>
+
+<p>Check which email your certs are registered under:</p>
+
+<pre><code># Find the registered email for a Certbot-managed cert
+sudo certbot certificates</code></pre>
+
+<p>This works reliably for domains managed by Certbot, but has two gaps:</p>
+
+<ul>
+  <li>If auto-renewal partially works (cert renewed but not deployed), you won't get an alert and the expired cert stays in production</li>
+  <li>It only covers Let's Encrypt certs — any cert from a traditional CA, AWS ACM, or other issuer is not covered</li>
+</ul>
+
+<hr/>
+
+<h2>Method 4: UptimeRobot SSL monitoring (free tier)</h2>
+
+<p>UptimeRobot's free tier includes SSL certificate monitoring. After adding a monitor for your domain, it checks your cert's expiry and sends an email alert when the cert is within a configurable threshold (default: 7 days).</p>
+
+<p>Setup: create a free account → Add New Monitor → HTTPS → enter your domain → expand SSL settings → enable SSL alert.</p>
+
+<p>The free tier covers up to 50 monitors, which is sufficient for most teams. The main limitation is that free-tier check frequency is 5 minutes for uptime, and SSL checks are less frequent than uptime checks — typically daily. This is fine for expiry alerts, since you have a 7-day window, but it means you won't catch mid-cert issues in real time.</p>
+
+<hr/>
+
+<h2>Method 5: SSL certificate checker tool (free, no signup)</h2>
+
+<p>The fastest way to check any domain's SSL status right now is our free SSL certificate checker. Paste any domain, get the expiry date, issuer, and days remaining — no account required.</p>
+
+<p>Use it for:</p>
+<ul>
+  <li>One-off checks when you want to verify a cert before a launch</li>
+  <li>Checking a domain you don't own or manage</li>
+  <li>Quickly verifying that a just-renewed cert is actually being served</li>
+  <li>Checking subdomains you might have missed</li>
+</ul>
+
+<div class="callout">
+  <strong>Check multiple subdomains</strong>
+  If your application serves traffic on <code>www</code>, <code>api</code>, <code>app</code>, and <code>cdn</code> subdomains, each may have its own certificate. Run the checker against each one. It's common to have the main domain monitored but forget a subdomain that's on a different cert with a different renewal schedule.
+</div>
+
+<hr/>
+
+<h2>What to do right now</h2>
+
+<p>If you're not currently monitoring SSL expiry, here's a quick triage:</p>
+
+<ol>
+  <li>Run the openssl command from Method 1 against your top 5 domains and subdomains. Note which expire soonest.</li>
+  <li>If any cert expires within 30 days: renew it now and verify the renewal is actually being served.</li>
+  <li>Set up at least one automated monitor (Method 4 or 5) so you're not relying on memory.</li>
+  <li>Verify your Let's Encrypt auto-renewal is working: <code>sudo certbot renew --dry-run</code>. If it fails, fix it before the cert expires.</li>
+  <li>Add all production subdomains to your monitoring list, not just the apex domain.</li>
+</ol>
+
+<p>The entire triage takes under 20 minutes and eliminates a class of outage that's entirely preventable.</p>
+
+<hr/>
+
+<h2>Comparison: which method fits which situation</h2>
+
+<p>For teams managing 1–3 domains: Let's Encrypt emails + UptimeRobot free tier covers you at zero cost. For teams managing 10+ domains across multiple platforms: a dedicated SSL monitoring service that polls all domains on a schedule and sends a single alert digest is worth the time investment. Our SSLWatch tool is designed for exactly this — add all your domains, get notified before any of them expire.</p>
+
+<div class="cta-box">
+  <h3>🔒 SSL expiry monitoring for all your domains</h3>
+  <p>SSLWatch monitors all your certificates in one place and sends alerts before any of them expire — across apex domains, subdomains, APIs, and CDN endpoints. Add all your domains in minutes.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check a cert now (free)</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL cert checker</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=free-ssl-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
