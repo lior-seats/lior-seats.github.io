@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Best SSL Certificate Monitoring Tools for Developers (2026)</title>
+<meta name="description" content="Honest comparison of SSL certificate monitoring tools in 2026: UptimeRobot, StatusCake, Freshping, DIY Prometheus, and SSLWatch. Features, pricing, and alert windows."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-monitoring-tools.html"/>
+<meta property="og:title" content="Best SSL Certificate Monitoring Tools for Developers (2026)"/>
+<meta property="og:description" content="Honest comparison of SSL certificate monitoring tools in 2026: UptimeRobot, StatusCake, Freshping, DIY Prometheus, and SSLWatch. Features, pricing, and alert windows."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-monitoring-tools.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>Best SSL Certificate Monitoring Tools for Developers (2026)</h1>
+
+<p class="meta">An honest comparison of free and paid SSL cert monitoring options — with a feature table covering alert windows, domain limits, pricing, and API access.</p>
+
+<p>An expired SSL certificate is one of the most preventable production incidents. Yet it keeps happening — because the monitoring was never set up, the alert window was too short, or the alert channel stopped working. This guide compares every realistic SSL certificate monitoring option available in 2026 so you can pick the right one.</p>
+
+<p>Before diving in: if you want to check any domain's current certificate expiry right now, use the free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> tool — no account needed.</p>
+
+<hr/>
+
+<h2>What to Look For in an SSL Cert Monitor</h2>
+
+<p>Not all SSL monitoring is equivalent. The features that actually matter in production:</p>
+
+<ul>
+  <li><strong>Alert advance window</strong> — getting notified 7 days out is too late for many teams. 30 days gives you breathing room; 60 days is better.</li>
+  <li><strong>Multiple alert thresholds</strong> — a single alert can be missed. The best tools send at 60, 30, 7, and 1 day.</li>
+  <li><strong>Alert channels</strong> — email is a minimum; Slack, PagerDuty, or webhooks are better for on-call workflows.</li>
+  <li><strong>Certificate chain validation</strong> — the leaf cert can be valid while the intermediate chain is broken. Some tools only check the leaf.</li>
+  <li><strong>API access</strong> — for teams managing certs programmatically or wanting to integrate into internal dashboards.</li>
+  <li><strong>Domain limit</strong> — free tiers often cap at 10–50 domains; production environments can have far more.</li>
+</ul>
+
+<hr/>
+
+<h2>SSL Monitoring Tools Compared</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Alert window</th>
+      <th>Free domains</th>
+      <th>Price (paid)</th>
+      <th>API</th>
+      <th>Channels</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>UptimeRobot</strong></td>
+      <td>30 days</td>
+      <td>50 monitors</td>
+      <td>$7/mo (Pro)</td>
+      <td>Yes</td>
+      <td>Email, Slack, webhook, SMS</td>
+    </tr>
+    <tr>
+      <td><strong>StatusCake</strong></td>
+      <td>30 days</td>
+      <td>10 SSL monitors</td>
+      <td>$20/mo (Business)</td>
+      <td>Yes</td>
+      <td>Email, webhook, Slack, PagerDuty</td>
+    </tr>
+    <tr>
+      <td><strong>Freshping</strong></td>
+      <td>30 days</td>
+      <td>50 checks</td>
+      <td>$19/mo (Sprout)</td>
+      <td>Yes</td>
+      <td>Email, Slack, webhook</td>
+    </tr>
+    <tr>
+      <td><strong>Better Uptime</strong></td>
+      <td>Configurable</td>
+      <td>10 monitors</td>
+      <td>$20/mo (Starter)</td>
+      <td>Yes</td>
+      <td>Email, Slack, SMS, phone, PagerDuty</td>
+    </tr>
+    <tr>
+      <td><strong>Grafana/Prometheus DIY</strong></td>
+      <td>Configurable</td>
+      <td>Unlimited</td>
+      <td>Self-hosted cost</td>
+      <td>Native</td>
+      <td>AlertManager (any)</td>
+    </tr>
+    <tr>
+      <td><strong>SSLWatch</strong></td>
+      <td>60 / 30 / 7 days</td>
+      <td>Free checker tool</td>
+      <td>$9/mo (early access)</td>
+      <td>Planned</td>
+      <td>Email (more channels planned)</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>UptimeRobot</h2>
+
+<p>UptimeRobot is the most commonly used free monitoring tool among indie developers. Its SSL monitoring is a secondary feature alongside uptime checks — you add a domain as an "HTTP(s)" monitor and SSL expiry tracking is bundled in.</p>
+
+<p><strong>Strengths:</strong> generous free tier (50 monitors), reliable uptime, wide alert channel support, good API.</p>
+
+<p><strong>Weaknesses:</strong> SSL-specific features are minimal. You get a 30-day email alert; that's it. No configurable advance windows, no multiple thresholds, no certificate chain validation. For teams where 30 days is enough lead time and email is sufficient, it works. For production-critical environments, the single-window alerting is a real gap — one missed email and you're down to 0 days.</p>
+
+<div class="callout">
+  <strong>Best for:</strong> Personal projects and indie developers who need basic coverage at zero cost.
+</div>
+
+<hr/>
+
+<h2>StatusCake</h2>
+
+<p>StatusCake has a dedicated SSL monitoring feature (separate from uptime checks) with a clean interface and decent free tier. Its 10 free SSL monitors are enough for a small portfolio.</p>
+
+<p><strong>Strengths:</strong> SSL-specific UI, webhook support, PagerDuty integration on paid plans, decent API.</p>
+
+<p><strong>Weaknesses:</strong> The free tier caps at 10 SSL monitors — workable for small setups but constraining for agencies or developers with multiple client domains. Alert advance window is fixed at 30 days, not configurable.</p>
+
+<div class="callout">
+  <strong>Best for:</strong> Small teams who want dedicated SSL monitoring UI and don't need more than 10 domains free.
+</div>
+
+<hr/>
+
+<h2>Freshping</h2>
+
+<p>Freshping (part of Freshworks) offers SSL monitoring as part of a broader uptime monitoring suite. The free tier is relatively generous at 50 checks, though SSL monitoring specifically may count against check quotas.</p>
+
+<p><strong>Strengths:</strong> clean UI, Freshworks ecosystem integration, good free tier.</p>
+
+<p><strong>Weaknesses:</strong> SSL monitoring feels like an add-on rather than a primary feature. Advanced alerting requires paid plans. Less popular than UptimeRobot in the developer community, which means fewer community resources and integrations.</p>
+
+<hr/>
+
+<h2>Better Uptime</h2>
+
+<p>Better Uptime positions itself as a premium uptime monitoring tool with SSL certificates included. Its alert channels are the most comprehensive of the general-purpose uptime tools — including phone calls and SMS on paid plans.</p>
+
+<p><strong>Strengths:</strong> configurable alert windows, excellent alert channels including on-call scheduling, clean status pages.</p>
+
+<p><strong>Weaknesses:</strong> more expensive than alternatives; overkill if you only need SSL monitoring and don't need uptime checks, status pages, and on-call management.</p>
+
+<div class="callout">
+  <strong>Best for:</strong> Teams that want uptime + SSL + on-call scheduling in one tool and have budget for it.
+</div>
+
+<hr/>
+
+<h2>DIY: Grafana + Prometheus + blackbox_exporter</h2>
+
+<p>For teams already running a Grafana/Prometheus stack, the <code>blackbox_exporter</code> can scrape SSL certificate metrics and expose them to AlertManager:</p>
+
+<pre><code># prometheus.yml — scrape SSL cert expiry via blackbox_exporter
+scrape_configs:
+  - job_name: 'ssl_cert'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://yourdomain.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115</code></pre>
+
+<p>The metric <code>probe_ssl_earliest_cert_expiry</code> gives you the expiry timestamp. AlertManager rule:</p>
+
+<pre><code>- alert: SSLCertExpiryWarning
+  expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 30
+  for: 1h
+  labels:
+    severity: warning
+  annotations:
+    summary: "SSL cert expiring in {{ $value | humanizeDuration }}"</code></pre>
+
+<p><strong>Strengths:</strong> unlimited domains, fully configurable thresholds, integrates into existing observability stack, no additional cost if infrastructure is already running.</p>
+
+<p><strong>Weaknesses:</strong> meaningful setup and maintenance overhead. If your Prometheus stack has an incident, your SSL monitoring goes with it. Not a good fit for teams without existing Prometheus infrastructure.</p>
+
+<div class="callout">
+  <strong>Best for:</strong> Engineering teams with existing Prometheus/Grafana infrastructure who want SSL monitoring without adding a new vendor.
+</div>
+
+<hr/>
+
+<h2>SSLWatch</h2>
+
+<p>SSLWatch is a dedicated SSL certificate monitoring tool currently in early access. Unlike the general uptime tools, it focuses exclusively on SSL: multi-window alerts at 60, 30, and 7 days before expiry, domain management from a single dashboard, and no uptime monitoring bundled in to inflate the price.</p>
+
+<p>Early access is $9/month. The free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> tool is available now — check any domain's certificate without creating an account.</p>
+
+<p><strong>Strengths:</strong> purpose-built for SSL, multiple alert thresholds, low price point for the feature set.</p>
+
+<p><strong>Weaknesses:</strong> early access — API and additional alert channels are in progress. Smaller ecosystem than the general uptime tools.</p>
+
+<hr/>
+
+<h2>The Right Tool for Your Situation</h2>
+
+<p>The honest answer depends on what you already have and what you need:</p>
+
+<ul>
+  <li><strong>Zero budget, 1–50 domains:</strong> UptimeRobot free tier. Fast to set up, reliable, gets the job done. Accept the 30-day single-threshold limitation.</li>
+  <li><strong>Small team, want SSL-specific UI:</strong> StatusCake free tier or SSLWatch early access. Both focus more on SSL than UptimeRobot.</li>
+  <li><strong>Existing Prometheus stack:</strong> blackbox_exporter. Leverage what you have; no new vendor.</li>
+  <li><strong>Multiple alert thresholds + low price:</strong> SSLWatch. The 60/30/7-day multi-window alerts are the strongest case for a dedicated tool.</li>
+  <li><strong>Full observability suite budget:</strong> Better Uptime. Combines SSL, uptime, status pages, and on-call management.</li>
+</ul>
+
+<hr/>
+
+<h2>One Thing Every Tool Gets Wrong</h2>
+
+<p>Most SSL monitoring tools alert you when the certificate is close to expiring — but don't alert when a certificate <em>changes unexpectedly</em>. An unexpected certificate replacement can indicate a man-in-the-middle attack, a CDN misconfiguration, or an accidental cert swap. Monitoring only expiry dates misses this class of problem entirely.</p>
+
+<p>If certificate integrity matters to you (it should for payment flows, auth endpoints, and API infrastructure), add a check that alerts on any certificate fingerprint change, not just on expiry proximity.</p>
+
+<div class="cta-box">
+  <h3>SSLWatch &mdash; SSL Certificate Monitoring Built for Developers</h3>
+  <p>Multi-window alerts at 60, 30, and 7 days before expiry. Simple domain management. Early access pricing at $9/month.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the waitlist</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free cert checker</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-monitoring-tools',{mode:'no-cors'});}());</script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Check SSL Certificate Expiry (Online + Command Line)</title>
+<meta name="description" content="How to check SSL certificate expiry using online tools, openssl, curl, Python, and Node.js. Practical code examples plus why manual checking doesn't scale."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-checker.html"/>
+<meta property="og:title" content="How to Check SSL Certificate Expiry (Online + Command Line)"/>
+<meta property="og:description" content="How to check SSL certificate expiry using online tools, openssl, curl, Python, and Node.js. Practical code examples plus why manual checking doesn't scale."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-checker.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>How to Check SSL Certificate Expiry (Online + Command Line)</h1>
+
+<p class="meta">Every method for checking a certificate's expiry date: browser tools, openssl, curl, Python, Node.js, and CI integration.</p>
+
+<p>SSL certificate expiry is worth checking before it becomes an outage. This guide covers every practical method for checking SSL certificate expiry — from a quick online tool to scriptable approaches you can integrate into CI pipelines.</p>
+
+<hr/>
+
+<h2>Fastest Option: Online SSL Certificate Checker</h2>
+
+<p>If you just want a quick answer without touching the command line, the free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> tool checks any domain and shows you:</p>
+
+<ul>
+  <li>Days remaining until expiry</li>
+  <li>Certificate issuer and organization</li>
+  <li>Valid from / valid to dates</li>
+  <li>Whether the certificate is currently valid</li>
+</ul>
+
+<p>Enter a domain name, get the result instantly — no account, no installation, no command line.</p>
+
+<div class="cta-box">
+  <h3>Check a Domain&#8217;s SSL Certificate Now</h3>
+  <p>Free, instant results — no account required.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Open SSL checker</a>
+</div>
+
+<hr/>
+
+<h2>Method 1: openssl (Most Common Command-Line Approach)</h2>
+
+<p>The <code>openssl</code> command-line tool is available on virtually every Unix-like system and is the most widely used method for checking certificate details from the terminal.</p>
+
+<h3>Get the expiry date</h3>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 \
+  -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<p>Output:</p>
+<pre><code>notBefore=Sep 10 12:00:00 2026 GMT
+notAfter=Dec  9 11:59:59 2026 GMT</code></pre>
+
+<p>The <code>-servername</code> flag is required for SNI (Server Name Indication) — without it, you may get the wrong certificate on hosts serving multiple domains.</p>
+
+<h3>Get days remaining as a number</h3>
+
+<pre><code>EXPIRY=$(echo | openssl s_client -connect yourdomain.com:443 \
+  -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | cut -d= -f2)
+
+# Linux (GNU date):
+echo $(( ($(date -d "$EXPIRY" +%s) - $(date +%s)) / 86400 )) days remaining
+
+# macOS (BSD date):
+echo $(( ($(date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s) - $(date +%s)) / 86400 )) days remaining</code></pre>
+
+<h3>Check the full certificate chain</h3>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 \
+  -servername yourdomain.com -showcerts 2>/dev/null \
+  | openssl x509 -noout -text \
+  | grep -E "(Issuer|Subject|Not Before|Not After)"</code></pre>
+
+<h3>Check a non-standard port</h3>
+
+<pre><code># SMTP with STARTTLS (port 587)
+echo | openssl s_client -connect mail.yourdomain.com:587 \
+  -starttls smtp 2>/dev/null | openssl x509 -noout -dates
+
+# LDAPS (port 636)
+echo | openssl s_client -connect ldap.yourdomain.com:636 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<div class="callout">
+  <strong>Common gotcha:</strong> <code>openssl s_client</code> hangs waiting for stdin if you don't pipe <code>echo</code> into it. Always prefix with <code>echo |</code> or pipe <code>/dev/null</code> in scripts.
+</div>
+
+<hr/>
+
+<h2>Method 2: curl</h2>
+
+<p>curl can check certificate validity without extracting dates explicitly. It's useful when you want a quick pass/fail check rather than the exact expiry date:</p>
+
+<pre><code># Check if the cert is currently valid (exits non-zero if cert error):
+curl -s -o /dev/null --max-time 10 https://yourdomain.com
+echo $?   # 0 = valid, non-zero = error</code></pre>
+
+<p>For more detail, use <code>--verbose</code>:</p>
+
+<pre><code>curl -v --max-time 10 https://yourdomain.com 2>&1 | grep -E "expire|SSL|TLS|cert"</code></pre>
+
+<p>curl's <code>--cacert</code> flag lets you test against a specific CA bundle, which is useful when validating certificates on internal networks with custom certificate authorities:</p>
+
+<pre><code>curl --cacert /path/to/custom-ca.pem https://internal.yourdomain.com</code></pre>
+
+<p>curl doesn't give you the expiry date in a machine-readable format. For scripting, use openssl. For a quick "is this cert valid right now" check, curl's exit code is the fastest approach.</p>
+
+<hr/>
+
+<h2>Method 3: Python</h2>
+
+<p>Python's <code>ssl</code> module can retrieve certificate details programmatically. This is the right approach when you need to integrate certificate checking into a larger Python script or application:</p>
+
+<pre><code>import ssl
+import socket
+from datetime import datetime
+
+def check_ssl_expiry(hostname, port=443):
+    context = ssl.create_default_context()
+    with socket.create_connection((hostname, port), timeout=10) as sock:
+        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+            cert = ssock.getpeercert()
+    
+    expiry_str = cert['notAfter']
+    expiry_date = datetime.strptime(expiry_str, '%b %d %H:%M:%S %Y %Z')
+    days_remaining = (expiry_date - datetime.utcnow()).days
+    
+    return {
+        'hostname': hostname,
+        'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+        'days_remaining': days_remaining,
+        'issuer': dict(x[0] for x in cert['issuer']),
+        'subject': dict(x[0] for x in cert['subject']),
+    }
+
+# Usage:
+result = check_ssl_expiry('yourdomain.com')
+print(f"{result['hostname']}: {result['days_remaining']} days remaining (expires {result['expiry_date']})")
+
+# Check multiple domains:
+domains = ['yourdomain.com', 'api.yourdomain.com', 'anotherdomain.com']
+for domain in domains:
+    try:
+        info = check_ssl_expiry(domain)
+        status = '⚠️' if info['days_remaining'] < 30 else '✓'
+        print(f"{status} {domain}: {info['days_remaining']} days")
+    except Exception as e:
+        print(f"✗ {domain}: {e}")</code></pre>
+
+<p>For more advanced use cases — including checking the full certificate chain, validating against a custom CA, or extracting Subject Alternative Names — use the <code>cryptography</code> library instead of the stdlib <code>ssl</code> module:</p>
+
+<pre><code>pip install cryptography</code></pre>
+
+<pre><code>import ssl
+import socket
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from datetime import datetime, timezone
+
+def get_cert_details(hostname, port=443):
+    context = ssl.create_default_context()
+    with socket.create_connection((hostname, port), timeout=10) as sock:
+        with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+            der_cert = ssock.getpeercert(binary_form=True)
+    
+    cert = x509.load_der_x509_certificate(der_cert, default_backend())
+    
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+    alt_names = [name.value for name in san.value]
+    
+    now = datetime.now(timezone.utc)
+    days_remaining = (cert.not_valid_after_utc - now).days
+    
+    return {
+        'subject': cert.subject.rfc4514_string(),
+        'issuer': cert.issuer.rfc4514_string(),
+        'not_before': cert.not_valid_before_utc.isoformat(),
+        'not_after': cert.not_valid_after_utc.isoformat(),
+        'days_remaining': days_remaining,
+        'san': alt_names,
+        'serial': hex(cert.serial_number),
+    }</code></pre>
+
+<hr/>
+
+<h2>Method 4: Node.js</h2>
+
+<p>Node.js's <code>tls</code> module provides certificate information via the <code>getPeerCertificate()</code> method:</p>
+
+<pre><code>const tls = require('tls');
+
+function checkSSLExpiry(hostname, port = 443) {
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect(
+      { host: hostname, port, servername: hostname },
+      () => {
+        const cert = socket.getPeerCertificate();
+        socket.end();
+
+        if (!cert || !cert.valid_to) {
+          return reject(new Error('Could not retrieve certificate'));
+        }
+
+        const expiryDate = new Date(cert.valid_to);
+        const now = new Date();
+        const daysRemaining = Math.floor(
+          (expiryDate - now) / (1000 * 60 * 60 * 24)
+        );
+
+        resolve({
+          hostname,
+          subject: cert.subject,
+          issuer: cert.issuer,
+          validFrom: cert.valid_from,
+          validTo: cert.valid_to,
+          daysRemaining,
+          fingerprint: cert.fingerprint256,
+        });
+      }
+    );
+
+    socket.setTimeout(10000);
+    socket.on('timeout', () => reject(new Error('Connection timed out')));
+    socket.on('error', reject);
+  });
+}
+
+// Usage:
+checkSSLExpiry('yourdomain.com')
+  .then(info => {
+    console.log(`${info.hostname}: ${info.daysRemaining} days remaining`);
+    if (info.daysRemaining < 30) {
+      console.warn('⚠️  Certificate expiring soon!');
+    }
+  })
+  .catch(err => console.error(`Error: ${err.message}`));
+
+// Check multiple domains:
+const domains = ['yourdomain.com', 'api.yourdomain.com'];
+Promise.allSettled(domains.map(checkSSLExpiry)).then(results => {
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
+      const { hostname, daysRemaining } = result.value;
+      console.log(`${daysRemaining >= 30 ? '✓' : '⚠️'} ${hostname}: ${daysRemaining} days`);
+    } else {
+      console.log(`✗ ${domains[i]}: ${result.reason.message}`);
+    }
+  });
+});</code></pre>
+
+<hr/>
+
+<h2>Method 5: CI Pipeline Integration</h2>
+
+<p>Adding a certificate check to your deployment pipeline catches expiry issues at deploy time, surfacing them in your CI logs where engineers are already looking:</p>
+
+<pre><code>#!/bin/bash
+# Add to your post-deploy CI step
+DOMAIN="yourdomain.com"
+WARN_DAYS=30
+
+EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 \
+  -servername "$DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | cut -d= -f2)
+
+DAYS=$(( ($(date -d "$EXPIRY" +%s) - $(date +%s)) / 86400 ))
+
+echo "SSL cert for $DOMAIN: $DAYS days remaining (expires $EXPIRY)"
+
+if [ "$DAYS" -lt "$WARN_DAYS" ]; then
+  echo "::warning::SSL certificate expires in $DAYS days — renewal required"
+fi
+
+if [ "$DAYS" -lt 0 ]; then
+  echo "::error::SSL certificate is EXPIRED"
+  exit 1
+fi</code></pre>
+
+<p>GitHub Actions workflow step:</p>
+
+<pre><code>- name: Check SSL certificate
+  run: |
+    DOMAIN="${{ env.PRODUCTION_DOMAIN }}"
+    EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 \
+      -servername "$DOMAIN" 2>/dev/null \
+      | openssl x509 -noout -enddate | cut -d= -f2)
+    DAYS=$(( ($(date -d "$EXPIRY" +%s) - $(date +%s)) / 86400 ))
+    echo "Certificate expires in $DAYS days"
+    if [ "$DAYS" -lt 30 ]; then
+      echo "::warning::SSL cert for $DOMAIN expires in $DAYS days"
+    fi</code></pre>
+
+<p>This only runs on deploy, so it won't catch a cert that expires between deploys — it complements rather than replaces dedicated monitoring.</p>
+
+<hr/>
+
+<h2>Quick Reference: Which Method to Use</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Situation</th>
+      <th>Best method</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Quick manual check, no terminal</td>
+      <td><a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> online tool</td>
+    </tr>
+    <tr>
+      <td>Terminal, one-off check</td>
+      <td><code>openssl s_client</code></td>
+    </tr>
+    <tr>
+      <td>Quick pass/fail validation</td>
+      <td><code>curl -s -o /dev/null</code></td>
+    </tr>
+    <tr>
+      <td>Python application integration</td>
+      <td><code>ssl</code> stdlib or <code>cryptography</code> library</td>
+    </tr>
+    <tr>
+      <td>Node.js application integration</td>
+      <td><code>tls.connect()</code> + <code>getPeerCertificate()</code></td>
+    </tr>
+    <tr>
+      <td>CI/CD pipeline check</td>
+      <td>openssl in a shell step</td>
+    </tr>
+    <tr>
+      <td>Shell script monitoring loop</td>
+      <td>openssl + cron job</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Why Manual Checking Doesn&#8217;t Scale</h2>
+
+<p>Every method above requires you to actively run a check. That's fine for a one-time inspection or integrating into a script you already run — but it's not a substitute for proactive monitoring.</p>
+
+<p>The problem with manual checking:</p>
+
+<ul>
+  <li><strong>You check at irregular intervals.</strong> A cert that expires 89 days after your last manual check gives you no advance warning.</li>
+  <li><strong>It doesn't cover domains you forgot about.</strong> Subdomains, staging environments, internal services, and recently-acquired domains all have certs. Manual checking is only as good as your mental inventory.</li>
+  <li><strong>It fails under operational load.</strong> When the team is heads-down on a release or incident, routine tasks like cert checking get skipped. That's exactly when you need the alert to fire automatically.</li>
+</ul>
+
+<p>The right workflow is: use manual checking (online tool or openssl) to audit your current state and troubleshoot specific certs, and use automated monitoring to get proactive expiry alerts across all your domains.</p>
+
+<div class="cta-box">
+  <h3>From Manual Checking to Automated Alerts</h3>
+  <p>Check your certificates right now with the free SSL checker — then set up SSLWatch for automated 60/30/7-day expiry alerts so you never have to remember to check again.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Free SSL checker</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">SSLWatch early access</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-checker',{mode:'no-cors'});}());</script>
+</body>
+</html>

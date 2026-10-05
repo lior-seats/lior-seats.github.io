@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Free SSL Certificate Monitoring — 5 Ways to Get Expiry Alerts</title>
+<meta name="description" content="5 free ways to monitor SSL certificate expiry and get alerts before your site goes down: Google Search Console, UptimeRobot, self-hosted cron, browser reminders, and SSLWatch."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/free-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="Free SSL Certificate Monitoring — 5 Ways to Get Expiry Alerts"/>
+<meta property="og:description" content="5 free ways to monitor SSL certificate expiry and get alerts before your site goes down: Google Search Console, UptimeRobot, self-hosted cron, browser reminders, and SSLWatch."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/free-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .step-num { display: inline-block; background: #2563eb; color: #fff; border-radius: 50%; width: 28px; height: 28px; line-height: 28px; text-align: center; font-weight: 700; font-size: 0.85rem; margin-right: 8px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>Free SSL Certificate Monitoring &mdash; 5 Ways to Get Expiry Alerts</h1>
+
+<p class="meta">From zero-setup options to a working cron job — how to get SSL expiry notifications without spending anything.</p>
+
+<p>SSL certificates expire. When they do, browsers show security warnings, search engines flag your site, and payment processors refuse to connect. An expired cert on a production service typically costs hours of engineer time and real revenue. The monitoring required to prevent this is free in most cases — the gap is usually just that it was never set up.</p>
+
+<p>Before choosing a monitoring approach, it's useful to know where your certificates currently stand. Check any domain's expiry right now with the free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> — no account required.</p>
+
+<div class="warning">
+  <strong>The catch with "free" SSL monitoring:</strong> Several of these approaches require setup time or ongoing maintenance. A tool that takes two hours to configure and breaks silently every few months is not actually free — the cost is engineering time. Choose the approach that matches your operational overhead budget, not just your cash budget.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> Google Search Console (Zero Setup, Very Limited)</h2>
+
+<p>Google Search Console will sometimes surface HTTPS errors in its Coverage and Security reports — including issues caused by expired or invalid certificates. If you already have Search Console set up for your site, it costs nothing extra and requires no additional configuration.</p>
+
+<p><strong>How to use it:</strong> In Search Console, go to <em>Security &amp; Manual Actions &gt; Security Issues</em>. If your site has a certificate error that Google has detected, it will appear here.</p>
+
+<p><strong>The real limitation:</strong> Search Console is a reactive signal, not a proactive alert. Google has to crawl your site, detect the error, index it, and surface it in the report. This typically happens <em>after</em> the certificate has already expired and affected users. You're learning about an outage that already happened, not preventing one.</p>
+
+<p>Search Console is useful for confirming that a cert issue impacted Google's crawling — it's not a substitute for forward-looking expiry monitoring.</p>
+
+<div class="callout">
+  <strong>Verdict:</strong> Zero cost, zero setup, zero prevention value. Use it as a signal that an SSL problem already affected your SEO, not as a way to prevent expiry.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">2</span> UptimeRobot Free Tier (Best Free Option for Most Developers)</h2>
+
+<p>UptimeRobot's free plan includes 50 monitors with SSL certificate expiry tracking bundled in. When you add an HTTPS domain as an uptime monitor, UptimeRobot automatically checks the certificate and emails you 30 days before expiry.</p>
+
+<p><strong>Setup (5 minutes):</strong></p>
+<ol>
+  <li>Create a free account at uptimerobot.com</li>
+  <li>Click <em>Add New Monitor</em> → type: <em>HTTP(s)</em></li>
+  <li>Enter your domain URL — SSL monitoring is enabled by default</li>
+  <li>Configure email alert contacts</li>
+</ol>
+
+<p>That's it. UptimeRobot will check your domain every 5 minutes for uptime and track the certificate expiry date, emailing you when it hits the 30-day threshold.</p>
+
+<p><strong>What you get on the free tier:</strong></p>
+<ul>
+  <li>50 monitors (HTTP uptime + SSL)</li>
+  <li>5-minute check interval</li>
+  <li>Email alerts</li>
+  <li>SSL expiry alert at 30 days</li>
+  <li>Basic Slack integration</li>
+</ul>
+
+<p><strong>What you don't get on the free tier:</strong></p>
+<ul>
+  <li>Multiple alert thresholds (you get one: 30 days)</li>
+  <li>Configurable advance window</li>
+  <li>Certificate chain validation</li>
+  <li>Webhook alerts (paid plan)</li>
+  <li>SMS alerts (paid plan)</li>
+</ul>
+
+<div class="callout">
+  <strong>Verdict:</strong> The best free SSL monitoring option for most developers. 5 minutes to set up, works reliably, covers 50 domains. Accept the 30-day single-threshold limitation — for most teams it's sufficient.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">3</span> Self-Hosted certbot/cron + Email (Technical, Unlimited Domains)</h2>
+
+<p>If you manage your own servers and use Let's Encrypt with certbot, you can set up a cron job that checks certificate expiry daily and emails you when any cert is within a configurable threshold. This gives you unlimited domains and configurable advance windows at zero cost beyond your server's existing operational overhead.</p>
+
+<p>A minimal working script:</p>
+
+<pre><code>#!/bin/bash
+# ssl-expiry-check.sh
+# Run daily via cron; alerts when any domain cert expires within ALERT_DAYS
+
+DOMAINS=("yourdomain.com" "api.yourdomain.com" "anotherdomain.com")
+ALERT_DAYS=30
+ALERT_EMAIL="ops@yourcompany.com"
+
+for DOMAIN in "${DOMAINS[@]}"; do
+  EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 \
+    -servername "$DOMAIN" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  if [ -z "$EXPIRY" ]; then
+    echo "SSL check failed: $DOMAIN (could not retrieve cert)" \
+      | mail -s "SSL error: $DOMAIN" "$ALERT_EMAIL"
+    continue
+  fi
+
+  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null \
+    || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+  DAYS=$(( (EXPIRY_EPOCH - $(date +%s)) / 86400 ))
+
+  if [ "$DAYS" -le "$ALERT_DAYS" ]; then
+    echo "$DOMAIN SSL expires in $DAYS days ($EXPIRY)" \
+      | mail -s "⚠️ SSL expiry warning: $DOMAIN ($DAYS days)" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<p>Add to crontab to run daily at 8am:</p>
+
+<pre><code>0 8 * * * /path/to/ssl-expiry-check.sh 2>&1 | logger -t ssl-check</code></pre>
+
+<p><strong>Where this breaks in practice:</strong></p>
+<ul>
+  <li>The <code>mail</code> command requires a working outbound mail setup — often broken or spam-filtered on cloud VMs</li>
+  <li>If the cron job itself fails (permission issue, openssl version mismatch, cron daemon down), it fails silently</li>
+  <li>No dashboard — you have to run the script manually to see the current state of all certs</li>
+  <li>No alerting to Slack or other channels without additional scripting</li>
+</ul>
+
+<p>A more reliable variant replaces <code>mail</code> with a webhook POST to a Slack channel or a generic HTTP endpoint, eliminating the mail server dependency entirely.</p>
+
+<div class="callout">
+  <strong>Verdict:</strong> Powerful and unlimited, but requires setup, a working mail or webhook setup, and periodic maintenance. Excellent fit for teams that already run their own infrastructure and want complete control.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">4</span> Browser Bookmark Reminder (Low-Tech, Manual)</h2>
+
+<p>The lowest-tech approach: bookmark the <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> with a reminder to check it monthly. Set a recurring calendar event — "check SSL certs" — and use the tool to verify each domain's expiry date when it fires.</p>
+
+<p>This sounds almost too simple to be worth mentioning, but it has a real niche: environments where you can't install monitoring tools, don't have server access, or are managing only one or two domains for a non-technical client.</p>
+
+<p><strong>Why it works:</strong></p>
+<ul>
+  <li>Zero setup, zero infrastructure</li>
+  <li>Works for any domain regardless of your access to the underlying server</li>
+  <li>No vendor dependency</li>
+</ul>
+
+<p><strong>Why it fails:</strong></p>
+<ul>
+  <li>It requires the human to remember to do it — exactly the failure mode that causes production cert expirations in the first place</li>
+  <li>Doesn't scale beyond a handful of domains</li>
+  <li>A missed calendar event means missed monitoring</li>
+</ul>
+
+<div class="callout">
+  <strong>Verdict:</strong> Only reliable for 1–2 domains where you can pair it with a strong calendar habit. For anything more, automate.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">5</span> SSLWatch Free Tier / Waitlist (Purpose-Built, Multiple Alert Windows)</h2>
+
+<p>SSLWatch is a dedicated SSL certificate monitoring tool currently in early access. The core value proposition is what the free tools miss: multiple alert thresholds (60 days, 30 days, 7 days, 1 day) instead of a single 30-day window.</p>
+
+<p>The operational difference matters more than it sounds. A 30-day single alert gives you one shot to act. If you're traveling, the alert goes to your spam folder, or your renewal process takes longer than expected, you're suddenly at 0 days. Multi-window alerting means you have to miss multiple alerts across multiple weeks to end up with an expired cert.</p>
+
+<p>The free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> is available now — check any domain instantly without creating an account. The paid tier (early access at $9/month) adds automated monitoring with multi-window email alerts.</p>
+
+<p><strong>What SSLWatch offers:</strong></p>
+<ul>
+  <li>60 / 30 / 7 / 1 day alert thresholds</li>
+  <li>Domain dashboard showing all cert expiry dates at a glance</li>
+  <li>Simple setup: add a domain, get alerts</li>
+  <li>Purpose-built for SSL — no bundled uptime monitoring inflating the price</li>
+</ul>
+
+<div class="callout">
+  <strong>Verdict:</strong> Best option if the single-threshold limitation of UptimeRobot's free tier is a real concern for your workflow. Early access pricing makes it low-risk to try.
+</div>
+
+<hr/>
+
+<h2>Comparison Summary</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Approach</th>
+      <th>Setup time</th>
+      <th>Alert advance</th>
+      <th>Domains</th>
+      <th>Reliable?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Google Search Console</td>
+      <td>0 min (if set up)</td>
+      <td>Reactive only</td>
+      <td>Verified only</td>
+      <td>No — after-the-fact</td>
+    </tr>
+    <tr>
+      <td>UptimeRobot free</td>
+      <td>5 min</td>
+      <td>30 days</td>
+      <td>50</td>
+      <td>Yes — recommended</td>
+    </tr>
+    <tr>
+      <td>Self-hosted cron</td>
+      <td>30–60 min</td>
+      <td>Configurable</td>
+      <td>Unlimited</td>
+      <td>Depends on setup quality</td>
+    </tr>
+    <tr>
+      <td>Browser bookmark</td>
+      <td>2 min</td>
+      <td>Manual only</td>
+      <td>Any</td>
+      <td>No — requires habit</td>
+    </tr>
+    <tr>
+      <td>SSLWatch</td>
+      <td>5 min</td>
+      <td>60/30/7/1 days</td>
+      <td>Per plan</td>
+      <td>Yes — multiple windows</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>The Recommendation</h2>
+
+<p>For most developers: <strong>start with UptimeRobot free tier</strong> today. It takes 5 minutes, covers 50 domains, and the 30-day single-threshold alert is sufficient for most workflows. Do it now rather than setting up something more sophisticated later.</p>
+
+<p>If you manage production systems where a missed alert is a real risk, or if 30 days isn't enough lead time for your renewal process: add <strong>SSLWatch</strong> for multi-window alerts on your most critical domains.</p>
+
+<p>If you already have Prometheus infrastructure: use <code>blackbox_exporter</code> and set multiple alert thresholds at 60, 30, and 7 days. You have the stack; don't add a new vendor.</p>
+
+<div class="cta-box">
+  <h3>Check Your SSL Certificates Right Now</h3>
+  <p>See exactly how many days remain on any domain's certificate — no account needed.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Free SSL checker</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">SSLWatch early access</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=free-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
