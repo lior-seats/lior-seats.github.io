@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Laravel Cron Job Monitoring: Alerts When Scheduled Commands Stop Running</title>
+<meta name="description" content="Monitor Laravel scheduled commands with heartbeat pings. Get instant alerts when php artisan schedule:run stops firing. Free setup guide for Laravel developers."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/laravel-cron-job-monitoring.html"/>
+<meta property="og:title" content="Laravel Cron Job Monitoring: Alerts When Scheduled Commands Stop Running"/>
+<meta property="og:description" content="Monitor Laravel scheduled commands with heartbeat pings. Get instant alerts when php artisan schedule:run stops firing. Free setup guide for Laravel developers."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/laravel-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; font-weight: 600; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Laravel Cron Job Monitoring: Alerts When Scheduled Commands Stop Running</h1>
+
+<p class="meta">Laravel's task scheduler is elegant — until <code>php artisan schedule:run</code> stops running and nobody notices. Here's how to add heartbeat monitoring to your Laravel scheduled commands in under 10 minutes.</p>
+
+<p>Laravel's built-in task scheduler lets you define all your scheduled jobs in <code>App\Console\Kernel.php</code> and drive everything from a single crontab entry. It's clean, expressive, and easy to maintain. But it shares the same fundamental weakness as every cron-based system: when it stops working, there is no alert. The logs go quiet. The jobs don't run. And you find out days later when a customer asks why their weekly report never arrived.</p>
+
+<hr/>
+
+<h2>How Laravel scheduling works (and where it breaks)</h2>
+
+<p>The entire Laravel scheduler depends on one crontab entry running every minute on your server:</p>
+
+<pre><code>* * * * * cd /var/www/myapp &amp;&amp; php artisan schedule:run &gt;&gt; /dev/null 2&gt;&amp;1</code></pre>
+
+<p>When this fires, Laravel checks your <code>Kernel.php</code> schedule definition, determines which commands are due, and runs them. When it <em>doesn't</em> fire — because the server was patched and rebooted, the deploy wiped the crontab, a permissions change broke <code>php</code>, or the path to your app changed — nothing runs and nothing tells you.</p>
+
+<h3>Common reasons Laravel scheduled commands silently stop</h3>
+
+<ul>
+  <li><strong>Server reboot without crontab persistence</strong> — if crontab entries weren't in version control or a managed config, they're gone after a reimage</li>
+  <li><strong>Deploy pipeline overwrites the crontab</strong> — a CI/CD step that re-provisions the server without re-adding the scheduler entry</li>
+  <li><strong>PHP version change</strong> — a <code>php</code> symlink that breaks after upgrading from 8.1 to 8.3 via a package manager</li>
+  <li><strong>Forge or Ploi cron management</strong> — server management tools sometimes remove manually-added cron entries when they sync their own managed crons</li>
+  <li><strong>Memory or disk pressure kills the process</strong> — the PHP process is OOM-killed and cron gets no exit code back</li>
+  <li><strong>Permission change on <code>artisan</code></strong> — a deploy step runs as root, changes file ownership, and subsequent cron runs as the app user can no longer execute the file</li>
+</ul>
+
+<div class="callout">
+  <strong>The real problem isn't that things break — it's that you find out too late.</strong>
+  Without monitoring, a broken scheduler is invisible until a user reports missing data, a missed billing run creates underpayments, or a backup that never ran means data is unrecoverable.
+</div>
+
+<hr/>
+
+<h2>Option 1: Laravel's built-in <code>onFailure</code> hook</h2>
+
+<p>Laravel provides lifecycle hooks for scheduled commands. You can chain <code>onFailure()</code> to send an alert when a command throws an exception:</p>
+
+<pre><code>$schedule-&gt;command('reports:generate')
+    -&gt;daily()
+    -&gt;onFailure(function () {
+        // Send a Slack/email notification
+        Notification::route('mail', 'team@example.com')
+            -&gt;notify(new ScheduledCommandFailed('reports:generate'));
+    });</code></pre>
+
+<p>This is useful — but it only catches <em>exceptions thrown inside the command</em>. It does nothing when the scheduler itself stops running. A broken crontab or a missing <code>php</code> binary means <code>schedule:run</code> never executes at all, so no hooks fire.</p>
+
+<h2>Option 2: Pipe output to a log and set up alerts</h2>
+
+<p>You can capture command output and monitor for stale log files:</p>
+
+<pre><code>$schedule-&gt;command('reports:generate')
+    -&gt;daily()
+    -&gt;appendOutputTo(storage_path('logs/scheduler.log'));</code></pre>
+
+<p>Then watch <code>scheduler.log</code> for recent writes with a file-age alert. This is better than nothing, but it requires another monitoring layer that is itself a single point of failure.</p>
+
+<h2>Option 3: Heartbeat monitoring (recommended)</h2>
+
+<p>The most reliable approach is a <strong>dead man's switch</strong>: your scheduled command pings a monitoring URL after it runs successfully, and if the ping doesn't arrive within the expected window, an alert fires.</p>
+
+<p>This inverts the failure model. Instead of waiting for an exception, the monitoring service expects a ping. Silence is the alert condition. This catches every failure mode: broken crontab, crashed server, OOM kill, permission error, and exceptions thrown inside the command.</p>
+
+<h3>Setting up heartbeat monitoring in Laravel</h3>
+
+<p>Add a ping at the end of your scheduled command using Laravel's <code>thenPing()</code> hook:</p>
+
+<pre><code>// In App\Console\Kernel.php
+$schedule-&gt;command('reports:generate')
+    -&gt;daily()
+    -&gt;thenPing('https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN');
+</code></pre>
+
+<p>Or add the ping inside the command itself for more control:</p>
+
+<pre><code>// In App\Console\Commands\GenerateReports.php
+public function handle(): int
+{
+    // ... your command logic ...
+
+    // Ping heartbeat monitor on success
+    Http::get('https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN');
+
+    return Command::SUCCESS;
+}</code></pre>
+
+<p>The monitoring service then watches for incoming pings. If your daily command doesn't ping within 24 hours (plus a configurable grace period), you get an alert — email, webhook, or both.</p>
+
+<hr/>
+
+<h2>What to monitor in a Laravel application</h2>
+
+<p>Most Laravel apps accumulate scheduled tasks over time. Here are the commands worth monitoring with heartbeats:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Command type</th>
+      <th>Why it matters if it stops</th>
+      <th>Suggested grace period</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Database backups</td>
+      <td>Silent data loss if undetected for days</td>
+      <td>+2 hours</td>
+    </tr>
+    <tr>
+      <td>Billing / invoice generation</td>
+      <td>Revenue impact, customer trust issues</td>
+      <td>+1 hour</td>
+    </tr>
+    <tr>
+      <td>Email dispatch / queued notifications</td>
+      <td>Users don't receive time-sensitive emails</td>
+      <td>+30 minutes</td>
+    </tr>
+    <tr>
+      <td>Report generation</td>
+      <td>Stale dashboards; customers notice immediately</td>
+      <td>+1 hour</td>
+    </tr>
+    <tr>
+      <td>Cache warming</td>
+      <td>Performance degradation under load</td>
+      <td>+15 minutes</td>
+    </tr>
+    <tr>
+      <td>Cleanup / pruning jobs</td>
+      <td>Storage fills up, tables grow unbounded</td>
+      <td>+4 hours</td>
+    </tr>
+    <tr>
+      <td>Subscription status sync</td>
+      <td>Incorrect access grants or revocations</td>
+      <td>+1 hour</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Monitoring the scheduler entry itself</h2>
+
+<p>For the top-level <code>schedule:run</code> entry — the one that runs every minute — you want to know immediately if the crontab breaks entirely. Add a dedicated heartbeat command:</p>
+
+<pre><code>// In Kernel.php — runs every 5 minutes as a scheduler health check
+$schedule-&gt;call(function () {
+    Http::get('https://cronwatch.example.com/api/heartbeat/SCHEDULER_HEALTH_TOKEN');
+})-&gt;everyFiveMinutes();</code></pre>
+
+<p>This pings the monitoring service every 5 minutes. If it goes quiet for more than 10 minutes (using a 5-minute grace period), your scheduler has stopped running — something you'll know about immediately rather than when a daily backup is discovered missing.</p>
+
+<h2>Using Laravel HTTP client for pings</h2>
+
+<p>Laravel's <code>Http</code> facade (backed by Guzzle) is the cleanest way to send heartbeat pings. Since pings are fire-and-forget, suppress exceptions so a monitoring service being down doesn't break your command:</p>
+
+<pre><code>use Illuminate\Support\Facades\Http;
+
+// Suppress exceptions — a heartbeat ping should never break the command
+rescue(fn() =&gt; Http::timeout(5)-&gt;get($heartbeatUrl), report: false);</code></pre>
+
+<p>The <code>rescue</code> helper catches any exception and optionally reports it to your exception handler without re-throwing it. Heartbeat pings should never be a point of failure for the job itself.</p>
+
+<h2>Handling Laravel Forge and server management tools</h2>
+
+<p>If you use Laravel Forge, Ploi, or Envoyer to manage your server, these tools have their own cron management interfaces. The best practice is to manage your scheduler crontab entry through the tool rather than adding it manually — otherwise a sync will wipe it.</p>
+
+<p>In Laravel Forge: <strong>Server → Scheduler → Add Scheduled Job</strong></p>
+<p>Command: <code>php /var/www/your-app/artisan schedule:run</code><br>
+Frequency: Every minute</p>
+
+<p>Forge also supports per-command scheduling from its UI, but the standard approach (one crontab entry + Kernel.php definitions) is more maintainable and easier to test locally.</p>
+
+<hr/>
+
+<h2>Testing your scheduler locally</h2>
+
+<p>Before adding heartbeat monitoring, verify your commands actually run as expected. Laravel provides a useful testing method:</p>
+
+<pre><code>// In a test
+$this-&gt;artisan('schedule:run');
+
+// Or to test a specific command in isolation
+$this-&gt;artisan('reports:generate')-&gt;assertExitCode(0);</code></pre>
+
+<p>For end-to-end smoke-testing the scheduler in production, run it manually and watch the output:</p>
+
+<pre><code>php artisan schedule:run --verbose</code></pre>
+
+<p>The <code>--verbose</code> flag shows which commands are due and whether they ran successfully. This is useful for debugging why a command isn't running when expected.</p>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🔔 Know immediately when your Laravel scheduler stops running</h3>
+  <p>CronWatch sends you an alert the moment a scheduled command misses its heartbeat ping — before your users notice. Add one line to your Laravel command and get email alerts automatically.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Get Early Access to CronWatch →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free Cron Expression Parser</a>
+</div>
+
+<h2>Summary: Laravel scheduler monitoring checklist</h2>
+
+<ol>
+  <li>Add a top-level heartbeat (pings every 5 min) to detect when <code>schedule:run</code> stops entirely</li>
+  <li>Add per-command heartbeats to critical commands (billing, backups, reports)</li>
+  <li>Use <code>thenPing()</code> for simple commands, or inline <code>Http::get()</code> for more control</li>
+  <li>Suppress ping exceptions with <code>rescue()</code> — a heartbeat failure must not break the job</li>
+  <li>Manage the crontab entry through Forge/Ploi/Envoyer if you use those tools</li>
+  <li>Test with <code>php artisan schedule:run --verbose</code> before adding monitoring</li>
+</ol>
+
+<p>The hardest part of Laravel cron monitoring isn't the implementation — it's remembering to set it up. Most outages happen because heartbeat monitoring was "something we'd add later." Add it now, before the silent failure that causes a data incident.</p>
+
+<hr/>
+
+<p><a href="https://lior-seats.github.io/blog/">← Back to all posts</a></p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=laravel-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

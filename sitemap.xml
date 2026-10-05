@@ -105,4 +105,5 @@
   <url><loc>https://lior-seats.github.io/blog/cron-job-monitoring-best-practices.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/dns-record-change-detection.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/ssl-certificate-expiry-alert-email.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/laravel-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
