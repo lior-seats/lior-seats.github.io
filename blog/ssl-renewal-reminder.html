@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SSL Renewal Reminder: How to Get Notified Before Your Certificate Expires</title>
+<meta name="description" content="SSL certs still expire despite auto-renewal. Set up reliable SSL renewal reminders with cron jobs, monitoring tools, or SSLWatch — and stop getting surprised."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-renewal-reminder.html"/>
+<meta property="og:title" content="SSL Renewal Reminder: How to Get Notified Before Your Certificate Expires"/>
+<meta property="og:description" content="SSL certs still expire despite auto-renewal. Set up reliable SSL renewal reminders with cron jobs, monitoring tools, or SSLWatch — and stop getting surprised."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-renewal-reminder.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>SSL Renewal Reminder: How to Get Notified Before Your Certificate Expires</h1>
+
+<p class="meta">Auto-renewal was supposed to make SSL expiry a thing of the past. So why do sites still go down? Here's why reminders still matter — and how to set them up properly.</p>
+
+<p>SSL certificate expiry is the most preventable production outage in web infrastructure. The fix is simple: get a reminder with enough lead time to act. Yet despite Let's Encrypt, Certbot, and years of automation tooling, certificates continue to expire and take real sites offline. An SSL renewal reminder — a proactive alert sent days or weeks before the expiry date — is the difference between a scheduled task and a 2am incident.</p>
+
+<hr/>
+
+<h2>Why SSL expiry still causes downtime</h2>
+
+<p>The narrative is that Let's Encrypt solved SSL expiry. Ninety-day certificates with automatic renewal via Certbot mean no human ever needs to remember to renew. In practice, this is only true when every link in the chain keeps working indefinitely. Here's what breaks it:</p>
+
+<h3>Auto-renewal runs on a cron or systemd timer that nobody monitors</h3>
+<p>Certbot renewal is a scheduled job — either a <code>systemd</code> timer or a crontab entry. Scheduled jobs fail silently. A package update can mask the timer. A server reimaging can wipe the crontab. A configuration management deploy can overwrite it. Nobody notices until the cert is 10 days from expiry and users start seeing browser warnings.</p>
+
+<h3>ACME challenge paths get blocked</h3>
+<p>Let's Encrypt validates your domain via HTTP-01 or DNS-01 challenges. The HTTP-01 challenge requires that <code>/.well-known/acme-challenge/</code> is reachable on port 80. Add a redirect rule, a new CDN configuration, or a reverse proxy change, and that path can silently break — meaning the next renewal attempt fails, again without alerting anyone.</p>
+
+<h3>Non-Let's Encrypt certificates don't auto-renew at all</h3>
+<p>Commercial certificates from DigiCert, Sectigo, or GlobalSign, internal PKI certificates, and certificates for services behind firewalls that can't complete ACME challenges are all managed manually. A 1-year or 2-year certificate has no automated renewal path. It expires when the calendar says it expires — which is typically when nobody is watching.</p>
+
+<h3>Multi-environment and multi-server deployments drift</h3>
+<p>In a load-balanced setup, a certificate may be renewed on one node but not distributed to the others. Or the renewed cert lives in a secrets manager and a deployment pipeline is responsible for pushing it to servers — and that pipeline fails for one environment. The result: a valid cert in staging and an expiring cert serving 50% of production traffic.</p>
+
+<div class="callout">
+<strong>The real problem isn't renewal — it's observability.</strong>
+Auto-renewal is only as reliable as the infrastructure running it. Without an external SSL renewal reminder that checks the live certificate from outside your infrastructure, you have no independent signal that renewal is actually working.
+</div>
+
+<hr/>
+
+<h2>How developers currently handle SSL renewal reminders</h2>
+
+<p>Before purpose-built monitoring tools existed, developers built their own SSL renewal reminder systems. Here are the three most common approaches — with their real limitations.</p>
+
+<h3>Calendar alerts</h3>
+<p>The simplest approach: when you provision a certificate, add a calendar event 30 days before expiry. For a single domain with a long-lived commercial cert, this works. For a team managing dozens of domains across multiple environments, calendar alerts break down quickly. They don't survive team turnover. They don't account for emergency certificate replacements that change the expiry date. They generate no alert if the renewal fails between the calendar event and the actual expiry date.</p>
+
+<h3>Cron jobs with OpenSSL</h3>
+<p>A more robust approach: a scheduled script that checks the live certificate's expiry date and sends an alert when the certificate falls within a threshold. Here's a one-liner to check the current expiry date from the command line:</p>
+
+<pre><code>openssl s_client -connect domain.com:443 -servername domain.com 2>/dev/null | openssl x509 -noout -dates</code></pre>
+
+<p>This outputs both <code>notBefore</code> and <code>notAfter</code> dates for the currently-served certificate. You can wrap it in a script that computes days remaining and sends an email if the threshold is breached:</p>
+
+<pre><code>#!/bin/bash
+DOMAIN="example.com"
+EXPIRY=$(echo | openssl s_client -servername "$DOMAIN" \
+  -connect "$DOMAIN:443" 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | cut -d= -f2)
+
+# Convert to epoch (Linux)
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null)
+NOW_EPOCH=$(date +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+if [ "$DAYS_LEFT" -lt 30 ]; then
+  echo "$DOMAIN cert expires in $DAYS_LEFT days ($EXPIRY)" \
+    | mail -s "SSL RENEWAL REMINDER: $DOMAIN" ops@yourcompany.com
+fi</code></pre>
+
+<p>Run this daily via cron. Limitations: requires a working MTA on the server; only checks one domain per script; the cron job itself can fail silently; you need to maintain and update the domain list manually; it runs from inside your infrastructure, so a network misconfiguration that blocks external access won't be caught.</p>
+
+<h3>Let's Encrypt's built-in expiry email</h3>
+<p>Let's Encrypt sends a single expiry notification email to the address registered with your account — but only when a certificate is within 20 days of expiry and hasn't been renewed. This is a safety net, not a reminder system. By the time you receive it, you have less than three weeks to act, and the notification gives no context about why renewal failed. It also only covers Let's Encrypt certificates, and it fires once — not at 30 days, 14 days, and 7 days the way a proper reminder cadence should.</p>
+
+<hr/>
+
+<h2>How to check your current SSL certificate expiry date</h2>
+
+<p>Before setting up any reminder system, check where your certificates currently stand. The fastest way is the <code>openssl</code> command-line tool, which connects to your server and reads the live certificate:</p>
+
+<pre><code>openssl s_client -connect domain.com:443 -servername domain.com 2>/dev/null | openssl x509 -noout -dates</code></pre>
+
+<p>Replace <code>domain.com</code> with your actual domain. The output looks like this:</p>
+
+<pre><code>notBefore=Jan  1 00:00:00 2026 GMT
+notAfter=Apr  1 00:00:00 2026 GMT</code></pre>
+
+<p>The <code>notAfter</code> line is your expiry date. To compute days remaining, pipe through a date calculation:</p>
+
+<pre><code>EXPIRY=$(openssl s_client -connect domain.com:443 -servername domain.com \
+  2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
+echo "Expires: $EXPIRY"
+echo "Days left: $(( ( $(date -d "$EXPIRY" +%s) - $(date +%s) ) / 86400 ))"</code></pre>
+
+<p>If you want to check without installing anything locally, you can <a href="https://lior-seats.github.io/ssl-cert-checker/">check your current expiry date in 5 seconds with the free SSLWatch checker tool</a> — paste your domain and it reads the live certificate instantly.</p>
+
+<hr/>
+
+<h2>What a proper SSL renewal reminder cadence looks like</h2>
+
+<p>The goal of an SSL renewal reminder isn't just to send one alert — it's to give you enough lead time to act at every stage of urgency. A reliable cadence looks like this:</p>
+
+<ul>
+  <li><strong>30 days out:</strong> first notice. Enough time to investigate a failing auto-renewal setup without pressure. Schedule the fix for this week.</li>
+  <li><strong>14 days out:</strong> second reminder. If the first alert was acknowledged but nothing was done, this is the nudge. Still comfortable runway.</li>
+  <li><strong>7 days out:</strong> urgent. If auto-renewal was supposed to handle this and hasn't, something is wrong. Escalate and fix immediately.</li>
+  <li><strong>1 day out:</strong> critical. Browser warnings will start appearing for users within 24 hours. Drop everything.</li>
+</ul>
+
+<p>Most homegrown cron scripts only send one alert at a single threshold. A multi-stage cadence ensures that if the first alert gets buried in a busy inbox, there are still multiple opportunities to catch the issue before users are affected.</p>
+
+<hr/>
+
+<h2>How SSLWatch automates SSL renewal reminders</h2>
+
+<p>SSLWatch is purpose-built for this problem. Rather than relying on your own infrastructure to monitor itself, SSLWatch checks your certificates externally — from outside your servers — and sends email alerts at 30, 14, 7, and 1 day before expiry. It works for any domain, any certificate type, whether or not you're using Let's Encrypt, and regardless of how your renewal is set up.</p>
+
+<p>The key difference from a cron job: SSLWatch runs independently of the infrastructure it monitors. If your server has a misconfigured renewal timer, a broken ACME challenge path, or a deployment pipeline that failed to push the renewed cert, SSLWatch catches it because it's reading the live certificate from the outside — the same view your users and browsers have.</p>
+
+<p>It covers the cases that homegrown solutions miss:</p>
+<ul>
+  <li>Commercial certificates with no auto-renewal</li>
+  <li>Wildcard certificates managed through DNS-01 that require manual steps</li>
+  <li>Staging and internal environments that are easy to overlook</li>
+  <li>Multiple domains across different projects and teams</li>
+  <li>Certificates renewed but not deployed to all servers in a load-balanced setup</li>
+</ul>
+
+<div class="cta-box">
+  <h3>Stop setting renewal reminders manually</h3>
+  <p>SSLWatch monitors your domains and emails you at 30, 14, 7, and 1 day before expiry — no cron jobs, no server access required. Works for any cert type on any infrastructure.</p>
+  <p>Join the waitlist at <a href="https://lior-seats.github.io/sslwatch-waitlist/">https://lior-seats.github.io/sslwatch-waitlist/</a></p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch Waitlist</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check Expiry Now (Free)</a>
+</div>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<p>SSL renewal reminders matter because auto-renewal is not the same as guaranteed renewal. Cron jobs break. ACME challenges fail. Commercial certs don't renew themselves. A multi-stage reminder cadence — 30, 14, 7, and 1 day out — gives you multiple opportunities to catch and fix a failing renewal before users see browser warnings.</p>
+
+<p>The fastest way to check where your certificates currently stand: run <code>openssl s_client -connect domain.com:443 -servername domain.com 2>/dev/null | openssl x509 -noout -dates</code> from your terminal, or use the <a href="https://lior-seats.github.io/ssl-cert-checker/">free online checker</a> for a zero-install option. Then set up a reliable external reminder so you're never caught off guard.</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-renewal-reminder',{mode:'no-cors'});}());</script>
+</body>
+</html>
