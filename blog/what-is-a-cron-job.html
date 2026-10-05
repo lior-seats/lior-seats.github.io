@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>What Is a Cron Job? A Complete Beginner's Guide</title>
+<meta name="description" content="A cron job is a scheduled task that runs automatically on Unix/Linux. Learn cron syntax, see examples, and understand why monitoring matters."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/what-is-a-cron-job.html"/>
+<meta property="og:title" content="What Is a Cron Job? A Complete Beginner's Guide"/>
+<meta property="og:description" content="A cron job is a scheduled task that runs automatically on Unix/Linux. Learn cron syntax, see real examples, and find out why monitoring matters."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/what-is-a-cron-job.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-inline a { font-weight: 700; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:last-child td { border-bottom: none; }
+  .field-table td:first-child { font-family: "SFMono-Regular", Consolas, monospace; font-weight: 600; white-space: nowrap; }
+  .examples-table td:first-child { font-family: "SFMono-Regular", Consolas, monospace; color: #0070f3; white-space: nowrap; font-size: 0.85em; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>What Is a Cron Job? A Complete Beginner's Guide</h1>
+
+<p class="meta">Scheduled tasks, cron syntax, real-world examples, and the one thing cron doesn't do for you.</p>
+
+<p>If you've spent any time working with Linux servers, CI/CD pipelines, or web applications, you've probably encountered the word "cron." Maybe you've seen a <code>crontab</code> file on a server, a GitHub Actions workflow with <code>on: schedule:</code>, or a <code>CronJob</code> in a Kubernetes manifest. They all trace back to the same concept: a scheduled task that runs automatically at defined time intervals, without anyone pressing a button.</p>
+
+<p>This guide explains what cron is, how it works, how to read cron syntax, and where you'll encounter cron in real-world systems.</p>
+
+<hr/>
+
+<h2>What is a cron job?</h2>
+
+<p>A <strong>cron job</strong> is a scheduled task that runs automatically on Unix and Linux systems at a specified time or interval. The name comes from Chronos (χρόνος), the Greek word for time.</p>
+
+<p>Cron jobs are used for any work that needs to happen on a schedule rather than on demand:</p>
+
+<ul>
+  <li>Backing up a database every night at 2am</li>
+  <li>Sending a weekly summary email every Monday at 9am</li>
+  <li>Cleaning up temporary files every hour</li>
+  <li>Fetching data from an external API every 15 minutes</li>
+  <li>Rotating log files every day at midnight</li>
+  <li>Generating monthly invoices on the 1st of each month</li>
+</ul>
+
+<p>The key property: cron jobs run in the background, unattended, without any user interaction. Once scheduled, they run reliably — until they don't (more on that later).</p>
+
+<hr/>
+
+<h2>How cron works</h2>
+
+<p>On a Linux server, cron is managed by a background process called <strong>crond</strong> (the cron daemon). It runs continuously, waking up every minute to check whether any scheduled jobs need to run. When the current time matches a job's schedule, crond executes the associated command.</p>
+
+<p>Jobs are defined in <strong>crontab files</strong> (cron table). Each user on a system can have their own crontab, and there's a system-wide crontab at <code>/etc/crontab</code>.</p>
+
+<h3>Basic crontab commands</h3>
+
+<pre><code><span class="comment"># List your current cron jobs</span>
+crontab -l
+
+<span class="comment"># Open your crontab in an editor</span>
+crontab -e
+
+<span class="comment"># Remove your entire crontab (careful!)</span>
+crontab -r</code></pre>
+
+<p>When you run <code>crontab -e</code>, you'll see a file where each line defines one scheduled job. Lines starting with <code>#</code> are comments. Every other line is a schedule definition followed by the command to run.</p>
+
+<hr/>
+
+<h2>Cron syntax: the five fields</h2>
+
+<p>Every cron job is defined by five time fields followed by the command to execute:</p>
+
+<pre><code>┌───────────── minute (0–59)
+│ ┌─────────── hour (0–23)
+│ │ ┌───────── day of month (1–31)
+│ │ │ ┌─────── month (1–12)
+│ │ │ │ ┌───── day of week (0–7, both 0 and 7 = Sunday)
+│ │ │ │ │
+* * * * *  command-to-run</code></pre>
+
+<table class="field-table">
+  <thead><tr><th>Position</th><th>Field</th><th>Allowed values</th><th>Special values</th></tr></thead>
+  <tbody>
+    <tr><td>1st</td><td>Minute</td><td>0–59</td><td><code>*/15</code> = every 15 minutes</td></tr>
+    <tr><td>2nd</td><td>Hour</td><td>0–23</td><td><code>0,12</code> = midnight and noon</td></tr>
+    <tr><td>3rd</td><td>Day of month</td><td>1–31</td><td><code>1,15</code> = 1st and 15th</td></tr>
+    <tr><td>4th</td><td>Month</td><td>1–12</td><td><code>*/3</code> = every quarter</td></tr>
+    <tr><td>5th</td><td>Day of week</td><td>0–7 (0 &amp; 7 = Sun)</td><td><code>1-5</code> = Mon–Fri</td></tr>
+  </tbody>
+</table>
+
+<h3>Special characters</h3>
+
+<ul>
+  <li><code>*</code> — matches any value ("every")</li>
+  <li><code>*/n</code> — every n units (<code>*/5</code> in minutes = every 5 minutes)</li>
+  <li><code>a-b</code> — a range (<code>1-5</code> in weekday = Monday through Friday)</li>
+  <li><code>a,b,c</code> — a list (<code>1,15</code> in day = the 1st and 15th)</li>
+</ul>
+
+<h3>Real-world examples</h3>
+
+<table class="examples-table">
+  <thead><tr><th>Expression</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>* * * * *</td><td>Every minute</td></tr>
+    <tr><td>0 * * * *</td><td>Every hour, on the hour</td></tr>
+    <tr><td>0 2 * * *</td><td>Every day at 2:00am</td></tr>
+    <tr><td>0 9 * * 1-5</td><td>Weekdays (Mon–Fri) at 9:00am</td></tr>
+    <tr><td>0 0 1 * *</td><td>First day of every month at midnight</td></tr>
+    <tr><td>*/15 * * * *</td><td>Every 15 minutes</td></tr>
+    <tr><td>30 3 * * 0</td><td>Every Sunday at 3:30am</td></tr>
+    <tr><td>0 0 1 1 *</td><td>January 1st at midnight (yearly)</td></tr>
+    <tr><td>0 9 * * 1</td><td>Every Monday at 9:00am</td></tr>
+    <tr><td>*/30 9-17 * * 1-5</td><td>Every 30 min during business hours, weekdays</td></tr>
+  </tbody>
+</table>
+
+<div class="cta-inline">
+  🧮 <strong>Not sure if your expression is right?</strong> Test it free — <a href="https://lior-seats.github.io/cron-expression-parser/">paste any cron expression and see the plain-English description and next 5 run times →</a>
+</div>
+
+<h3>Shorthand strings</h3>
+
+<p>Most cron implementations also accept human-readable shorthand:</p>
+
+<table>
+  <thead><tr><th>Shorthand</th><th>Equivalent</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>@yearly</code></td><td><code>0 0 1 1 *</code></td><td>Once a year, Jan 1st midnight</td></tr>
+    <tr><td><code>@monthly</code></td><td><code>0 0 1 * *</code></td><td>Once a month, 1st at midnight</td></tr>
+    <tr><td><code>@weekly</code></td><td><code>0 0 * * 0</code></td><td>Once a week, Sunday midnight</td></tr>
+    <tr><td><code>@daily</code></td><td><code>0 0 * * *</code></td><td>Once a day at midnight</td></tr>
+    <tr><td><code>@hourly</code></td><td><code>0 * * * *</code></td><td>Once an hour</td></tr>
+    <tr><td><code>@reboot</code></td><td>—</td><td>Once at system startup</td></tr>
+  </tbody>
+</table>
+
+<h3>A simple crontab example</h3>
+
+<pre><code><span class="comment"># Back up the database every day at 2am</span>
+0 2 * * * /opt/scripts/backup.sh
+
+<span class="comment"># Send a weekly report every Monday at 9am</span>
+0 9 * * 1 /opt/scripts/weekly-report.py
+
+<span class="comment"># Clean up temp files every hour</span>
+0 * * * * find /tmp -name "*.tmp" -mtime +1 -delete
+
+<span class="comment"># Rotate logs every night at midnight</span>
+0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf</code></pre>
+
+<hr/>
+
+<h2>Where cron appears in modern systems</h2>
+
+<p>Linux crontab is the original, but the same concept appears across almost every modern deployment platform. Once you understand cron syntax, you can use it everywhere.</p>
+
+<h3>GitHub Actions (<code>on: schedule:</code>)</h3>
+
+<pre><code>on:
+  schedule:
+    - cron: '0 3 * * *'   <span class="comment"># Run every day at 3am UTC</span>
+
+jobs:
+  nightly-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm test</code></pre>
+
+<p>GitHub Actions scheduled workflows use standard cron syntax. One important caveat: GitHub silently disables scheduled workflows on repositories with no recent push activity (approximately 60 days). The workflow just stops running — no error, no notification.</p>
+
+<h3>AWS EventBridge (formerly CloudWatch Events)</h3>
+
+<pre><code><span class="comment"># AWS cron expression — note: year field added, no seconds</span>
+cron(0 3 * * ? *)     <span class="comment"># Every day at 3am UTC</span>
+cron(0 9 ? * MON *)   <span class="comment"># Every Monday at 9am UTC</span></code></pre>
+
+<p>AWS uses a 6-field cron syntax that adds a year field and uses <code>?</code> for "no specific value" in the day-of-month and day-of-week fields.</p>
+
+<h3>Kubernetes CronJobs</h3>
+
+<pre><code>apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-backup
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: my-backup-image</code></pre>
+
+<p>Kubernetes uses standard 5-field cron syntax. CronJobs create a new Pod on schedule. Failed pods are visible in the cluster, but missed runs (e.g., the cluster was down during the scheduled window) are not automatically retried.</p>
+
+<h3>Heroku Scheduler</h3>
+
+<p>Heroku Scheduler uses a simplified UI (every 10 min / every hour / every day at X time) rather than raw cron syntax, but it's conceptually the same: a command that runs on a schedule in your application's environment.</p>
+
+<h3>Other platforms</h3>
+
+<p>Virtually every platform that runs application code has a scheduling primitive: Railway, Fly.io, Render, Vercel (via cron triggers), Laravel's task scheduler, Celery Beat, APScheduler, and the <code>schedule</code> Python library. All of them implement the cron concept, whether or not they use the exact cron syntax.</p>
+
+<hr/>
+
+<h2>What cron doesn't do</h2>
+
+<p>Cron is good at one thing: running a command at a specified time. It doesn't do much else.</p>
+
+<p>Specifically, cron does <strong>not</strong>:</p>
+
+<ul>
+  <li><strong>Alert you when a job fails.</strong> If your backup script exits with an error, cron doesn't send you an email or Slack message. On most production servers, the output goes to a mail spool nobody reads.</li>
+  <li><strong>Tell you when a job didn't run.</strong> If the server was down, the scheduler crashed, or the job silently stalled — cron doesn't notice. The job simply doesn't run, and silence follows.</li>
+  <li><strong>Retry failed jobs.</strong> If a job fails, cron schedules the next run as usual. There's no retry logic, no exponential backoff, no "run again in 5 minutes."</li>
+  <li><strong>Track history or duration.</strong> By default, there's no record of when jobs ran, whether they succeeded, or how long they took.</li>
+</ul>
+
+<div class="callout">
+  <strong>The silent failure problem</strong>
+  The most common cron war story: a nightly data sync stopped running on Thursday. The team found out Monday — from a user reporting stale data. Cron ran the job Thursday at 2am, the script failed silently, cron tried again Friday and it failed again, and the same Saturday and Sunday. Nobody got an alert. The server had no way to know anyone cared about the output.
+</div>
+
+<p>This is why cron monitoring exists. The standard pattern is a <strong>dead man's switch</strong>: your job sends an HTTP ping at the end of each successful run. A monitoring service watches for that ping on the expected schedule. If the ping doesn't arrive — because the job failed, because the scheduler crashed, because the server went down — you get an alert.</p>
+
+<p>Adding monitoring to a crontab entry is one extra line:</p>
+
+<pre><code><span class="comment"># Backup with monitoring — ping only fires if backup succeeds</span>
+0 2 * * * /opt/scripts/backup.sh &amp;&amp; curl -fsS https://cronwatch.io/ping/YOUR-TOKEN</code></pre>
+
+<p>The <code>&amp;&amp;</code> ensures the curl only runs if the script exits with code 0. If the script fails, no ping — and the monitoring service alerts you.</p>
+
+<div class="cta-box">
+  <h3>📟 Know the moment a cron job stops running</h3>
+  <p>CronWatch monitors your scheduled jobs with a dead man's switch. Add one line to your cron job. If the ping stops arriving — because the job failed, stalled, or the scheduler itself crashed — you get an email alert. Works with crontab, GitHub Actions, AWS EventBridge, Kubernetes CronJobs, and Heroku Scheduler.</p>
+  <a class="btn" href="https://lior-seats.github.io/cronwatch-waitlist/">Join the CronWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cron-expression-parser/">Test your cron expression free</a>
+</div>
+
+<hr/>
+
+<h2>Quick reference</h2>
+
+<table>
+  <thead><tr><th>Concept</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>cron</strong></td><td>The Unix scheduling system; runs jobs on a time-based schedule</td></tr>
+    <tr><td><strong>crond</strong></td><td>The background daemon that reads crontabs and runs scheduled commands</td></tr>
+    <tr><td><strong>crontab</strong></td><td>The file that defines scheduled jobs; one job per line</td></tr>
+    <tr><td><strong>cron expression</strong></td><td>The 5-field time specification (<code>* * * * *</code>) that defines when a job runs</td></tr>
+    <tr><td><strong>cron job</strong></td><td>A scheduled command defined in a crontab</td></tr>
+    <tr><td><strong>dead man's switch</strong></td><td>A monitoring pattern where the job signals success; alert fires if signal is absent</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Further reading</h2>
+
+<ul>
+  <li><a href="https://lior-seats.github.io/cron-expression-parser/">Cron expression parser — test any schedule and see next run times</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-expression-examples.html">60+ cron expression examples with real-world use cases</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-expression-cheat-sheet.html">Cron expression cheat sheet</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why your cron jobs are failing silently (and how to know)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-monitoring.html">Cron job monitoring: how to get alerted when scheduled jobs fail</a></li>
+</ul>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=what-is-a-cron-job',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>
