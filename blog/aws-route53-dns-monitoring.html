@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="visibility" content="all"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AWS Route 53 DNS Monitoring: Alert on Record Changes and Propagation</title>
+<meta name="description" content="Monitor AWS Route 53 DNS record changes with CloudTrail, EventBridge, and external validation. Catch unauthorized changes to A, CNAME, and MX records before they cause outages."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/aws-route53-dns-monitoring.html"/>
+<meta property="og:title" content="AWS Route 53 DNS Monitoring: Alert on Record Changes and Propagation"/>
+<meta property="og:description" content="Route 53 gives you CloudTrail logs and EventBridge events for DNS changes — but external validation still matters. Here's a complete monitoring setup."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/aws-route53-dns-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a8a; }
+  .btn { display: inline-block; background: #1d4ed8; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1e40af; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>AWS Route 53 DNS Monitoring: Alert on Record Changes and Propagation</h1>
+
+<p class="meta">CloudTrail tells you what changed. External monitoring confirms what your users actually see.</p>
+
+<p>AWS Route 53 is a highly reliable DNS service, but "reliable infrastructure" doesn't mean "your DNS records are protected from accidental or unauthorized changes." A team member with Route53 access can modify or delete a record in seconds. A Terraform misconfiguration can overwrite an A record during a deployment. An IAM policy that's too permissive lets a compromised service account make DNS changes without an alert firing.</p>
+
+<p>Route 53 has more native observability than most DNS providers — CloudTrail logs every API call, and EventBridge can react to changes. This article covers how to use those tools and where external DNS monitoring fills the remaining gaps.</p>
+
+<hr/>
+
+<h2>Route 53 change monitoring via CloudTrail</h2>
+
+<p>Every Route 53 change is recorded in CloudTrail as a <code>route53.amazonaws.com</code> event. The relevant API calls to watch:</p>
+
+<ul>
+  <li><code>ChangeResourceRecordSets</code> — any record add, update, or delete</li>
+  <li><code>DeleteHostedZone</code> — zone deletion (catastrophic)</li>
+  <li><code>CreateHostedZone</code> — new zone creation</li>
+  <li><code>AssociateVPCWithHostedZone</code> — private zone association changes</li>
+</ul>
+
+<p>To see recent DNS changes in CloudTrail via CLI:</p>
+
+<pre><code>aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventSource,AttributeValue=route53.amazonaws.com \
+  --start-time 2026-10-01 \
+  --query 'Events[?EventName==`ChangeResourceRecordSets`].[EventTime,Username,CloudTrailEvent]' \
+  --output table</code></pre>
+
+<p>CloudTrail has up to 90 days of event history in the console (and indefinitely if shipped to S3). The limitation: it's a log, not an alert system. You get visibility into what changed, not a real-time notification when a change occurs.</p>
+
+<hr/>
+
+<h2>Real-time alerts with EventBridge</h2>
+
+<p>EventBridge can trigger a Lambda function or SNS notification whenever Route 53 records change. The setup:</p>
+
+<h3>1. Create an EventBridge rule for Route 53 changes</h3>
+
+<pre><code>aws events put-rule \
+  --name "route53-record-changes" \
+  --event-pattern '{
+    "source": ["aws.route53"],
+    "detail-type": ["AWS API Call via CloudTrail"],
+    "detail": {
+      "eventSource": ["route53.amazonaws.com"],
+      "eventName": ["ChangeResourceRecordSets"]
+    }
+  }' \
+  --state ENABLED</code></pre>
+
+<h3>2. Create an SNS topic for alerts</h3>
+
+<pre><code>aws sns create-topic --name route53-dns-changes
+aws sns subscribe \
+  --topic-arn arn:aws:sns:us-east-1:ACCOUNT_ID:route53-dns-changes \
+  --protocol email \
+  --notification-endpoint ops@yourcompany.com</code></pre>
+
+<h3>3. Add the SNS topic as the EventBridge target</h3>
+
+<pre><code>aws events put-targets \
+  --rule route53-record-changes \
+  --targets '[{
+    "Id": "1",
+    "Arn": "arn:aws:sns:us-east-1:ACCOUNT_ID:route53-dns-changes",
+    "InputTransformer": {
+      "InputPathsMap": {
+        "user": "$.detail.userIdentity.arn",
+        "zone": "$.detail.requestParameters.hostedZoneId",
+        "action": "$.detail.requestParameters.changeBatch.changes[0].action",
+        "record": "$.detail.requestParameters.changeBatch.changes[0].resourceRecordSet.name"
+      },
+      "InputTemplate": "\"DNS change in Route 53 zone <zone>: <action> on <record> (by <user>)\""
+    }
+  }]'</code></pre>
+
+<div class="callout">
+  <strong>⚠️ Route 53 is a global service</strong>
+  Route 53 CloudTrail events are logged to <code>us-east-1</code> regardless of where your hosted zone is. Your EventBridge rule must be created in <code>us-east-1</code> for it to receive Route 53 events.
+</div>
+
+<p>This setup fires an SNS email the moment <code>ChangeResourceRecordSets</code> is called, with the zone ID, record name, and the IAM principal that made the change. It catches changes made via the AWS Console, CLI, Terraform, CDK, and any other AWS API client.</p>
+
+<hr/>
+
+<h2>What CloudTrail + EventBridge doesn't cover</h2>
+
+<p>The EventBridge approach covers internal AWS changes. It doesn't cover:</p>
+
+<ul>
+  <li><strong>Propagation verification.</strong> Route 53 confirms a change was applied — but DNS propagation to global resolvers takes time. A change might be in Route 53's authoritative servers but not yet visible to resolvers in Europe or Asia. External monitoring from multiple locations catches propagation delays and partial propagation states.</li>
+  <li><strong>Third-party DNS changes.</strong> If you use Route 53 for some records but delegate subdomains to other nameservers, changes in those delegated zones don't appear in CloudTrail.</li>
+  <li><strong>Resolver behavior vs. authoritative response.</strong> Route 53 might return the correct record, but a downstream resolver might return a cached old value for the full TTL duration. External DNS checks query resolvers, not just authoritative servers — which is what your users are actually hitting.</li>
+  <li><strong>Dangling records.</strong> A CNAME pointing to a deprovisioned resource (an old EC2 instance, a deleted S3 bucket endpoint, a deprecated CloudFront distribution) is valid DNS — Route 53 has no idea the target is gone. External monitoring that validates the target responds correctly catches subdomain takeover vectors.</li>
+</ul>
+
+<hr/>
+
+<h2>A practical Route 53 DNS monitoring stack</h2>
+
+<p>A complete setup for a Route 53 environment typically combines three layers:</p>
+
+<ol>
+  <li><strong>EventBridge → SNS</strong> for real-time change alerts (covers: who changed what, when, from which identity)</li>
+  <li><strong>CloudTrail → S3</strong> for audit history (covers: full record of all changes for compliance and incident response)</li>
+  <li><strong>External DNS monitoring</strong> for resolver-level validation (covers: propagation verification, dangling records, third-party delegation zones, cross-region resolver behavior)</li>
+</ol>
+
+<p>Layers 1 and 2 come from AWS natively. Layer 3 requires checking from outside AWS.</p>
+
+<hr/>
+
+<h2>Check your Route 53 records from outside AWS right now</h2>
+
+<div class="cta-box">
+  <h3>🔍 Free DNS record lookup</h3>
+  <p>Enter any domain to see current DNS records (A, AAAA, CNAME, MX, TXT, NS) as seen by external resolvers. Useful for verifying Route 53 changes have propagated.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check DNS records →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get change alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Monitoring Route 53 without the AWS setup overhead</h2>
+
+<p>The EventBridge + CloudTrail setup gives you good coverage but has non-trivial setup cost: IAM policies, cross-region considerations for Route 53 events, Lambda or SNS wiring, and ongoing maintenance of the alerting infrastructure itself.</p>
+
+<p>For teams that want DNS change alerts without building and maintaining AWS infrastructure, external DNS monitoring services poll your records on a schedule and alert on changes — without requiring AWS credentials or internal infrastructure.</p>
+
+<div class="cta-box">
+  <h3>🔍 DNSWatch — DNS record change monitoring without AWS setup</h3>
+  <p>DNSWatch monitors your Route 53 records externally and sends email alerts when any A, CNAME, MX, or TXT record changes. No AWS credentials needed — it queries public resolvers the same way your users do.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=aws-route53-dns-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

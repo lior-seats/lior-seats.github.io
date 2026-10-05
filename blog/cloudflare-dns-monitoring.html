@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cloudflare DNS Monitoring: Alert on Record Changes Before They Break Things</title>
+<meta name="description" content="Monitor Cloudflare DNS record changes automatically. Learn how to detect unauthorized or accidental changes to A, CNAME, MX, and TXT records before they cause outages."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cloudflare-dns-monitoring.html"/>
+<meta property="og:title" content="Cloudflare DNS Monitoring: Alert on Record Changes Before They Break Things"/>
+<meta property="og:description" content="Cloudflare audit logs tell you what changed. External DNS monitoring tells you what your users are actually seeing. Both matter."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cloudflare-dns-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a8a; }
+  .btn { display: inline-block; background: #1d4ed8; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1e40af; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cloudflare DNS Monitoring: Alert on Record Changes Before They Break Things</h1>
+
+<p class="meta">Cloudflare's audit log shows what changed. External monitoring shows what your users are actually resolving.</p>
+
+<p>Cloudflare is a popular DNS provider precisely because of its reliability and speed. But "reliable DNS infrastructure" and "monitoring your DNS records for unexpected changes" are two different things. Cloudflare won't alert you when an A record changes, a CNAME gets pointed somewhere wrong, or an MX record disappears — whether that change was made by a team member, an API key, or a compromised account.</p>
+
+<p>DNS record changes are among the highest-impact, lowest-visibility infrastructure events. An accidental change propagates globally within minutes. Detection by symptom — users reporting that the site is down, email bouncing, SPF checks failing — is slow and stressful.</p>
+
+<hr/>
+
+<h2>What Cloudflare gives you out of the box</h2>
+
+<p>Cloudflare's dashboard includes <strong>audit logs</strong> under Account Settings → Audit Log. These show changes made through the Cloudflare UI and API, including:</p>
+
+<ul>
+  <li>Which record was changed</li>
+  <li>Who made the change (user email or API token name)</li>
+  <li>When the change occurred</li>
+  <li>Old and new values</li>
+</ul>
+
+<p>This is useful for incident investigation. It's not useful for real-time alerting — you'd have to poll the audit log continuously to detect changes as they happen.</p>
+
+<p>Cloudflare's paid tiers add Notifications, which can alert on zone-level health events (DDoS, origin errors), but DNS record change notifications aren't available in the standard notification options.</p>
+
+<hr/>
+
+<h2>The Cloudflare API approach to DNS change monitoring</h2>
+
+<p>You can build a DNS change detection script using the Cloudflare API. The approach: snapshot all DNS records for a zone at a baseline, then compare on a schedule.</p>
+
+<pre><code># Get all DNS records for a zone
+curl -s -X GET \
+  "https://api.cloudflare.com/client/v4/zones/ZONE_ID/dns_records?per_page=100" \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  | python3 -m json.tool</code></pre>
+
+<p>A minimal monitoring script:</p>
+
+<pre><code>#!/usr/bin/env python3
+import json, hashlib, subprocess, sys, os
+
+ZONE_ID = os.environ["CF_ZONE_ID"]
+API_TOKEN = os.environ["CF_API_TOKEN"]
+SNAPSHOT_FILE = "/var/lib/dns-monitor/cf-snapshot.json"
+ALERT_EMAIL = "ops@yourcompany.com"
+
+def get_records():
+    import urllib.request
+    req = urllib.request.Request(
+        f"https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/dns_records?per_page=100",
+        headers={"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as r:
+        data = json.loads(r.read())
+    # Normalize: sort by name+type, drop volatile fields
+    records = sorted(data["result"], key=lambda r: (r["name"], r["type"]))
+    return [{k: r[k] for k in ("name","type","content","ttl","proxied")} for r in records]
+
+current = get_records()
+current_hash = hashlib.sha256(json.dumps(current).encode()).hexdigest()
+
+if os.path.exists(SNAPSHOT_FILE):
+    with open(SNAPSHOT_FILE) as f:
+        saved = json.load(f)
+    if saved["hash"] != current_hash:
+        # Find what changed
+        old_set = {json.dumps(r) for r in saved["records"]}
+        new_set = {json.dumps(r) for r in current}
+        added = new_set - old_set
+        removed = old_set - new_set
+        print(f"DNS CHANGE DETECTED in zone {ZONE_ID}")
+        for r in removed: print(f"  REMOVED: {r}")
+        for r in added:   print(f"  ADDED:   {r}")
+        # Send alert via mail or your preferred method
+        # subprocess.run(["mail", "-s", "DNS Change Alert", ALERT_EMAIL], input=alert_body, ...)
+        sys.exit(2)  # Non-zero exit for monitoring integration
+    else:
+        print("No changes detected")
+
+with open(SNAPSHOT_FILE, "w") as f:
+    json.dump({"hash": current_hash, "records": current}, f)
+</code></pre>
+
+<p>Run this from cron every 5–15 minutes:</p>
+
+<pre><code>*/10 * * * * /usr/local/bin/cf-dns-monitor.py >> /var/log/cf-dns-monitor.log 2>&1</code></pre>
+
+<div class="callout">
+  <strong>⚠️ API token scopes</strong>
+  Create a restricted token with <code>Zone:DNS:Read</code> only. This script needs read access — not write. A read-only token limits the blast radius if the token is ever exposed.
+</div>
+
+<hr/>
+
+<h2>The gap between Cloudflare API monitoring and external DNS monitoring</h2>
+
+<p>Cloudflare API monitoring tells you what's in your Cloudflare DNS configuration. External DNS monitoring tells you what resolvers around the world are returning for your records. These can differ in ways that matter:</p>
+
+<ul>
+  <li><strong>Propagation lag.</strong> A record changed in Cloudflare propagates to global resolvers within minutes, but not instantly. During propagation, some users see the old record, others see the new one. External DNS monitoring from multiple geographic locations catches this asymmetry.</li>
+  <li><strong>Cloudflare proxy behavior.</strong> For records with the proxy enabled, Cloudflare returns its own edge IP rather than your origin IP. External DNS monitoring verifies what clients actually see — including when Cloudflare's edge IPs rotate or change behavior.</li>
+  <li><strong>Third-party nameserver issues.</strong> If Cloudflare has a partial outage or nameserver issue in a specific region, external monitoring catches it; internal API monitoring doesn't.</li>
+  <li><strong>Subdomain takeover.</strong> If a CNAME points to a service that was deprovisioned (dangling CNAME), external monitoring can detect that the target doesn't exist — something the Cloudflare API can't surface.</li>
+</ul>
+
+<p>A complete setup uses both: Cloudflare API for change detection (immediate, no propagation delay) and external resolver monitoring for validation (confirms what end users are actually seeing).</p>
+
+<hr/>
+
+<h2>Monitoring MX and TXT records specifically</h2>
+
+<p>MX and TXT record changes are particularly high-stakes and easy to miss:</p>
+
+<ul>
+  <li><strong>MX changes</strong> route email to different servers. A wrong MX record silently drops or misdirects all inbound email. Email delivery failures are slow to appear in monitoring dashboards and can persist for hours before anyone notices.</li>
+  <li><strong>TXT record changes</strong> affect SPF, DKIM, and DMARC validation. A removed or modified SPF record causes legitimate email from your domain to land in spam. DMARC changes can open your domain to spoofing if the policy is weakened.</li>
+</ul>
+
+<p>Both record types should be explicitly included in any DNS monitoring setup — not just A and CNAME records.</p>
+
+<hr/>
+
+<h2>Check your current DNS records now</h2>
+
+<p>Before setting up automated monitoring, get a baseline snapshot of your current DNS records:</p>
+
+<div class="cta-box">
+  <h3>🔍 Free DNS record lookup</h3>
+  <p>Enter any domain to see all DNS records (A, AAAA, CNAME, MX, TXT, NS). Works for Cloudflare-managed domains and any other DNS provider.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check DNS records →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get change alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automated Cloudflare DNS change monitoring</h2>
+
+<p>The self-hosted API approach works for teams comfortable managing Python scripts and cron jobs. The maintenance overhead is real: the script needs to run reliably, alerts need to reach someone who can act, and the monitoring infrastructure itself needs to stay up.</p>
+
+<p>For a lower-maintenance alternative, external DNS monitoring services check your records on a schedule, compare against a saved baseline, and alert you when anything changes — without requiring API tokens, local scripts, or infrastructure on your end.</p>
+
+<div class="cta-box">
+  <h3>🔍 DNSWatch — automated DNS record change monitoring</h3>
+  <p>DNSWatch monitors your DNS records and sends email alerts the moment an A, CNAME, MX, or TXT record changes. Works for Cloudflare-managed domains, Route53, Namecheap, and any other DNS provider.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cloudflare-dns-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

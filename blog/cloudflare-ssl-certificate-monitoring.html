@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cloudflare SSL Certificate Monitoring: Track Expiry Across All Your Domains</title>
+<meta name="description" content="Monitor SSL certificate expiry for Cloudflare-proxied domains. Learn when Cloudflare manages certs automatically and when you still need expiry alerts — and how to set them up."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cloudflare-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="Cloudflare SSL Certificate Monitoring: Track Expiry Across All Your Domains"/>
+<meta property="og:description" content="Cloudflare handles some SSL renewals automatically — but not all. Here's how to monitor cert expiry across Cloudflare-proxied and non-proxied domains."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cloudflare-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.95rem; }
+  th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cloudflare SSL Certificate Monitoring: Track Expiry Across All Your Domains</h1>
+
+<p class="meta">Cloudflare handles a lot — but not every SSL renewal. Here's what you still need to monitor.</p>
+
+<p>Cloudflare is widely used precisely because it handles SSL termination automatically: Universal SSL certificates are provisioned and renewed without any action from you. So does that mean SSL certificate monitoring is a solved problem if you're on Cloudflare?</p>
+
+<p>Not quite. The gap is narrower than it is with raw servers, but the scenarios where Cloudflare's automatic handling breaks down or doesn't apply are exactly the scenarios that tend to cause outages.</p>
+
+<hr/>
+
+<h2>What Cloudflare manages automatically</h2>
+
+<p>Cloudflare's <strong>Universal SSL</strong> covers the edge certificate — the one visitors see when they connect to your domain through Cloudflare's proxy. Cloudflare handles:</p>
+
+<ul>
+  <li>Provisioning the initial certificate via Let's Encrypt or DigiCert</li>
+  <li>Automatic renewal before expiry</li>
+  <li>Certificate coverage for the root domain and one level of subdomains (e.g. <code>example.com</code> and <code>*.example.com</code>)</li>
+</ul>
+
+<p>For most public web traffic, this works without any configuration changes.</p>
+
+<hr/>
+
+<h2>Where Cloudflare SSL monitoring is still your problem</h2>
+
+<h3>1. Origin certificates (SSL on your server)</h3>
+
+<p>Cloudflare terminates SSL at the edge, but traffic between Cloudflare and your origin server is separate. If you're using <strong>Full (strict)</strong> SSL mode — the recommended setting — your origin server needs a valid certificate too.</p>
+
+<p>You can use a <strong>Cloudflare Origin Certificate</strong> (valid for up to 15 years) or a Let's Encrypt cert on your server. Cloudflare Origin Certificates have long validity windows but are <em>not</em> trusted by browsers directly — they're only valid for Cloudflare-to-origin traffic. If someone accesses your server IP directly or Cloudflare is temporarily disabled, the connection fails.</p>
+
+<p>Regardless of which origin cert you use, you should monitor its expiry date. The Cloudflare dashboard doesn't surface your origin cert expiry — you need an external check.</p>
+
+<h3>2. Custom SSL certificates</h3>
+
+<p>If you've uploaded a <strong>custom SSL certificate</strong> to Cloudflare — common for compliance requirements, internal PKI, or certificates from specific CAs — automatic renewal doesn't apply. Cloudflare will show a warning in the dashboard when these approach expiry, but a passive dashboard warning is not the same as a timely alert to your inbox.</p>
+
+<h3>3. Non-proxied DNS records (DNS-only mode)</h3>
+
+<p>Cloudflare's Universal SSL only protects traffic routed through the Cloudflare proxy (the orange cloud in the DNS dashboard). If a record is set to <strong>DNS-only</strong> (grey cloud), Cloudflare is purely a DNS resolver — your origin server handles SSL directly. The certificate on that server is entirely your responsibility.</p>
+
+<p>This catches teams off-guard: a domain moved to DNS-only for testing, an API subdomain that bypasses the proxy for latency reasons, a mail server pointing at a different IP. All of these have no Cloudflare SSL coverage.</p>
+
+<h3>4. Wildcard certificates beyond <code>*.example.com</code></h3>
+
+<p>Universal SSL covers one subdomain level. If you have deep subdomains like <code>app.internal.example.com</code>, they're not covered by Cloudflare's automatic cert. You'd need an <strong>Advanced Certificate Manager</strong> subscription and explicit wildcard coverage configuration — and those custom certs have renewal workflows you need to manage.</p>
+
+<h3>5. Cloudflare API or tunnel endpoints</h3>
+
+<p>If you're using Cloudflare Tunnel, Workers, or API endpoints that present their own certificates, expiry monitoring still applies to those endpoints separately.</p>
+
+<hr/>
+
+<h2>How to check SSL expiry for Cloudflare-proxied domains</h2>
+
+<p>The standard <code>openssl s_client</code> approach works here, but with a nuance: when a domain is proxied through Cloudflare, you're seeing Cloudflare's edge certificate — not your origin cert. To check the origin cert specifically, you need to connect directly to your origin server IP and bypass Cloudflare.</p>
+
+<p>Check the edge cert (what visitors see):</p>
+
+<pre><code>echo | openssl s_client -servername yourdomain.com \
+  -connect yourdomain.com:443 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<p>Check your origin cert directly (replace <code>ORIGIN_IP</code> with your server's IP):</p>
+
+<pre><code>echo | openssl s_client -servername yourdomain.com \
+  -connect ORIGIN_IP:443 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<p>For a quick view of days remaining:</p>
+
+<pre><code>#!/bin/bash
+DOMAIN="yourdomain.com"
+EXPIRY=$(echo | openssl s_client -servername "$DOMAIN" \
+  -connect "$DOMAIN:443" 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null \
+  || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - $(date +%s)) / 86400 ))
+echo "$DOMAIN: $DAYS_LEFT days remaining (expires $EXPIRY)"</code></pre>
+
+<hr/>
+
+<h2>Cloudflare API: checking cert expiry programmatically</h2>
+
+<p>Cloudflare's API exposes certificate details for custom certificates and advanced certs. If you're managing multiple zones:</p>
+
+<pre><code># List SSL certificates for a zone
+curl -s -X GET \
+  "https://api.cloudflare.com/client/v4/zones/ZONE_ID/ssl/certificate_packs" \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  | python3 -m json.tool | grep -E "expires_on|status|type"</code></pre>
+
+<p>The <code>expires_on</code> field in the response gives you the expiry date for each certificate pack. You can automate this into a monitoring script that fires an alert when any cert is within 30 days of expiry.</p>
+
+<div class="callout">
+  <strong>⚠️ Cloudflare API token scopes</strong>
+  The token needs <code>Zone:SSL and Certificates:Read</code> permission. Create a restricted token rather than using your global API key.
+</div>
+
+<hr/>
+
+<h2>What a multi-domain Cloudflare monitoring setup looks like</h2>
+
+<p>If you're managing several Cloudflare zones, a practical setup combines two checks:</p>
+
+<ol>
+  <li><strong>External HTTP check</strong> on all public domains — catches edge cert issues, DNS-only domains with their own certs, and any domain regardless of Cloudflare configuration.</li>
+  <li><strong>Cloudflare API check</strong> on custom and advanced certificates in each zone — catches certs that haven't expired yet at the edge but are approaching renewal deadlines.</li>
+</ol>
+
+<table>
+  <tr>
+    <th>Cert type</th>
+    <th>Cloudflare manages renewal?</th>
+    <th>Monitoring approach</th>
+  </tr>
+  <tr>
+    <td>Universal SSL (edge)</td>
+    <td>Yes (automatic)</td>
+    <td>External HTTP check as backup</td>
+  </tr>
+  <tr>
+    <td>Origin certificate</td>
+    <td>No</td>
+    <td>External check on origin IP, or openssl cron</td>
+  </tr>
+  <tr>
+    <td>Custom / uploaded cert</td>
+    <td>No</td>
+    <td>Cloudflare API check + external HTTP check</td>
+  </tr>
+  <tr>
+    <td>DNS-only domains</td>
+    <td>No (not proxied)</td>
+    <td>External HTTP check on domain directly</td>
+  </tr>
+  <tr>
+    <td>Advanced Certificate Manager</td>
+    <td>Partial</td>
+    <td>Cloudflare API check for custom wildcards</td>
+  </tr>
+</table>
+
+<hr/>
+
+<h2>Checking your Cloudflare SSL cert expiry right now</h2>
+
+<p>Before setting up automated monitoring, you can check any Cloudflare-proxied domain's certificate expiry immediately — no account login required:</p>
+
+<div class="cta-box">
+  <h3>🔒 Check your SSL certificate expiry free</h3>
+  <p>Enter any domain to see days remaining, expiry date, and issuer. Works for Cloudflare-proxied domains and origin servers alike.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automating Cloudflare SSL expiry alerts</h2>
+
+<p>Manual checks are fine for a one-time audit. Automated monitoring means you get notified at 30, 14, 7, and 1 day before any certificate expires — including origin certs and custom certs that Cloudflare doesn't renew automatically.</p>
+
+<p>The options range from a self-hosted cron script (fragile, maintenance overhead) to dedicated SSL monitoring tools that run external checks on a schedule. The key requirements for a Cloudflare-specific setup:</p>
+
+<ul>
+  <li>Checks both the edge endpoint and your origin server IP separately</li>
+  <li>Monitors DNS-only domains independently of proxied ones</li>
+  <li>Sends tiered alerts — not a single one-time notification you can dismiss</li>
+  <li>Runs from outside your infrastructure (not on the same server as the certs)</li>
+</ul>
+
+<div class="cta-box">
+  <h3>🔒 SSLWatch — automated expiry alerts for all your domains</h3>
+  <p>SSLWatch monitors SSL certificates externally and sends email alerts at 30, 14, 7, and 1 day before expiry. Works for Cloudflare-proxied domains, DNS-only records, origin servers, and any public HTTPS endpoint.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free SSL checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cloudflare-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
