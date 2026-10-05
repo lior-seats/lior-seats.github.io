@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SSL Certificate Renewal Reminder: Set It Up Before It&#8217;s Too Late</title>
+<meta name="description" content="SSL certificate expired? Set up a renewal reminder today. Compare cron jobs, calendar alerts, and automated tools like SSLWatch — and never miss a renewal again."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-renewal-reminder.html"/>
+<meta property="og:title" content="SSL Certificate Renewal Reminder: Set It Up Before It&#8217;s Too Late"/>
+<meta property="og:description" content="SSL certificate expired? Set up a renewal reminder today. Compare cron jobs, calendar alerts, and automated tools like SSLWatch — and never miss a renewal again."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-renewal-reminder.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>SSL Certificate Renewal Reminder: Set It Up Before It&#8217;s Too Late</h1>
+
+<p class="meta">Three concrete methods for making sure your next renewal is never a surprise.</p>
+
+<div class="warning">
+  <strong>How an expired SSL cert unfolds:</strong> A browser padlock turns red. Users see a full-page security warning. Organic search rankings drop within days. Payment processors refuse connections. The cascade from a single missed renewal can cost hours of scrambling &mdash; often at 2am.
+</div>
+
+<p>The frustrating part is that SSL certificate renewal reminders should be a solved problem. Yet every week, production sites go down because a cert slipped through &mdash; the calendar reminder was on a laptop that got wiped, the cron job was on a server that got rebuilt, or the engineer who owned the task left the company.</p>
+
+<p>This guide covers three practical methods for setting up SSL cert expiry reminders, from a five-minute DIY approach to fully automated alerting. Pick the one that matches your infrastructure and the number of domains you manage.</p>
+
+<hr/>
+
+<h2>Why Reminders Fail More Often Than You Think</h2>
+
+<p>Before choosing a method, it&#8217;s worth understanding the common failure modes:</p>
+
+<ul>
+  <li><strong>Single-point calendar reminders</strong> &mdash; tied to one person, lost when that person changes roles, switches devices, or simply misses the notification during a busy week</li>
+  <li><strong>Auto-renewal you stopped verifying</strong> &mdash; Let&#8217;s Encrypt auto-renews, but certbot can silently fail for months if port 80 is blocked, DNS changes, or nginx config drifts</li>
+  <li><strong>Cron jobs on ephemeral servers</strong> &mdash; a server rebuild or cloud migration removes the cron job, and nobody notices until the cert expires</li>
+  <li><strong>Multiple domains, single reminder</strong> &mdash; one reminder for 20 domains means losing visibility on which specific cert is about to expire</li>
+</ul>
+
+<p>The common thread: a reminder that lives in one place &mdash; one calendar, one server, one person&#8217;s head &mdash; is a single point of failure. The approaches below get progressively more robust.</p>
+
+<hr/>
+
+<h2>Where You Stand Right Now</h2>
+
+<p>Before setting up any reminder system, check your current certificate expiry dates so you know what you&#8217;re working with:</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<p>For a quick days-remaining count:</p>
+
+<pre><code>EXPIRY=$(echo | openssl s_client -connect yourdomain.com:443 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+echo $(( ( $(date -d "$EXPIRY" +%s) - $(date +%s) ) / 86400 )) days remaining</code></pre>
+
+<p>Or skip the command line and use the free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> to see expiry dates and issuer details instantly.</p>
+
+<hr/>
+
+<h2>Method 1: Cron Job with Email Alert</h2>
+
+<p>For developers comfortable with a server, a cron job is the fastest DIY path to a reliable SSL cert expiry reminder. The setup takes under 10 minutes.</p>
+
+<h3>The Script</h3>
+
+<pre><code>#!/bin/bash
+# ssl-reminder.sh — sends an ssl certificate alert email when cert expiry is close
+
+DOMAIN="yourdomain.com"
+ALERT_DAYS=30
+ALERT_EMAIL="you@example.com"
+
+EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 -servername "$DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+
+if [ -z "$EXPIRY" ]; then
+  echo "SSL reminder: could not retrieve cert for $DOMAIN" \
+    | mail -s "SSL check error: $DOMAIN" "$ALERT_EMAIL"
+  exit 1
+fi
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null \
+  || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - $(date +%s)) / 86400 ))
+
+if [ "$DAYS_LEFT" -le "$ALERT_DAYS" ]; then
+  echo "SSL certificate for $DOMAIN expires in $DAYS_LEFT days ($EXPIRY).
+Renew at: https://your-registrar.com
+Check current status: https://lior-seats.github.io/ssl-cert-checker/" \
+    | mail -s "⚠️ SSL cert expiry reminder: $DOMAIN ($DAYS_LEFT days)" "$ALERT_EMAIL"
+fi</code></pre>
+
+<h3>Scheduling It</h3>
+
+<p>Run it daily at 9am so you see the alert at the start of your workday:</p>
+
+<pre><code>0 9 * * * /path/to/ssl-reminder.sh</code></pre>
+
+<p>For multiple domains, run the script once per domain or loop through a list:</p>
+
+<pre><code>#!/bin/bash
+DOMAINS=("yourdomain.com" "api.yourdomain.com" "staging.yourdomain.com")
+ALERT_DAYS=30
+ALERT_EMAIL="you@example.com"
+
+for DOMAIN in "${DOMAINS[@]}"; do
+  EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 -servername "$DOMAIN" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+  [ -z "$EXPIRY" ] && continue
+  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+  DAYS_LEFT=$(( (EXPIRY_EPOCH - $(date +%s)) / 86400 ))
+  if [ "$DAYS_LEFT" -le "$ALERT_DAYS" ]; then
+    echo "$DOMAIN: $DAYS_LEFT days remaining" \
+      | mail -s "⚠️ SSL expiry reminder: $DOMAIN" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<h3>Limitations</h3>
+
+<ul>
+  <li>Requires <code>openssl</code> and a working <code>mail</code> command &mdash; outbound mail from servers is often blocked or spam-filtered</li>
+  <li>Tied to one server &mdash; if the server is rebuilt or migrated, the cron job is silently lost</li>
+  <li>No visibility into whether the reminder itself is running &mdash; a broken cron daemon fails silently</li>
+</ul>
+
+<div class="callout">
+  <strong>Add a dead man&#8217;s switch:</strong> Send a weekly &#8220;SSL check ran successfully&#8221; message alongside your reminders. If you stop receiving the weekly confirmation, you know the cron job stopped running.
+</div>
+
+<hr/>
+
+<h2>Method 2: Calendar Reminder with Multiple Owners</h2>
+
+<p>A calendar reminder isn&#8217;t inherently unreliable &mdash; a single-person calendar reminder is. The pattern that works is a shared calendar entry with multiple owners and staggered lead times.</p>
+
+<h3>How to Set It Up Correctly</h3>
+
+<ol>
+  <li><strong>Find your cert expiry date</strong> &mdash; use the <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> or the openssl command above</li>
+  <li><strong>Create a recurring calendar event</strong> on a shared team calendar (Google Calendar, Outlook shared calendar, etc.) &mdash; not your personal calendar</li>
+  <li><strong>Set three reminders at staggered intervals:</strong> 60 days, 30 days, and 7 days before the expiry date</li>
+  <li><strong>Invite at least two people</strong> who are responsible for the renewal &mdash; primary and backup</li>
+  <li><strong>Include in the event description:</strong> the domain name, registrar/CA URL, renewal process steps, and who is responsible</li>
+</ol>
+
+<h3>What to Include in the Calendar Event</h3>
+
+<pre><code>SSL CERTIFICATE RENEWAL: yourdomain.com
+Expiry: [date]
+Issuer: [Let's Encrypt / DigiCert / etc.]
+Renewal URL: [registrar or CA dashboard link]
+Responsible: [primary owner] + [backup owner]
+Steps: [link to internal runbook or renewal procedure]
+Check current status: https://lior-seats.github.io/ssl-cert-checker/</code></pre>
+
+<h3>Limitations</h3>
+
+<ul>
+  <li>Requires manual setup per domain &mdash; tedious at scale</li>
+  <li>Doesn&#8217;t adapt if you rotate the cert early or switch CAs</li>
+  <li>Still depends on people noticing and acting on calendar notifications</li>
+  <li>No programmatic verification that the cert was actually renewed</li>
+</ul>
+
+<p>Calendar reminders work well as a secondary safety net alongside automated monitoring, but they&#8217;re not sufficient on their own for production domains.</p>
+
+<hr/>
+
+<h2>Method 3: Automated SSL Certificate Alert Email (Recommended)</h2>
+
+<p>An automated SSL certificate monitoring tool eliminates the infrastructure dependency problem (cron jobs on servers) and the human dependency problem (calendar reminders people miss). You register a domain once, and the service sends you ssl cert expiry reminders at defined intervals &mdash; regardless of what happens to your servers or team calendar.</p>
+
+<h3>What Automated Monitoring Provides</h3>
+
+<ul>
+  <li><strong>External, independent checking</strong> &mdash; verifies from outside your infrastructure, so it catches certs even when your server-based checks fail</li>
+  <li><strong>Multiple alert windows</strong> &mdash; get reminded at 60, 30, and 7 days before expiry so you have multiple chances to act</li>
+  <li><strong>Multi-domain visibility</strong> &mdash; manage all certs from a single dashboard rather than tracking per-domain cron jobs</li>
+  <li><strong>Detects auto-renewal failures</strong> &mdash; if certbot stops renewing, the cert expiry date stops advancing; monitoring catches this before it becomes urgent</li>
+  <li><strong>No server dependency</strong> &mdash; alerts keep arriving even if you rebuild infrastructure, switch providers, or your ops team changes</li>
+</ul>
+
+<h3>How It Works for Let&#8217;s Encrypt Users</h3>
+
+<p>This point deserves emphasis: even if you have certbot auto-renewal configured, external monitoring is valuable. Certbot can fail silently. Common failure modes include a blocked port 80, a DNS change that breaks the ACME challenge, or an nginx config change that stops serving the <code>/.well-known/acme-challenge/</code> path.</p>
+
+<p>External monitoring detects the symptom &mdash; the cert&#8217;s expiry date stopped advancing &mdash; rather than the cause. You get alerted 60 days before expiry rather than on the day your users start seeing browser warnings.</p>
+
+<div class="cta-box">
+  <h3>SSLWatch &mdash; Automated SSL Certificate Alert Email</h3>
+  <p>Add any domain and get ssl cert expiry reminder emails at 60, 30, and 7 days before the certificate expires. No server setup, no cron jobs, no calendar entries. Works for any domain, any CA, any hosting provider.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check your cert free</a>
+</div>
+
+<hr/>
+
+<h2>Which Method Should You Use?</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Situation</th>
+      <th>Recommended approach</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1&ndash;2 personal/hobby domains</td>
+      <td>Cron job or shared calendar reminder</td>
+    </tr>
+    <tr>
+      <td>Small team, 3&ndash;10 domains</td>
+      <td>Calendar (shared) + cron job as backup</td>
+    </tr>
+    <tr>
+      <td>Production domains with revenue at stake</td>
+      <td>Automated monitoring (external, independent)</td>
+    </tr>
+    <tr>
+      <td>10+ domains or frequent cert rotations</td>
+      <td>Automated monitoring only &mdash; calendar doesn&#8217;t scale</td>
+    </tr>
+    <tr>
+      <td>Let&#8217;s Encrypt with certbot</td>
+      <td>Automated external monitoring validates auto-renewal is working</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>The 5-Minute Minimum Setup</h2>
+
+<p>If you&#8217;re reading this because a cert just expired or is about to expire, here&#8217;s the fastest path to getting a reminder in place:</p>
+
+<ol>
+  <li><strong>Right now:</strong> Use the <a href="https://lior-seats.github.io/ssl-cert-checker/">free SSL Certificate Checker</a> to see exactly how many days you have left on each domain you own.</li>
+  <li><strong>Next 5 minutes:</strong> Set a calendar reminder on a shared team calendar for 30 days before expiry &mdash; invite your backup person.</li>
+  <li><strong>This week:</strong> Set up a cron job or automated monitoring so the reminder is no longer dependent on a single calendar entry.</li>
+</ol>
+
+<p>The goal isn&#8217;t a perfect system &mdash; it&#8217;s a system that has at least two independent paths to alerting you. A cron job plus a shared calendar reminder is significantly more reliable than either alone. Automated external monitoring plus a calendar backup is more reliable still.</p>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<p>SSL certificate renewal reminders are simple in concept and routinely missed in practice. The key points:</p>
+
+<ol>
+  <li><strong>Audit your certs now</strong> &mdash; use the <a href="https://lior-seats.github.io/ssl-cert-checker/">free SSL checker</a> to see what expires and when before you set up any reminder system.</li>
+  <li><strong>Never rely on a single reminder</strong> &mdash; one calendar entry owned by one person is a single point of failure. At minimum, have two independent paths.</li>
+  <li><strong>Don&#8217;t assume auto-renewal is working</strong> &mdash; certbot can fail silently. External monitoring validates the automation is actually renewing, not just scheduled to run.</li>
+  <li><strong>Alert at multiple windows</strong> &mdash; a 30-day reminder alone leaves you no buffer if renewal takes longer than expected. 60, 30, and 7 days gives you multiple opportunities to act.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>Stop tracking SSL renewals manually</h3>
+  <p>SSLWatch sends automated ssl certificate alert emails at 60, 30, and 7 days before expiry &mdash; for any domain, any CA. Join the waitlist before the launch on October 12.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the waitlist</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check your cert free</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-renewal-reminder',{mode:'no-cors'});}());</script>
+</body>
+</html>
