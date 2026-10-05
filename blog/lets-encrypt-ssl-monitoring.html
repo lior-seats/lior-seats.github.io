@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Monitoring Let's Encrypt SSL Certificate Renewal: Know When Certbot Fails</title>
+<meta name="description" content="Let's Encrypt auto-renewal fails silently. Learn how to monitor certbot renewal, get email alerts on failure, and know before your cert expires."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/lets-encrypt-ssl-monitoring.html"/>
+<meta property="og:title" content="Monitoring Let's Encrypt SSL Certificate Renewal: Know When Certbot Fails"/>
+<meta property="og:description" content="Let's Encrypt auto-renewal fails silently. Learn how to monitor certbot renewal, get email alerts on failure, and know before your cert expires."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/lets-encrypt-ssl-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>Monitoring Let&#8217;s Encrypt SSL Certificate Renewal: Know When Certbot Fails</h1>
+
+<p class="meta">Auto-renewal is only as reliable as the system running it. Here&#8217;s how to know when it breaks.</p>
+
+<div class="warning">
+  <strong>The silent failure problem:</strong> Let&#8217;s Encrypt certificates expire every 90 days. Certbot auto-renews them silently &mdash; but when the renewal fails (DNS misconfiguration, firewall change, port 80 blocked, disk full), there is no alert by default. Your first warning is a browser &#8220;Your connection is not private&#8221; page seen by users.
+</div>
+
+<p>Let&#8217;s Encrypt has become the default SSL certificate provider for the majority of developer-operated websites. The pitch is simple: free 90-day certificates renewed automatically by certbot. The reality is that &#8220;automatically&#8221; means &#8220;a systemd timer or cron job runs certbot on your server, and if it succeeds, you get a new certificate.&#8221;</p>
+
+<p>There are a surprising number of ways that can fail without producing any visible error:</p>
+
+<ul>
+  <li>The port 80 HTTP challenge gets blocked by a firewall rule added after initial setup</li>
+  <li>DNS propagation is slow and the ACME challenge fails the validation window</li>
+  <li>The server is running but disk is full, causing certbot to fail silently</li>
+  <li>A server migration moved the web root but certbot still points at the old path</li>
+  <li>Rate limit hit after too many failed attempts (5 per domain per week)</li>
+  <li>The systemd timer was disabled during an OS upgrade</li>
+</ul>
+
+<p>Any of these situations leaves you with a certificate that looks fine until it doesn&#8217;t &mdash; with no warning. This guide covers how to monitor Let&#8217;s Encrypt renewal so you know about problems days or weeks before they affect users.</p>
+
+<hr/>
+
+<h2>Check Your Current Certificate Status</h2>
+
+<p>Start by knowing where you stand. Run this on your server to see the current expiry:</p>
+
+<pre><code>sudo certbot certificates</code></pre>
+
+<p>This shows all managed certificates and their expiry dates:</p>
+
+<pre><code>Found the following certs:
+  Certificate Name: yourdomain.com
+    Domains: yourdomain.com www.yourdomain.com
+    Expiry Date: 2026-11-15 10:30:00+00:00 (VALID: 41 days)
+    Certificate Path: /etc/letsencrypt/live/yourdomain.com/fullchain.pem
+    Private Key Path: /etc/letsencrypt/live/yourdomain.com/privkey.pem</code></pre>
+
+<p>You can also check remotely from anywhere using openssl or the free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a>:</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<hr/>
+
+<h2>Method 1: Enable Certbot&#8217;s Built-In Email Notifications</h2>
+
+<p>Certbot has a <code>--email</code> flag that was required during initial setup. If you included it, certbot already sends renewal failure notifications to that address &mdash; but <em>only if certbot itself detects the failure</em>. It does not send alerts if the systemd timer is simply not running.</p>
+
+<p>Check which email is registered:</p>
+
+<pre><code>sudo certbot show_account</code></pre>
+
+<p>If the account is associated with an email you still check, renewal failures will be emailed. The ACME server (Let&#8217;s Encrypt) also sends expiry reminders at 20 days and 7 days before expiry &mdash; but only if the certificate renewal has not happened yet at that point, and only to the registered email.</p>
+
+<div class="callout">
+  <strong>Limitation:</strong> Let&#8217;s Encrypt&#8217;s own emails are a last resort, not proactive monitoring. They tell you that renewal already failed and you&#8217;re now in the final countdown. For production services, you want to know 14&#8211;30 days before expiry, before your users see anything.
+</div>
+
+<hr/>
+
+<h2>Method 2: Test Renewal Without Renewing (Dry Run)</h2>
+
+<p>The most direct way to check if renewal <em>would work</em> is a dry run:</p>
+
+<pre><code>sudo certbot renew --dry-run</code></pre>
+
+<p>This runs the full renewal process &mdash; validating the ACME challenge, checking the web root, testing HTTP-01 or DNS-01 challenges &mdash; without actually replacing the certificate. If it exits with a non-zero status, renewal is broken.</p>
+
+<p>Run this as a cron job to get an early warning before the real renewal attempt fails:</p>
+
+<pre><code># Add to root's crontab: crontab -e
+# Run dry-run check weekly on Sunday at 6am; email on failure
+0 6 * * 0 /usr/bin/certbot renew --dry-run --quiet || echo "certbot dry-run failed on $(hostname) at $(date)" | mail -s "ALERT: Let's Encrypt renewal dry-run failed" you@example.com</code></pre>
+
+<p>For this to work, the <code>mail</code> command must be configured. On Ubuntu/Debian, install <code>mailutils</code> and configure it with a sendmail-compatible relay.</p>
+
+<hr/>
+
+<h2>Method 3: Monitor the Certificate Directly via Cron</h2>
+
+<p>An alternative that doesn&#8217;t require local mail configuration is monitoring the live certificate&#8217;s expiry date and posting to an external alert service. This is more reliable because it tests the actual certificate users see, not the renewal mechanism:</p>
+
+<pre><code>#!/bin/bash
+# /usr/local/bin/ssl-expiry-check.sh
+
+DOMAIN="yourdomain.com"
+WARN_DAYS=21
+SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+EXPIRY_DATE=$(echo | openssl s_client -connect "$DOMAIN":443 \
+  -servername "$DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -enddate 2>/dev/null \
+  | cut -d= -f2)
+
+if [ -z "$EXPIRY_DATE" ]; then
+  MSG="SSL CHECK FAILED: Could not retrieve certificate for $DOMAIN"
+  curl -s -X POST -H 'Content-type: application/json' \
+    --data "{\"text\":\"$MSG\"}" "$SLACK_WEBHOOK"
+  exit 1
+fi
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null \
+  || date -jf "%b %d %T %Y %Z" "$EXPIRY_DATE" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+if [ "$DAYS_LEFT" -le "$WARN_DAYS" ]; then
+  MSG="WARNING: SSL certificate for $DOMAIN expires in ${DAYS_LEFT} days ($EXPIRY_DATE)"
+  curl -s -X POST -H 'Content-type: application/json' \
+    --data "{\"text\":\"$MSG\"}" "$SLACK_WEBHOOK"
+fi</code></pre>
+
+<p>Add it to crontab to run daily:</p>
+
+<pre><code># Run at 7am daily
+0 7 * * * /usr/local/bin/ssl-expiry-check.sh</code></pre>
+
+<p>Replace the Slack webhook with an email API call (Mailgun, Resend, SendGrid) if you prefer email over Slack:</p>
+
+<pre><code># Send via curl to Mailgun
+curl -s --user "api:YOUR_MAILGUN_KEY" \
+  https://api.mailgun.net/v3/YOUR_DOMAIN/messages \
+  -F from="monitor@yourdomain.com" \
+  -F to="you@example.com" \
+  -F subject="SSL expiry warning: $DOMAIN" \
+  -F text="$MSG"</code></pre>
+
+<hr/>
+
+<h2>Method 4: Check via Systemd Journal (for Systemd-Based Setups)</h2>
+
+<p>Modern Debian/Ubuntu systems run certbot via a systemd timer rather than cron. Check its last run:</p>
+
+<pre><code># View recent certbot runs and their outcomes
+sudo systemctl status certbot.timer
+sudo journalctl -u certbot.service --since "7 days ago"</code></pre>
+
+<p>If the last renewal attempt failed, it appears in the journal with exit status and error details. This is the most direct diagnostic tool for systemd-based setups.</p>
+
+<p>To get notified on failure, add <code>OnFailure=</code> to the certbot service unit:</p>
+
+<pre><code># /etc/systemd/system/certbot-notify.service
+[Unit]
+Description=Notify on certbot failure
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ssl-expiry-check.sh</code></pre>
+
+<pre><code># Override certbot.service to add failure notification
+sudo systemctl edit certbot.service
+# Add:
+[Unit]
+OnFailure=certbot-notify.service</code></pre>
+
+<hr/>
+
+<h2>Method 5: External Monitoring (Most Reliable)</h2>
+
+<p>All of the above methods run on the same server that hosts the certificate. If that server goes down, has a misconfigured network, or its cron daemon stops, you get no alert. External monitoring checks your certificate from the outside &mdash; exactly as your users do &mdash; on a regular schedule.</p>
+
+<p>What external monitoring catches that local monitoring misses:</p>
+
+<ul>
+  <li>Certificate replaced but with wrong domain (SAN mismatch)</li>
+  <li>Self-signed certificate accidentally served instead of Let&#8217;s Encrypt</li>
+  <li>Load balancer serving a different certificate than the origin</li>
+  <li>CDN certificate expiry (separate from origin certificate)</li>
+  <li>Server fully down (no certificate to check locally)</li>
+</ul>
+
+<div class="cta-box">
+  <h3>Check Your Certificate From the Outside Right Now</h3>
+  <p>Use the free SSL Certificate Checker to see your domain&#8217;s expiry date, issuer, and whether it will renew in time &mdash; no signup required.</p>
+  <a class="btn" href="https://lior-seats.github.io/ssl-cert-checker/">Check Certificate →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/sslwatch-waitlist/">Get Automated Alerts</a>
+</div>
+
+<hr/>
+
+<h2>Troubleshooting Common Certbot Renewal Failures</h2>
+
+<h3>Port 80 blocked</h3>
+<p>HTTP-01 challenges require port 80 to be reachable from the internet. Check:</p>
+<pre><code>sudo ufw status | grep 80
+# or
+sudo iptables -L INPUT | grep -E "80|http"</code></pre>
+<p>If port 80 is blocked, switch to DNS-01 validation or open the port temporarily during renewal.</p>
+
+<h3>Web root mismatch</h3>
+<p>Certbot stores the challenge file in the webroot. If nginx or Apache is serving from a different directory than certbot expects:</p>
+<pre><code>cat /etc/letsencrypt/renewal/yourdomain.com.conf | grep webroot</code></pre>
+<p>Compare against your actual web server document root configuration.</p>
+
+<h3>Rate limit hit</h3>
+<pre><code># Check certbot logs for rate limit errors
+sudo grep "too many" /var/log/letsencrypt/letsencrypt.log | tail -20</code></pre>
+<p>Let&#8217;s Encrypt allows 5 failed validation attempts per domain per hour. After hitting the limit, wait an hour before retrying.</p>
+
+<h3>Timer not running</h3>
+<pre><code>sudo systemctl list-timers | grep certbot
+# Should show upcoming run within 12 hours if timer is active</code></pre>
+<p>If the timer is inactive or missing, re-enable it:</p>
+<pre><code>sudo systemctl enable certbot.timer && sudo systemctl start certbot.timer</code></pre>
+
+<hr/>
+
+<h2>What to Monitor vs. What Certbot Already Handles</h2>
+
+<table>
+  <tr>
+    <th>Scenario</th>
+    <th>Certbot handles?</th>
+    <th>Needs external monitoring?</th>
+  </tr>
+  <tr>
+    <td>Successful renewal 30+ days before expiry</td>
+    <td>Yes</td>
+    <td>No</td>
+  </tr>
+  <tr>
+    <td>Renewal fails, you get email</td>
+    <td>Partially (registered email only)</td>
+    <td>Recommended</td>
+  </tr>
+  <tr>
+    <td>Timer/cron disabled</td>
+    <td>No</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>Server migration, wrong webroot</td>
+    <td>No</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>CDN/load balancer certificate</td>
+    <td>No</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>Monitoring multiple domains</td>
+    <td>Only on that server</td>
+    <td>Yes</td>
+  </tr>
+</table>
+
+<hr/>
+
+<h2>Recommended Setup for Production</h2>
+
+<p>The most resilient setup combines local checks with external monitoring:</p>
+
+<ol>
+  <li><strong>Keep the certbot systemd timer enabled</strong> and verify it runs weekly with <code>systemctl status certbot.timer</code>.</li>
+  <li><strong>Run a weekly dry-run</strong> via cron to catch configuration problems before they cause a real failure.</li>
+  <li><strong>Set up external certificate monitoring</strong> that checks the live certificate from outside your server on a daily schedule and alerts you at 30 and 14 days before expiry.</li>
+  <li><strong>Get alerted to the right channel</strong> &mdash; the same place you receive other production alerts (Slack, PagerDuty, email), not a mailbox you check monthly.</li>
+</ol>
+
+<p>The first two steps are covered by certbot itself. The third and fourth are the gap that most teams skip until an expiry causes an incident.</p>
+
+<div class="cta-box">
+  <h3>Automate the Monitoring Part</h3>
+  <p><strong>SSLWatch</strong> handles external certificate monitoring across all your domains. Add a domain, choose your alert threshold (30, 14, 7, 1 days), and get an email before any certificate expires &mdash; whether it&#8217;s managed by Let&#8217;s Encrypt, AWS ACM, or a manually installed cert.</p>
+  <a class="btn" href="https://lior-seats.github.io/sslwatch-waitlist/">Join the SSLWatch Waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/ssl-cert-checker/">Check a Certificate Free</a>
+</div>
+
+<hr/>
+
+<p class="meta">Tags: <span class="tag">ssl</span> <span class="tag">let's encrypt</span> <span class="tag">certbot</span> <span class="tag">monitoring</span> &nbsp;&middot;&nbsp; October 2026</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=lets-encrypt-ssl-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
