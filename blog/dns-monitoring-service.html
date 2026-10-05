@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Monitoring Service: How to Monitor Your DNS Records 24/7</title>
+<meta name="description" content="A DNS monitoring service checks your records continuously and alerts you when anything changes. Learn what to look for, what the best options are, and how to set one up."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-monitoring-service.html"/>
+<meta property="og:title" content="DNS Monitoring Service: How to Monitor Your DNS Records 24/7"/>
+<meta property="og:description" content="A DNS monitoring service checks your records continuously and alerts you when anything changes. Learn what to look for and how to set one up."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-monitoring-service.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.93rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Monitoring Service: How to Monitor Your DNS Records 24/7</h1>
+
+<p class="meta">What to look for, what options exist, and why most teams don't have this set up yet.</p>
+
+<p>DNS is infrastructure that mostly works until it doesn't — and when it doesn't, the consequences are immediate and broad. A changed A record pulls production traffic to the wrong server. A dropped MX record bounces all inbound email. A modified TXT record breaks DMARC enforcement and gets your outbound email flagged as spam.</p>
+
+<p>A DNS monitoring service checks your records on a continuous schedule and alerts you the moment anything changes. This post covers what to look for in a monitoring service, what the real-world options are, and how to start monitoring your critical domains today.</p>
+
+<hr/>
+
+<h2>What a DNS monitoring service actually does</h2>
+
+<p>At its core, a DNS monitoring service does three things:</p>
+
+<ol>
+  <li><strong>Takes a baseline snapshot</strong> of your DNS records when you first add a domain</li>
+  <li><strong>Polls your records repeatedly</strong> — typically every 5–60 minutes — querying from external resolvers so it sees what the real world sees, not what your internal network sees</li>
+  <li><strong>Alerts you with a diff</strong> when any record deviates from the baseline, showing old value → new value</li>
+</ol>
+
+<p>The critical word is "diff." A service that only tells you "something changed" without showing you what changed is not useful — you still have to manually check every record to figure out what's different. The before/after comparison is what turns a vague alert into an actionable one.</p>
+
+<hr/>
+
+<h2>What to monitor and why</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Record type</th>
+      <th>Why it matters</th>
+      <th>Priority</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>A</code> / <code>AAAA</code></td>
+      <td>Maps your domain to an IP. Change = wrong server gets traffic or domain goes offline.</td>
+      <td>🔴 Critical</td>
+    </tr>
+    <tr>
+      <td><code>MX</code></td>
+      <td>Defines where email is delivered. Change = email silently bounces or goes to wrong server.</td>
+      <td>🔴 Critical</td>
+    </tr>
+    <tr>
+      <td><code>NS</code></td>
+      <td>Defines your authoritative nameservers. Unexpected change can indicate domain hijack.</td>
+      <td>🔴 Critical</td>
+    </tr>
+    <tr>
+      <td><code>TXT</code> (SPF / DMARC)</td>
+      <td>Email authentication. Change = outbound email flagged as spam or DMARC enforcement broken.</td>
+      <td>🟠 High</td>
+    </tr>
+    <tr>
+      <td><code>CNAME</code></td>
+      <td>Aliases subdomains to other hosts. Change can break CDN routing, partner integrations, or third-party services.</td>
+      <td>🟠 High</td>
+    </tr>
+    <tr>
+      <td><code>SOA</code></td>
+      <td>Zone transfer metadata. Change usually signals a provider migration or configuration reset.</td>
+      <td>🟡 Medium</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="cta-inline">
+  <strong>See your current records →</strong> The <a href="https://lior-seats.github.io/dns-checker/">free DNS record checker</a> returns all record types for any domain instantly. No login required. Use it to capture a baseline before setting up monitoring.
+</div>
+
+<hr/>
+
+<h2>What separates a good DNS monitoring service from a bad one</h2>
+
+<h3>Query from multiple resolvers</h3>
+
+<p>If the monitoring service queries only from one location or uses your own DNS resolver, it can miss propagation issues. A record might appear correct on Cloudflare's resolver but still serve the old value to 30% of users via their ISP's cached resolver. Good monitoring services query from geographically distributed resolvers — at minimum, from multiple continents.</p>
+
+<h3>Alert latency</h3>
+
+<p>A service that checks every 60 minutes can leave you with 59 minutes of undetected downtime. For production domains, a check interval of 5–15 minutes is reasonable. Faster is better for high-traffic domains; slower is acceptable for low-traffic or non-critical subdomains.</p>
+
+<h3>False positive rate</h3>
+
+<p>TTL-based changes are normal. If your CDN dynamically updates A records with short TTLs as part of load balancing, a naive monitoring service will fire alerts constantly. A good service can be configured with a baseline tolerance — don't alert on changes to records you've explicitly flagged as dynamic.</p>
+
+<h3>Before/after diff in the alert</h3>
+
+<p>Worth repeating: the alert should show you the old value and the new value side by side. Without this, every alert requires a manual investigation before you can even decide whether it's an incident. With it, you can decide in 10 seconds: "That's the CNAME I updated yesterday — expected" versus "That A record changed and I didn't touch it — incident."</p>
+
+<hr/>
+
+<h2>Options worth knowing about</h2>
+
+<h3>Purpose-built DNS change monitors</h3>
+
+<p>Several indie tools focus specifically on DNS change detection. They're typically low-cost ($5–15/month) and cover the basics: multiple domains, email alerts with diffs, configurable record types. The tradeoff is usually limited integrations — email-only, no Slack or PagerDuty without custom webhooks.</p>
+
+<h3>Uptime monitoring services with DNS features</h3>
+
+<p>Uptime Robot, Better Uptime, and similar services have added DNS monitoring as a feature alongside HTTP uptime checks. If you're already paying for uptime monitoring, check whether your plan includes DNS monitoring — you may already have access. The DNS monitoring in these tools tends to be basic (often just A record checking) but is better than nothing.</p>
+
+<h3>Your DNS provider's native audit log</h3>
+
+<p>Cloudflare, AWS Route53, and Google Cloud DNS all maintain audit logs of DNS changes. These are excellent for forensics — you can see who changed what and when — but they don't alert you in real time. They also only cover changes made within that provider's system; a change at the registrar level won't appear in your CDN's audit log.</p>
+
+<h3>Rolling your own</h3>
+
+<p>A bash script running on a cron, comparing <code>dig</code> output to a stored snapshot, is a fully functional DNS monitor for 1–2 critical records. It costs nothing beyond server time. It scales poorly — maintaining a custom monitor for 10 domains across 6 record types each is a maintenance task that eventually gets neglected. Use this approach for a handful of the most critical records while a proper service covers the rest.</p>
+
+<div class="callout">
+  <strong>Common failure mode</strong>
+  The team sets up DNS monitoring for the main domain but not for subdomains. The incident comes from a staging subdomain that was pointed at a deprecated server and nobody noticed because nobody was watching it.
+</div>
+
+<hr/>
+
+<h2>How to set up baseline monitoring in 10 minutes</h2>
+
+<ol>
+  <li><strong>Check your current records.</strong> Use the <a href="https://lior-seats.github.io/dns-checker/">free DNS checker</a> to pull all A, MX, TXT, CNAME, NS, and SOA records for your primary domain. This is your baseline snapshot.</li>
+  <li><strong>Identify the critical records.</strong> For most production domains: the A record, MX records, and any TXT records containing SPF or DMARC data.</li>
+  <li><strong>Pick a monitoring interval.</strong> 15 minutes for production domains; 60 minutes for staging.</li>
+  <li><strong>Set up an alert destination.</strong> Email is the minimum. If you have an on-call rotation, wire it into your alerting system.</li>
+  <li><strong>Test the alert.</strong> Actually verify the alert fires by temporarily changing a test record in a staging environment. If the monitor doesn't catch it, your configuration is wrong.</li>
+</ol>
+
+<hr/>
+
+<h2>Start with a free DNS lookup</h2>
+
+<p>Before adding monitoring, you need to know what's there to monitor. The <a href="https://lior-seats.github.io/dns-checker/">DNS record checker</a> returns every record type for any domain in one lookup — no account required, no install. It's a useful first step even if you're just auditing what your current DNS configuration looks like.</p>
+
+<div class="cta-box">
+  <h3>Continuous DNS monitoring — coming soon</h3>
+  <p>DNSWatch monitors your DNS records every 15 minutes and sends you an email the moment any record changes, with a full before/after diff. $9/month per domain, no setup required.</p>
+  <p>
+    <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist</a>
+    <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Check your DNS now (free)</a>
+  </p>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-monitoring-service',{mode:'no-cors'});}());</script>
+</body>
+</html>

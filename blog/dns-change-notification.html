@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Change Notification: Get Alerted the Moment Your DNS Records Change</title>
+<meta name="description" content="DNS changes break production silently. Learn how to set up DNS change notifications so you hear about it in seconds — not hours after users report issues."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-change-notification.html"/>
+<meta property="og:title" content="DNS Change Notification: Get Alerted the Moment Your DNS Records Change"/>
+<meta property="og:description" content="DNS changes break production silently. Set up DNS change notifications so you hear about it in seconds — not hours after users report issues."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-change-notification.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Change Notification: Get Alerted the Moment Your DNS Records Change</h1>
+
+<p class="meta">Most teams find out about DNS changes from users. Here's how to flip that.</p>
+
+<p>DNS changes are quiet. There's no exception thrown, no alarm triggered, no deploy log entry. A record changes, and the first sign is usually a user ticket: "The site is down," "Email stopped working," "The API is timing out." By the time you're digging through your DNS provider's change history, the incident has already been running for an hour.</p>
+
+<p>Setting up a DNS change notification — an alert that fires within minutes of any record changing — is one of the cheapest reliability improvements you can make. This post covers why DNS changes are so hard to catch, what a good notification setup looks like, and how to get one running today.</p>
+
+<hr/>
+
+<h2>Why DNS changes are so hard to catch manually</h2>
+
+<h3>Caching hides the problem</h3>
+
+<p>DNS is aggressively cached at every level: your resolver, your ISP, your operating system, your browser. When a record changes, you may not see the new value for minutes or hours, depending on the TTL. This means a wrong change can be live in the wild long before anyone at your company even notices the old value is gone.</p>
+
+<h3>Multiple providers mean shared write access</h3>
+
+<p>Most production domains touch DNS through at least two teams: whoever manages the registrar, and whoever manages the cloud provider or CDN. Vercel, Cloudflare, AWS Route53, and Netlify all create DNS records as part of their setup flows. A routine infrastructure change — rotating a load balancer, switching CDN plans, deprovisioning a staging environment — can silently delete a record that production depended on.</p>
+
+<h3>The changes that hurt most are the legitimate ones</h3>
+
+<p>Unauthorized changes are obviously dangerous. But the truly expensive DNS incidents usually come from legitimate changes that had an unexpected side effect. Someone updated the <code>CNAME</code> for a subdomain and didn't realize a third-party integration was pointed at it. Someone rotated a <code>TXT</code> record for SPF verification and accidentally dropped a needed include. The change was intentional. The breakage wasn't.</p>
+
+<div class="callout">
+  <strong>Real incident pattern</strong>
+  A developer updates the A record for <code>api.example.com</code> to point to a new server. They test the new server directly by IP — it works. But they don't know that a partner integration is hardcoded to the old A record value. The integration breaks silently. Four hours later, a partner sends an escalation email. Total downtime: 4 hours.
+</div>
+
+<hr/>
+
+<h2>What a DNS change notification should cover</h2>
+
+<p>A useful DNS change alert is more than "something changed." The alert should tell you:</p>
+
+<ul>
+  <li><strong>Which record changed</strong> — A, AAAA, CNAME, MX, TXT, NS, or SOA</li>
+  <li><strong>What the old value was</strong> — so you can immediately assess whether to roll back</li>
+  <li><strong>What the new value is</strong> — so you can confirm whether it matches an expected change</li>
+  <li><strong>When the change was detected</strong> — not when you happened to check</li>
+</ul>
+
+<p>Without the before/after diff, the alert is low value — you still have to dig through your provider's change log to understand what happened. The whole point of a notification is to give you the information you need to decide: expected change, or incident?</p>
+
+<hr/>
+
+<h2>Option 1: A monitoring service that polls your records</h2>
+
+<p>The simplest approach is a service that queries your DNS records at a set interval and emails or Slacks you when it detects a change. You point it at your domain, tell it which record types matter, and it runs continuously in the background.</p>
+
+<p>The key variables are:</p>
+
+<ul>
+  <li><strong>Poll interval</strong> — How often it checks. Every 15 minutes means a potential 15-minute detection window. Every hour means an hour of undetected breakage.</li>
+  <li><strong>Which record types it monitors</strong> — At minimum: A, MX, CNAME, TXT. NS and SOA changes are rarer but can indicate a domain hijack.</li>
+  <li><strong>Notification channels</strong> — Email is table stakes. Slack or PagerDuty integration matters for on-call teams.</li>
+  <li><strong>Before/after diff in the alert</strong> — This is what separates useful alerts from noise.</li>
+</ul>
+
+<div class="cta-inline">
+  <strong>Check your current DNS records →</strong> Use the <a href="https://lior-seats.github.io/dns-checker/">free DNS record checker</a> to see your domain's current A, MX, CNAME, TXT, NS, and SOA records. Takes 5 seconds. No login.
+</div>
+
+<hr/>
+
+<h2>Option 2: Rolling your own with a cron job</h2>
+
+<p>If you want full control, a simple cron-based DNS watcher is surprisingly easy to build. The idea: query your critical records on a schedule, compare to a stored snapshot, and alert on any diff.</p>
+
+<pre><code>#!/bin/bash
+# dns-watch.sh — run every 15 minutes via cron
+
+DOMAIN="example.com"
+SNAPSHOT_FILE="/var/run/dns-snapshot.txt"
+ALERT_EMAIL="oncall@example.com"
+
+# Query current A record
+CURRENT=$(dig +short A "$DOMAIN" @8.8.8.8)
+
+# Compare to snapshot
+if [ -f "$SNAPSHOT_FILE" ]; then
+  PREVIOUS=$(cat "$SNAPSHOT_FILE")
+  if [ "$CURRENT" != "$PREVIOUS" ]; then
+    echo "DNS CHANGE: $DOMAIN A record changed from $PREVIOUS to $CURRENT" \
+      | mail -s "⚠️ DNS change: $DOMAIN" "$ALERT_EMAIL"
+  fi
+fi
+
+# Update snapshot
+echo "$CURRENT" > "$SNAPSHOT_FILE"
+</code></pre>
+
+<p>The limitations: you need a reliable server to run this on, it only watches what you explicitly script, and you're responsible for keeping the snapshot in sync across restarts. It works well for one or two critical records. It becomes a maintenance burden when you're watching ten domains across multiple record types.</p>
+
+<hr/>
+
+<h2>Option 3: Your DNS provider's native audit log</h2>
+
+<p>Many DNS providers offer an audit log or change history. Cloudflare, Route53, and Google Cloud DNS all record who changed what and when. This is useful for forensics but not for alerting — you only see what changed after the fact, and you're not notified in real time.</p>
+
+<p>Some providers offer webhooks or event notifications on DNS changes. Cloudflare's <a href="https://developers.cloudflare.com/notifications/">Notifications</a> system can alert on certain DNS events. Route53 supports CloudWatch Events. If you're already invested in one provider's ecosystem and your critical domains live there, this is worth checking first — you may have native alerting you haven't configured.</p>
+
+<p>The gap: most teams split DNS across providers (registrar + CDN + cloud). A provider-native alert only covers its own records. If a record changes at the registrar level and you're monitoring at the CDN level, the alert doesn't fire.</p>
+
+<hr/>
+
+<h2>The records worth monitoring for every production domain</h2>
+
+<p>Not all DNS changes are equally risky. Here's a practical priority order:</p>
+
+<ul>
+  <li><strong>A / AAAA</strong> — Your primary IP address. If this changes unexpectedly, traffic stops hitting your servers.</li>
+  <li><strong>MX</strong> — Your mail servers. A wrong MX record means email is silently bouncing or landing elsewhere.</li>
+  <li><strong>TXT (SPF, DMARC)</strong> — Changes here can make your outbound email look like spam or break DMARC enforcement.</li>
+  <li><strong>CNAME</strong> — Especially for subdomains used by third-party integrations. Changing a CNAME can silently break a partner integration you forgot about.</li>
+  <li><strong>NS</strong> — A change to your nameservers is a high-severity event. It can indicate a domain transfer or, in the worst case, a domain hijack.</li>
+</ul>
+
+<hr/>
+
+<h2>Getting a baseline: check your records now</h2>
+
+<p>Before setting up DNS change notifications, you need a snapshot of what your records currently look like. If you don't know what "normal" is, you can't recognize an anomaly.</p>
+
+<p>The <a href="https://lior-seats.github.io/dns-checker/">free DNS checker</a> returns all record types for any domain in one lookup — no login, no install. Enter your domain and export the results. That's your baseline.</p>
+
+<div class="cta-box">
+  <h3>Get notified when your DNS changes</h3>
+  <p>DNSWatch monitors your DNS records and sends you an email the moment any record changes — with a before/after diff so you know instantly whether it's expected or an incident.</p>
+  <p>
+    <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist</a>
+    <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Check your DNS records now</a>
+  </p>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-change-notification',{mode:'no-cors'});}());</script>
+</body>
+</html>
