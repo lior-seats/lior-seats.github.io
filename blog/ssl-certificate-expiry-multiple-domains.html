@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor SSL Certificate Expiry Across Multiple Domains</title>
+<meta name="description" content="Monitor SSL certificate expiry for 5, 50, or 500 domains. Bash scripts, cron jobs, and automated tools that alert you before any cert expires."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-expiry-multiple-domains.html"/>
+<meta property="og:title" content="How to Monitor SSL Certificate Expiry Across Multiple Domains"/>
+<meta property="og:description" content="Monitor SSL certificate expiry for 5, 50, or 500 domains. Bash scripts, cron jobs, and automated tools that alert you before any cert expires."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-expiry-multiple-domains.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>How to Monitor SSL Certificate Expiry Across Multiple Domains</h1>
+
+<p class="meta">Bash scripts, cron jobs, and automated tools that alert you before any cert expires.</p>
+
+<div class="warning">
+  <strong>The multi-domain problem:</strong> Checking one domain manually is easy. Keeping 10, 30, or 100 domains from quietly expiring is an ops problem that most teams solve badly &#8212; until a certificate expires on a Sunday night and a customer notices first.
+</div>
+
+<p>You probably have more domains than you think. Production, staging, internal tools, customer subdomains, API endpoints, webhooks. Each one has an SSL certificate. Each certificate has an expiry date. Most of them renew automatically &#8212; until the automation silently breaks and nobody gets an alert.</p>
+
+<p>This guide covers every practical approach to monitoring SSL certificate expiry at scale, from a ten-line shell script to managed monitoring services.</p>
+
+<hr/>
+
+<h2>Option 1: A Simple Bash Script (5-50 Domains)</h2>
+
+<p>For a small list of domains, a shell script run daily is often enough. Save this as <code>check-ssl.sh</code> and add it to cron:</p>
+
+<pre><code>#!/usr/bin/env bash
+# check-ssl.sh — alert when any certificate expires within WARN_DAYS
+
+WARN_DAYS=30
+DOMAINS=(
+  "example.com"
+  "api.example.com"
+  "staging.example.com"
+  "app.yourcompany.com"
+)
+
+for domain in "${DOMAINS[@]}"; do
+  expiry=$(echo | openssl s_client -connect "${domain}:443" \
+    -servername "$domain" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  if [ -z "$expiry" ]; then
+    echo "WARN: Could not check $domain"
+    continue
+  fi
+
+  expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null \
+    || date -j -f "%b %d %T %Y %Z" "$expiry" +%s 2>/dev/null)
+  now_epoch=$(date +%s)
+  days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+
+  if [ "$days_left" -lt "$WARN_DAYS" ]; then
+    echo "ALERT: $domain expires in $days_left days ($expiry)"
+  else
+    echo "OK: $domain — $days_left days remaining"
+  fi
+done</code></pre>
+
+<p>Run it daily with cron:</p>
+
+<pre><code># Check SSL expiry every morning at 8am and email if anything is close
+0 8 * * * /usr/local/bin/check-ssl.sh 2>&1 | mail -s "SSL Expiry Check" ops@yourcompany.com</code></pre>
+
+<div class="callout">
+  <strong>macOS note:</strong> The <code>date -d</code> flag is GNU-only. On macOS, use <code>date -j -f "%b %d %T %Y %Z"</code> as shown above (the script handles both). Install <code>openssl</code> via Homebrew if it&#8217;s missing.
+</div>
+
+<h3>Checking non-standard ports</h3>
+
+<p>For services not running on 443, adjust the connect string:</p>
+
+<pre><code># SMTPS, IMAPS, or custom HTTPS ports
+openssl s_client -connect mail.example.com:465 -servername mail.example.com 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<hr/>
+
+<h2>Option 2: Python Script with Email Alerts</h2>
+
+<p>If you prefer Python, this version sends email alerts directly and handles connection failures gracefully:</p>
+
+<pre><code>#!/usr/bin/env python3
+import ssl, socket, smtplib, datetime
+from email.mime.text import MIMEText
+
+DOMAINS = [
+    "example.com",
+    "api.example.com",
+    "staging.example.com",
+]
+WARN_DAYS = 30
+ALERT_EMAIL = "ops@yourcompany.com"
+SMTP_HOST = "localhost"  # or your SMTP relay
+
+def get_expiry(domain, port=443, timeout=10):
+    ctx = ssl.create_default_context()
+    try:
+        with socket.create_connection((domain, port), timeout=timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+                not_after = cert["notAfter"]
+                return datetime.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+    except Exception as e:
+        return None, str(e)
+
+alerts = []
+for domain in DOMAINS:
+    expiry = get_expiry(domain)
+    if expiry is None:
+        alerts.append(f"ERROR: Could not check {domain}")
+        continue
+    days_left = (expiry - datetime.datetime.utcnow()).days
+    if days_left < WARN_DAYS:
+        alerts.append(f"EXPIRING: {domain} — {days_left} days left (expires {expiry.date()})")
+
+if alerts:
+    body = "\n".join(alerts)
+    msg = MIMEText(body)
+    msg["Subject"] = f"SSL Expiry Alert — {len(alerts)} domain(s) need attention"
+    msg["From"] = ALERT_EMAIL
+    msg["To"] = ALERT_EMAIL
+    with smtplib.SMTP(SMTP_HOST) as s:
+        s.send_message(msg)
+    print(f"Sent alert for {len(alerts)} domain(s)")
+else:
+    print("All certificates OK")</code></pre>
+
+<hr/>
+
+<h2>Option 3: GitHub Actions (Zero Infrastructure)</h2>
+
+<p>If you don&#8217;t want to manage a cron server, GitHub Actions can run this check on a schedule and notify you via email or Slack:</p>
+
+<pre><code># .github/workflows/ssl-check.yml
+name: SSL Certificate Check
+on:
+  schedule:
+    - cron: '0 8 * * *'   # daily at 8am UTC
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check certificates
+        run: |
+          WARN_DAYS=30
+          DOMAINS="example.com api.example.com staging.example.com"
+          FAILED=0
+
+          for domain in $DOMAINS; do
+            expiry=$(echo | openssl s_client -connect ${domain}:443 \
+              -servername $domain 2>/dev/null \
+              | openssl x509 -noout -enddate | cut -d= -f2)
+            days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+            echo "$domain: $days days remaining"
+            if [ "$days" -lt "$WARN_DAYS" ]; then
+              echo "::warning::$domain expires in $days days"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED</code></pre>
+
+<p>GitHub will send you an email when the workflow fails. For Slack notifications, add a step using <code>slackapi/slack-github-action</code> after the check step.</p>
+
+<div class="callout">
+  <strong>Limitation:</strong> GitHub Actions only alerts you when the workflow fails. If the cron itself stops running (due to repo inactivity or a YAML syntax error), you won&#8217;t know. For critical production domains, pair this with a dedicated monitoring service.
+</div>
+
+<hr/>
+
+<h2>Option 4: Using openssl with xargs for Speed</h2>
+
+<p>When checking 50+ domains, running checks sequentially is slow. Use <code>xargs</code> for parallelism:</p>
+
+<pre><code># Check 20 domains in parallel, show any expiring within 60 days
+cat domains.txt | xargs -P 20 -I{} sh -c '
+  expiry=$(echo | openssl s_client -connect "{}:443" -servername "{}" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+  [ -z "$expiry" ] && echo "ERROR: {}" && exit
+  days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+  [ "$days" -lt 60 ] && echo "WARN: {} expires in $days days"
+'</code></pre>
+
+<p>Where <code>domains.txt</code> is a newline-separated list of hostnames. This approach handles 50 domains in under 30 seconds on most networks.</p>
+
+<hr/>
+
+<h2>Option 5: curl&#8217;s Built-in Certificate Check</h2>
+
+<p><code>curl</code> has a less-known flag that fails the request if the certificate expires within a given number of days:</p>
+
+<pre><code># Fail if certificate expires within 14 days
+curl --cacert /etc/ssl/certs/ca-certificates.crt \
+     --max-time 10 \
+     --cert-status \
+     -o /dev/null -w "%{ssl_verify_result}" \
+     https://example.com
+
+# Or use --connect-timeout + --cert-status in a loop
+for domain in example.com api.example.com; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" \
+    --max-time 10 \
+    "https://${domain}/")
+  echo "$domain: HTTP $code"
+done</code></pre>
+
+<p>While curl can tell you a certificate is <em>valid</em>, it doesn&#8217;t natively return days-until-expiry. Use the <code>openssl</code> approach above for expiry-day calculations.</p>
+
+<hr/>
+
+<h2>Where DIY Scripts Break Down</h2>
+
+<p>Shell scripts and cron jobs work well up to a point. Past 20&#8211;30 domains, the friction compounds:</p>
+
+<ul>
+  <li><strong>The cron server itself may fail.</strong> If your cron host goes down, no alerts fire. Checking the monitor requires checking the monitor.</li>
+  <li><strong>Email delivery is unreliable.</strong> SMTP from bare Linux servers hits spam filters. A critical alert you don&#8217;t see is the same as no alert.</li>
+  <li><strong>Domain lists drift.</strong> New domains get added, old ones get forgotten. The script only checks what you explicitly list.</li>
+  <li><strong>Wildcard and multi-SAN certificates need special handling.</strong> <code>*.example.com</code> covers subdomains but a naive script checking <code>example.com</code> won&#8217;t surface all affected subdomains when the cert expires.</li>
+  <li><strong>Internal/private domains need agent-side checks.</strong> Certs on internal services aren&#8217;t reachable from external monitoring.</li>
+</ul>
+
+<h3>The failure mode that matters</h3>
+
+<p>The standard failure pattern: a team sets up Let&#8217;s Encrypt auto-renewal, it works for a year, then certbot fails silently (often because a DNS record changed, or a firewall rule blocked port 80 during ACME challenge). Nobody gets an alert. The certificate expires at 3am on a Saturday. A customer reports the outage Monday morning.</p>
+
+<p>This isn&#8217;t rare. It&#8217;s the norm for teams without dedicated monitoring.</p>
+
+<hr/>
+
+<h2>Automated Certificate Monitoring Tools</h2>
+
+<p>If you manage enough domains that DIY scripts are painful, dedicated tools reduce the operational overhead:</p>
+
+<table>
+  <thead>
+    <tr><th>Tool</th><th>Best for</th><th>Alert channels</th><th>Price</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>SSLWatch</strong></td>
+      <td>Developers monitoring 5&#8211;50 domains with email alerts at 30/14/7/1 days</td>
+      <td>Email</td>
+      <td>$9/mo</td>
+    </tr>
+    <tr>
+      <td>UptimeRobot</td>
+      <td>Teams already using uptime monitoring who want cert checks bundled</td>
+      <td>Email, Slack, SMS</td>
+      <td>Free tier (5-min intervals on paid plans)</td>
+    </tr>
+    <tr>
+      <td>Datadog Synthetics</td>
+      <td>Enterprises with existing Datadog instrumentation</td>
+      <td>PagerDuty, Slack, email</td>
+      <td>$5+/test/mo</td>
+    </tr>
+    <tr>
+      <td>StatusCake</td>
+      <td>Agencies managing client domains</td>
+      <td>Email, Slack, webhooks</td>
+      <td>Free tier available</td>
+    </tr>
+    <tr>
+      <td>Nagios/Zabbix</td>
+      <td>Self-hosted ops teams with existing infrastructure monitoring</td>
+      <td>Configurable</td>
+      <td>Free (self-hosted)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The tradeoffs are mostly about overhead: Nagios gives you full control but requires infrastructure to run and maintain. A SaaS tool requires zero infrastructure and starts monitoring in minutes.</p>
+
+<hr/>
+
+<h2>What Multi-Domain Monitoring Actually Requires</h2>
+
+<p>A complete SSL certificate monitoring solution for multiple domains needs:</p>
+
+<ol>
+  <li><strong>Daily checks on every domain</strong> &#8212; not just a one-time scan</li>
+  <li><strong>Alerts at meaningful lead times</strong> &#8212; 30 days for planning, 14 days for urgency, 7 and 1 day as emergency escalation</li>
+  <li><strong>Reliable delivery</strong> &#8212; email alerts that actually land in your inbox, not spam</li>
+  <li><strong>Coverage for non-standard ports</strong> &#8212; internal services, mail servers, custom HTTPS endpoints</li>
+  <li><strong>Certificate chain validation</strong> &#8212; the leaf cert may be valid but an intermediate cert in the chain might not be</li>
+</ol>
+
+<p>If you&#8217;re using Let&#8217;s Encrypt with certbot or ACME, auto-renewal handles most cases &#8212; but monitoring is the fallback that catches the cases where auto-renewal silently fails. Don&#8217;t skip it.</p>
+
+<div class="cta-box">
+  <h3>Monitor all your domains without a cron server</h3>
+  <p>SSLWatch checks your SSL certificates daily and sends email alerts at 30, 14, 7, and 1 day before expiry. Monitor up to 50 domains for $9/month &#8212; no infrastructure required.</p>
+  <p>
+    <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check a domain free</a>
+    <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get early access</a>
+  </p>
+</div>
+
+<hr/>
+
+<h2>Quick Reference: Commands for Multi-Domain SSL Checks</h2>
+
+<pre><code># Single domain — days remaining
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -enddate
+
+# Multiple domains from file — parallel (requires GNU xargs)
+cat domains.txt | xargs -P 10 -I{} sh -c \
+  'echo "{}: $(echo | openssl s_client -connect {}:443 -servername {} 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"'
+
+# Check via curl (verify only, no expiry days)
+curl -vI --max-time 10 https://example.com 2>&1 | grep -E "expire|SSL|TLS"
+
+# Via Python one-liner
+python3 -c "
+import ssl, socket, datetime
+ctx = ssl.create_default_context()
+with socket.create_connection(('example.com', 443), 5) as s:
+    with ctx.wrap_socket(s, server_hostname='example.com') as ss:
+        e = ss.getpeercert()['notAfter']
+        exp = datetime.datetime.strptime(e, '%b %d %H:%M:%S %Y %Z')
+        print(f'Expires: {exp.date()} ({(exp - datetime.datetime.utcnow()).days} days)')"
+</code></pre>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-expiry-multiple-domains',{mode:'no-cors'});}());</script>
+</body>
+</html>
