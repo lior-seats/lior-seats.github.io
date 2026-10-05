@@ -65,4 +65,5 @@
   <url><loc>https://lior-seats.github.io/blog/dns-change-notification.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/dns-monitoring-service.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/render-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cron-job-health-check.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
