@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Expression Tester: Parse and Validate Any Cron Schedule Online</title>
+<meta name="description" content="Test and parse any cron expression instantly online. Get the plain-English meaning and next run times — free cron expression tester, no signup needed."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-expression-tester-online.html"/>
+<meta property="og:title" content="Cron Expression Tester: Parse and Validate Any Cron Schedule Online"/>
+<meta property="og:description" content="Test and parse any cron expression instantly online. Get the plain-English meaning and next run times — free cron expression tester, no signup needed."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-expression-tester-online.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .cron-field { display: inline-block; background: #1e1e2e; color: #cdd6f4; font-family: "SFMono-Regular", Consolas, monospace; padding: 12px 16px; border-radius: 6px; font-size: 1.1rem; letter-spacing: 0.04em; margin: 0.5em 0 1em; }
+  .cron-field span { color: #a6e3a1; }
+  .cron-field .sep { color: #585b70; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Expression Tester: Parse and Validate Any Cron Schedule Online</h1>
+
+<p class="meta">Tags: cron &nbsp;·&nbsp; DevOps &nbsp;·&nbsp; Tools</p>
+
+<p>Cron expressions are powerful and concise — but they're also easy to get wrong and surprisingly hard to read at a glance. Our free cron expression tester tells you exactly what any cron schedule means in plain English, and shows you the next several run times so you can verify the schedule before deploying it.</p>
+
+<p><strong><a href="https://lior-seats.github.io/cron-expression-parser/">→ Test a cron expression now (free tool)</a></strong></p>
+
+<p>Paste any standard 5-field cron expression and get an instant human-readable interpretation: "Every Monday at 3:00 AM." No guessing, no counting fields.</p>
+
+<hr/>
+
+<h2>Why cron expressions are hard to read</h2>
+
+<p>A cron expression looks deceptively simple. Five space-separated fields, each controlling a unit of time. But the combination of special characters — asterisks, slashes, commas, hyphens, and sometimes question marks — makes even experienced developers pause when reading an expression they didn't write themselves.</p>
+
+<div class="cron-field">
+  <span>0</span><span class="sep"> </span><span>3</span><span class="sep"> </span><span>*</span><span class="sep"> </span><span>*</span><span class="sep"> </span><span>1</span>
+</div>
+
+<p>Is that "every Monday at 3:00 AM" or "the 1st of every month at 3:00 AM"? (It's Monday — field 5 is day-of-week, not day-of-month.) Now try this one:</p>
+
+<pre><code>*/15 9-17 * * 1-5</code></pre>
+
+<p>Every 15 minutes, between 9am and 5pm, Monday through Friday. Reasonable to figure out — but not instantly obvious. The moment you add ranges, step values, and multiple comma-separated values, the cognitive overhead compounds fast.</p>
+
+<p>A cron expression tester removes that overhead entirely. Paste it in, read the English, confirm the next 5 run times, done.</p>
+
+<hr/>
+
+<h2>The five cron fields explained</h2>
+
+<p>A standard cron expression has exactly five fields, separated by spaces:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Position</th>
+      <th>Range</th>
+      <th>Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Minute</strong></td>
+      <td>1st</td>
+      <td>0–59</td>
+      <td><code>30</code> = at minute 30</td>
+    </tr>
+    <tr>
+      <td><strong>Hour</strong></td>
+      <td>2nd</td>
+      <td>0–23</td>
+      <td><code>3</code> = 3 AM</td>
+    </tr>
+    <tr>
+      <td><strong>Day of month</strong></td>
+      <td>3rd</td>
+      <td>1–31</td>
+      <td><code>1</code> = 1st of month</td>
+    </tr>
+    <tr>
+      <td><strong>Month</strong></td>
+      <td>4th</td>
+      <td>1–12</td>
+      <td><code>*/3</code> = every 3 months</td>
+    </tr>
+    <tr>
+      <td><strong>Day of week</strong></td>
+      <td>5th</td>
+      <td>0–7 (0 and 7 = Sunday)</td>
+      <td><code>1-5</code> = Mon–Fri</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The field order is always the same: minute, hour, day-of-month, month, day-of-week. A useful mnemonic: <strong>M H D M D</strong> — minute, hour, day, month, day-of-week.</p>
+
+<h3>Special characters</h3>
+
+<ul>
+  <li><code>*</code> — every value in this field ("every minute", "every hour", etc.)</li>
+  <li><code>*/n</code> — every nth value (e.g. <code>*/5</code> in the minute field = every 5 minutes)</li>
+  <li><code>a-b</code> — a range from a to b inclusive (e.g. <code>9-17</code> in the hour field = 9am through 5pm)</li>
+  <li><code>a,b,c</code> — a list of specific values (e.g. <code>1,15</code> in day-of-month = 1st and 15th)</li>
+</ul>
+
+<div class="callout">
+  <strong>The day-of-week confusion</strong>
+  On most systems, both 0 and 7 mean Sunday. So <code>0-5</code> means Sunday through Friday, not Monday through Friday. To get Monday–Friday, use <code>1-5</code>. This trips up many developers who expect 0-indexed Monday.
+</div>
+
+<hr/>
+
+<h2>Common cron expression patterns</h2>
+
+<p>Here are the most frequently used patterns and what they mean:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Expression</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>* * * * *</code></td>
+      <td>Every minute</td>
+    </tr>
+    <tr>
+      <td><code>0 * * * *</code></td>
+      <td>Every hour (at :00)</td>
+    </tr>
+    <tr>
+      <td><code>0 0 * * *</code></td>
+      <td>Every day at midnight</td>
+    </tr>
+    <tr>
+      <td><code>0 3 * * *</code></td>
+      <td>Every day at 3:00 AM</td>
+    </tr>
+    <tr>
+      <td><code>0 0 * * 0</code></td>
+      <td>Every Sunday at midnight</td>
+    </tr>
+    <tr>
+      <td><code>0 9 * * 1-5</code></td>
+      <td>Weekdays at 9:00 AM</td>
+    </tr>
+    <tr>
+      <td><code>0 0 1 * *</code></td>
+      <td>First of every month at midnight</td>
+    </tr>
+    <tr>
+      <td><code>*/15 * * * *</code></td>
+      <td>Every 15 minutes</td>
+    </tr>
+    <tr>
+      <td><code>0 */6 * * *</code></td>
+      <td>Every 6 hours (at :00)</td>
+    </tr>
+    <tr>
+      <td><code>30 9 1,15 * *</code></td>
+      <td>9:30 AM on the 1st and 15th of each month</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Unsure whether your expression matches what you intended? Paste it into the <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression tester</a> — it shows the next 10 scheduled run times, so you can immediately verify the pattern is correct.</p>
+
+<hr/>
+
+<h2>Cron syntax varies by platform</h2>
+
+<p>Standard 5-field cron expressions work in Linux crontab, most Unix systems, and most job schedulers. But some platforms have their own variations — and knowing the difference can save you a frustrating debugging session.</p>
+
+<h3>GitHub Actions</h3>
+<p>GitHub Actions uses the same 5-field format with a UTC timezone. Note: GitHub documentation warns that scheduled workflows may run up to 15 minutes late during periods of high load. <code>*/5</code> in the minute field is the minimum interval GitHub allows.</p>
+
+<pre><code>on:
+  schedule:
+    - cron: '0 3 * * 1'  # Monday at 3:00 AM UTC</code></pre>
+
+<h3>AWS EventBridge (CloudWatch Events)</h3>
+<p>AWS uses a 6-field cron format with an additional year field at the end, and uses <code>?</code> as a wildcard for either day-of-month or day-of-week (not both can be specified). Their expressions look like:</p>
+
+<pre><code>cron(0 3 ? * MON *)   # Monday at 3:00 AM UTC, every year</code></pre>
+
+<p>AWS also supports named days (MON, TUE, etc.) and months (JAN, FEB, etc.) in addition to numeric values.</p>
+
+<h3>Kubernetes CronJob</h3>
+<p>Kubernetes uses standard 5-field cron syntax. The schedule field follows Unix cron conventions exactly. Timezones can be specified with a <code>timeZone</code> field in the spec (since Kubernetes 1.25).</p>
+
+<h3>Heroku Scheduler</h3>
+<p>Heroku Scheduler uses a simplified interface — every 10 minutes, every hour, or daily at a specific UTC time. It does not support arbitrary cron expressions.</p>
+
+<hr/>
+
+<h2>How to validate a cron expression before deploying</h2>
+
+<p>The best practice before deploying any cron job is to validate the expression in three ways:</p>
+
+<ol>
+  <li><strong>Parse the expression to plain English</strong> — confirm it means what you think it means</li>
+  <li><strong>Check the next N run times</strong> — look at 5–10 upcoming runs to verify the pattern matches your intent, especially for complex expressions</li>
+  <li><strong>Consider timezone</strong> — cron runs in the server's system timezone unless specified otherwise. A "3:00 AM" job on a server in UTC fires at 8:00 PM Pacific or 11:00 PM Eastern. Always confirm what timezone your scheduler uses.</li>
+</ol>
+
+<p>Our <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression parser</a> handles all three: it gives you the plain-English translation, the next 10 run times, and lets you select a timezone for the preview. Paste in your expression, verify the output, then deploy with confidence.</p>
+
+<div class="callout">
+  <strong>The midnight trap</strong>
+  <code>0 0 * * *</code> runs at midnight server time — which may not be midnight in your timezone or your users' timezone. If you're running a report "for yesterday's data," running at midnight UTC means it runs mid-afternoon Pacific — potentially before the business day ends. Always be explicit about which midnight you mean.
+</div>
+
+<hr/>
+
+<h2>After validation: monitoring your cron jobs</h2>
+
+<p>Validating the expression before deploy is step one. But once a cron job is running, a whole different class of problems can emerge: the job starts but fails partway through, auto-renewal processes stop running, or a scheduler itself goes down. Syntax validation doesn't catch runtime failures.</p>
+
+<p>The standard pattern for detecting missed cron runs is a dead man's switch: your job pings a monitoring service on successful completion, and the service alerts you if the ping doesn't arrive within the expected window. One curl command at the end of your job is all it takes.</p>
+
+<div class="cta-box">
+  <h3>📟 Cron job monitoring that catches missed runs</h3>
+  <p>CronWatch monitors your scheduled jobs across crontab, GitHub Actions, AWS EventBridge, Kubernetes CronJob, and Heroku Scheduler. Get alerted in Slack or email within minutes of a missed window or job failure.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Test a cron expression (free)</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-cron-expression-tester-online');})()</script>
+</body>
+</html>

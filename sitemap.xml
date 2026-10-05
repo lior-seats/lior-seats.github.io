@@ -84,4 +84,7 @@
   <url><loc>https://lior-seats.github.io/blog/dead-mans-switch-cron.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/ssl-certificate-expiry-notification.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/dns-a-record-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/ssl-certificate-checker-online.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/dns-lookup-tool-online.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cron-expression-tester-online.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

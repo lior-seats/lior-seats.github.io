@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Free DNS Lookup Tool: Check Any DNS Record Online Instantly</title>
+<meta name="description" content="Look up A, AAAA, MX, TXT, CNAME, and NS records for any domain instantly — free online DNS lookup tool. No signup needed."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-lookup-tool-online.html"/>
+<meta property="og:title" content="Free DNS Lookup Tool: Check Any DNS Record Online Instantly"/>
+<meta property="og:description" content="Look up A, AAAA, MX, TXT, CNAME, and NS records for any domain instantly — free online DNS lookup tool. No signup needed."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-lookup-tool-online.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Free DNS Lookup Tool: Check Any DNS Record Online Instantly</h1>
+
+<p class="meta">Tags: DNS &nbsp;·&nbsp; Tools &nbsp;·&nbsp; DevOps</p>
+
+<p>Need to check DNS records for a domain right now? Our free online DNS lookup tool returns A, AAAA, MX, TXT, CNAME, and NS records instantly — no terminal, no signup, no install.</p>
+
+<p><strong><a href="https://lior-seats.github.io/dns-checker/">→ Run a free DNS lookup now</a></strong></p>
+
+<p>Enter any domain and select the record type you want to check. Results come back in seconds from live DNS resolvers, so you're always seeing the current published state — not a cached copy from your local machine.</p>
+
+<hr/>
+
+<h2>What are DNS records and why would you need to look them up?</h2>
+
+<p>DNS (Domain Name System) is the distributed directory that maps human-readable domain names to machine-usable addresses and routing information. Every domain you own has a set of DNS records published in the global DNS, and every internet-connected service — mail servers, web servers, CDNs, identity providers — depends on those records being correct.</p>
+
+<p>You need to look up DNS records in three broad scenarios:</p>
+
+<h3>Debugging: something isn't working</h3>
+<p>A new subdomain isn't resolving. Email is bouncing. An SSL certificate can't be issued because the ACME challenge TXT record isn't appearing. In all these cases, the first step is to check what DNS is actually returning — not what you think you configured.</p>
+
+<h3>Migrations: verifying changes propagated</h3>
+<p>You moved a site to a new server and updated the A record. You transferred a domain to a new registrar. You switched to a new email provider and updated the MX records. DNS changes take time to propagate — typically minutes to a few hours, sometimes up to 48 hours. A DNS lookup tool lets you verify that the new record values are visible globally before you consider the migration complete.</p>
+
+<h3>Email setup: validating SPF, DKIM, and DMARC</h3>
+<p>Email authentication depends entirely on DNS records. SPF is a TXT record. DKIM is a TXT record at a specific selector subdomain. DMARC is a TXT record at <code>_dmarc.yourdomain.com</code>. If any of these are missing or malformed, outbound email from your domain will be marked as spam or rejected outright. Looking them up by record type is the fastest way to confirm they're published correctly.</p>
+
+<hr/>
+
+<h2>DNS record types: what each one does</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Record type</th>
+      <th>Purpose</th>
+      <th>Common use case</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>A</strong></td>
+      <td>Maps domain → IPv4 address</td>
+      <td>Point domain to web server</td>
+    </tr>
+    <tr>
+      <td><strong>AAAA</strong></td>
+      <td>Maps domain → IPv6 address</td>
+      <td>IPv6-enabled hosting</td>
+    </tr>
+    <tr>
+      <td><strong>CNAME</strong></td>
+      <td>Alias one domain to another</td>
+      <td>www → root domain; CDN configuration</td>
+    </tr>
+    <tr>
+      <td><strong>MX</strong></td>
+      <td>Mail server routing</td>
+      <td>Direct email to Gmail, Fastmail, your mail server</td>
+    </tr>
+    <tr>
+      <td><strong>TXT</strong></td>
+      <td>Arbitrary text data</td>
+      <td>SPF, DKIM, DMARC, domain ownership verification</td>
+    </tr>
+    <tr>
+      <td><strong>NS</strong></td>
+      <td>Authoritative nameservers for a zone</td>
+      <td>Verify which nameservers control a domain</td>
+    </tr>
+    <tr>
+      <td><strong>SOA</strong></td>
+      <td>Start of authority — zone metadata</td>
+      <td>Debugging zone delegation issues</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For most day-to-day debugging, you'll be looking at A, CNAME, MX, and TXT records. NS records are useful when you've transferred a domain and need to confirm the nameserver delegation is correct.</p>
+
+<hr/>
+
+<h2>Online DNS lookup vs. CLI tools: which to use</h2>
+
+<p>Both approaches are useful. Here's when each makes sense:</p>
+
+<h3>Online DNS lookup tool (like ours)</h3>
+<p>Use this when you want to see what DNS resolves to from an external perspective — not from your local machine. Local DNS caches can hold stale records for hours. Your ISP's resolver may not have picked up a recent change yet. Our tool queries authoritative resolvers directly, so you get the current global view.</p>
+
+<p>It's also the right choice when you're not at a terminal: checking from a phone, sharing a result with a non-technical colleague, or just want a clean readable output.</p>
+
+<h3>Command-line tools</h3>
+<p>Use <code>dig</code>, <code>nslookup</code>, or <code>host</code> when you need full control: specifying a particular resolver, tracing delegation, or scripting lookups in a CI pipeline.</p>
+
+<pre><code># Check A records using Google's resolver
+dig A example.com @8.8.8.8
+
+# Check MX records
+dig MX example.com
+
+# Check TXT records (useful for SPF/DKIM)
+dig TXT example.com
+
+# Trace the full delegation chain
+dig +trace example.com</code></pre>
+
+<div class="callout">
+  <strong>Why your local dig result might differ from an online checker</strong>
+  Your local machine, your ISP's resolver, and a public resolver like 8.8.8.8 may all be holding different cached values for the same record. Always use a tool that queries authoritative nameservers directly when verifying that a change has propagated.
+</div>
+
+<hr/>
+
+<h2>Common DNS problems and how to diagnose them</h2>
+
+<h3>Domain not resolving at all</h3>
+<p>Check NS records first. If the NS lookup returns NXDOMAIN or no records, the domain's nameserver delegation is broken — either the domain has expired, the registrar configuration is wrong, or the nameservers listed are not actually authoritative.</p>
+
+<h3>Site loads on some networks but not others</h3>
+<p>This is almost always a DNS propagation issue. After updating an A or CNAME record, different resolvers around the world will pick up the change at different times, depending on the previous TTL of the old record. Check the record from multiple resolvers to confirm the new value is spreading.</p>
+
+<h3>Email delivery failures</h3>
+<p>If mail is bouncing or being marked as spam, check your MX records first (are they pointing to the right mail server?), then your TXT records (is SPF published? does DKIM have the right selector?). Many email providers give you specific record values to add — the lookup tool lets you confirm they're in DNS correctly.</p>
+
+<h3>SSL certificate issuance fails</h3>
+<p>ACME DNS challenges require a specific TXT record at <code>_acme-challenge.yourdomain.com</code>. If the challenge fails, use the DNS lookup tool to check whether the TXT record is actually present and has the right value before retrying the certificate issuance.</p>
+
+<hr/>
+
+<h2>How to interpret DNS lookup results</h2>
+
+<p>When you run a lookup for a domain's A record and get back one or more IP addresses, you're seeing the current authoritative answer. Multiple IP addresses for the same domain usually mean the server operator is using round-robin DNS for basic load distribution.</p>
+
+<p>For MX records, the result includes a priority number (lower is higher priority). Mail servers try the lowest-priority MX first and fall back to higher numbers if it's unavailable. A typical Google Workspace MX setup looks like:</p>
+
+<pre><code>priority: 1  →  aspmx.l.google.com
+priority: 5  →  alt1.aspmx.l.google.com
+priority: 5  →  alt2.aspmx.l.google.com
+priority: 10 →  alt3.aspmx.l.google.com
+priority: 10 →  alt4.aspmx.l.google.com</code></pre>
+
+<p>For TXT records, SPF records start with <code>v=spf1</code>. DMARC records start with <code>v=DMARC1</code>. If you see neither, those records aren't published yet.</p>
+
+<div class="cta-box">
+  <h3>📡 Automated DNS record monitoring</h3>
+  <p>DNSWatch monitors your domain's DNS records and alerts you the moment something unexpected changes — a record is modified, removed, or an MX configuration shifts. Catch unauthorized changes and misconfigurations before they cause downtime.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Run a DNS lookup (free)</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">DNS lookup tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-dns-lookup-tool-online');})()</script>
+</body>
+</html>
