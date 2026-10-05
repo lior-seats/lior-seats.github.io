@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Traefik SSL Certificate Monitoring: Track Let's Encrypt Renewal Failures</title>
+<meta name="description" content="Traefik auto-renews Let's Encrypt certs but silent failures happen. Learn how to monitor Traefik SSL certificate status, detect renewal failures, and get alerts before expiry."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/traefik-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="Traefik SSL Certificate Monitoring: Track Let's Encrypt Renewal Failures"/>
+<meta property="og:description" content="Traefik auto-renews Let's Encrypt certs but silent failures happen. Monitor Traefik SSL certificate status and detect renewal failures before they cause downtime."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/traefik-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Traefik SSL Certificate Monitoring: Track Let's Encrypt Renewal Failures</h1>
+
+<p class="meta">Traefik handles renewals automatically. Until a silent failure means it doesn't.</p>
+
+<p>Traefik is the reverse proxy of choice for many container and Kubernetes environments, partly because of its automatic Let's Encrypt integration. Define a router with TLS, add the right labels or annotations, and Traefik handles certificate issuance and renewal without further intervention. It's one of the genuinely good pieces of automation in the cloud-native ecosystem.</p>
+
+<p>The problem is what happens when it fails. Traefik's ACME renewal process can encounter errors silently — rate limit hits, DNS propagation issues, challenge failures, ACME server unreachability — and the only sign is an approaching expiry date that nobody checked. This article covers how to monitor Traefik SSL certificate status before a failure becomes an outage.</p>
+
+<hr/>
+
+<h2>How Traefik manages Let's Encrypt certificates</h2>
+
+<p>Traefik stores ACME-issued certificates in a JSON file called <code>acme.json</code> (or in a Kubernetes Secret when using the Kubernetes provider). The file contains the certificate, private key, and renewal metadata for every domain Traefik manages:</p>
+
+<pre><code># Default location for Docker/bare-metal deployments
+cat /letsencrypt/acme.json | python3 -m json.tool | grep -A5 '"domain"'</code></pre>
+
+<p>Traefik renews certificates automatically when they have fewer than 30 days remaining. The renewal process uses either HTTP-01 or DNS-01 ACME challenges, depending on your configuration.</p>
+
+<p>Key insight: <strong>Traefik continues serving the existing certificate while renewal is attempted.</strong> If renewal fails, Traefik keeps serving the old cert without error — right up until it expires and browsers start showing warnings to your users.</p>
+
+<hr/>
+
+<h2>Check Traefik certificate status from the dashboard</h2>
+
+<p>If you have the Traefik dashboard enabled, navigate to <strong>HTTP → Routers</strong> and inspect TLS-enabled routers. The dashboard shows which ACME resolver each router uses, but it does not prominently display certificate expiry dates.</p>
+
+<p>For expiry details, the API endpoint is more useful:</p>
+
+<pre><code># Traefik API — list all ACME certificates
+curl -s http://localhost:8080/api/overview | python3 -m json.tool
+
+# Or query the router detail for TLS info
+curl -s http://localhost:8080/api/http/routers | python3 -m json.tool | grep -A10 "tls"</code></pre>
+
+<div class="callout">
+<strong>Dashboard vs. actual certificate expiry</strong>
+The Traefik dashboard shows whether TLS is enabled on a router, not how many days remain on the certificate. For expiry monitoring, check the live TLS endpoint or parse acme.json directly.
+</div>
+
+<hr/>
+
+<h2>Read certificate expiry from acme.json</h2>
+
+<p>Traefik's <code>acme.json</code> contains the base64-encoded certificate for each domain. Parse it to extract expiry dates:</p>
+
+<pre><code>#!/bin/bash
+# check-traefik-certs.sh — parse acme.json and print expiry for each domain
+
+ACME_FILE="/letsencrypt/acme.json"
+
+python3 - <<EOF
+import json, base64, subprocess, sys
+from datetime import datetime
+
+with open("$ACME_FILE") as f:
+    data = json.load(f)
+
+for resolver_name, resolver in data.items():
+    certs = resolver.get("Certificates", [])
+    for cert in certs:
+        domain = cert.get("domain", {}).get("main", "unknown")
+        cert_b64 = cert.get("certificate", "")
+        if not cert_b64:
+            continue
+        try:
+            cert_pem = base64.b64decode(cert_b64).decode()
+            result = subprocess.run(
+                ["openssl", "x509", "-noout", "-enddate"],
+                input=cert_pem, capture_output=True, text=True
+            )
+            expiry_str = result.stdout.strip().replace("notAfter=", "")
+            expiry = datetime.strptime(expiry_str, "%b %d %H:%M:%S %Y %Z")
+            days = (expiry - datetime.utcnow()).days
+            status = "WARN" if days < 30 else "OK"
+            print(f"{status}  {days:4d} days  {domain}  ({expiry_str})")
+        except Exception as e:
+            print(f"FAIL  {domain}  ({e})")
+EOF</code></pre>
+
+<p>This script iterates over all resolvers in <code>acme.json</code> and prints days remaining for each domain — sorted by resolver, with WARN for anything under 30 days.</p>
+
+<hr/>
+
+<h2>Check the live TLS endpoint Traefik is serving</h2>
+
+<p>Parsing <code>acme.json</code> tells you what Traefik has stored. Checking the live endpoint tells you what it's actually serving — which differs when Traefik has loaded a stale cert into memory or when a CDN sits in front:</p>
+
+<pre><code># Check what Traefik is actually serving to the world
+echo | openssl s_client -connect yourdomain.com:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -enddate -issuer
+
+# Days remaining
+expiry=$(echo | openssl s_client -connect yourdomain.com:443 \
+  -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+echo $(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 )) days remaining</code></pre>
+
+<hr/>
+
+<h2>Common Traefik Let's Encrypt renewal failure modes</h2>
+
+<h3>Rate limiting</h3>
+
+<p>Let's Encrypt imposes rate limits: 50 certificates per registered domain per week, 5 duplicate certificates per week, and 5 failed validations per hostname per hour. If you redeploy frequently, reconfigure routers often, or run many subdomains, you can hit these limits. When a rate limit is hit, Traefik logs an error but continues serving the expiring cert:</p>
+
+<pre><code># Check Traefik logs for rate limit errors
+docker logs traefik 2>&1 | grep -i "rate\|too many\|urn:ietf:params:acme:error"
+
+# For systemd deployments
+journalctl -u traefik --since "7 days ago" | grep -i "acme\|renew\|error"</code></pre>
+
+<h3>HTTP-01 challenge failures</h3>
+
+<p>Traefik handles HTTP-01 challenges by temporarily serving a validation token on port 80. This fails when:</p>
+
+<ul>
+<li>Port 80 is blocked by a firewall rule or security group</li>
+<li>A load balancer or CDN is intercepting port 80 traffic before it reaches Traefik</li>
+<li>Traefik itself is behind another reverse proxy that doesn't pass the <code>/.well-known/acme-challenge/</code> path</li>
+<li>The domain's DNS points to a different IP than the server running Traefik</li>
+</ul>
+
+<pre><code># Test that the ACME challenge path is reachable
+curl -I http://yourdomain.com/.well-known/acme-challenge/test-token</code></pre>
+
+<h3>DNS-01 challenge failures</h3>
+
+<p>For wildcard certs or environments where HTTP-01 is impractical, Traefik supports DNS-01 challenges via provider APIs. These fail when:</p>
+
+<ul>
+<li>The DNS provider API key expires or is rotated</li>
+<li>The DNS provider's API is rate-limited or temporarily unavailable</li>
+<li>DNS propagation takes longer than the ACME server's polling timeout</li>
+</ul>
+
+<pre><code># Check for DNS challenge errors in Traefik logs
+docker logs traefik 2>&1 | grep -i "dns\|challenge\|propagation"</code></pre>
+
+<h3>acme.json permissions</h3>
+
+<p>Traefik requires <code>acme.json</code> to have permissions of <code>600</code>. If the file permissions change (common after volume remounts or container restarts with different UID mappings), Traefik may refuse to write renewal updates:</p>
+
+<pre><code>ls -la /letsencrypt/acme.json
+# Should show: -rw------- (600)
+chmod 600 /letsencrypt/acme.json</code></pre>
+
+<h3>Container restart losing ACME state</h3>
+
+<p>If <code>acme.json</code> is stored inside the container rather than in a mounted volume, every container restart means Traefik must re-issue all certificates from scratch. In a clean environment this works. During a Let's Encrypt rate limit window, it means all domains go without valid certs until the window expires:</p>
+
+<pre><code># Verify the acme.json volume mount in your compose config
+docker inspect traefik | python3 -m json.tool | grep -A5 "Mounts"</code></pre>
+
+<hr/>
+
+<h2>Traefik SSL monitoring in Kubernetes</h2>
+
+<p>When using Traefik in Kubernetes (via Helm or the official operator), certificates are stored in Kubernetes Secrets rather than <code>acme.json</code>. Check them with:</p>
+
+<pre><code># List TLS secrets used by Traefik IngressRoute resources
+kubectl get ingressroute --all-namespaces -o json \
+  | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for item in data['items']:
+    for route in item.get('spec', {}).get('tls', {}).get('secretName', []):
+        ns = item['metadata']['namespace']
+        print(f'{ns}/{route}')
+"
+
+# Check expiry of a specific TLS secret
+kubectl get secret traefik-tls -n default \
+  -o jsonpath='{.data.tls\.crt}' | base64 -d \
+  | openssl x509 -noout -enddate</code></pre>
+
+<hr/>
+
+<h2>What Traefik SSL monitoring should look like</h2>
+
+<p>Traefik's built-in automation is genuinely useful, but a complete monitoring setup adds an independent external check:</p>
+
+<ul>
+<li><strong>External TLS handshake check</strong> — verifies what visitors see, independent of Traefik's internal state</li>
+<li><strong>Alerts at 30, 14, 7, and 1 day</strong> — enough runway to diagnose and fix renewal failures before expiry</li>
+<li><strong>Coverage for all domains Traefik manages</strong> — not just the primary hostname</li>
+<li><strong>Independent of Traefik's health</strong> — if Traefik itself is degraded, external monitoring still checks the endpoint</li>
+</ul>
+
+<p>The goal is a second opinion on what's actually being served — one that runs whether Traefik is logging errors or not.</p>
+
+<hr/>
+
+<h2>Check your Traefik SSL certificates now</h2>
+
+<div class="cta-box">
+  <h3>Free SSL certificate expiry checker</h3>
+  <p>Enter any domain Traefik manages and see days remaining, expiry date, and issuer instantly. No Traefik access or acme.json parsing required.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automated Traefik SSL monitoring</h2>
+
+<p>SSLWatch monitors SSL certificate expiry for any HTTPS endpoint — including all domains your Traefik instance manages — with external TLS checks and email alerts at 30, 14, 7, and 1 day before expiry. It works independently of Traefik's renewal process, so you get advance warning even when Traefik's ACME integration fails silently.</p>
+
+<div class="cta-box">
+  <h3>Never miss a Traefik SSL expiry again</h3>
+  <p>SSLWatch monitors your domains with external TLS checks independent of Traefik's renewal state — alerts arrive before the cert becomes a problem.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free expiry checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=traefik-ssl-certificate-monitoring',{mode:'no-cors'});

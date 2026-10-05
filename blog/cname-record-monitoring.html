@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CNAME Record Monitoring: Detect Subdomain Changes and Hijacking Risks</title>
+<meta name="description" content="CNAME record changes break services and enable subdomain hijacking. Learn how to monitor CNAME records, detect chain changes, and alert on unauthorized subdomain modifications."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cname-record-monitoring.html"/>
+<meta property="og:title" content="CNAME Record Monitoring: Detect Subdomain Changes and Hijacking Risks"/>
+<meta property="og:description" content="CNAME record changes break services and enable subdomain hijacking. Monitor CNAME records and detect chain changes before they break your subdomains or expose hijacking risk."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cname-record-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>CNAME Record Monitoring: Detect Subdomain Changes and Hijacking Risks</h1>
+
+<p class="meta">A CNAME pointing nowhere is a subdomain waiting to be claimed by someone else. Here's how to know before they do.</p>
+
+<p>CNAME (Canonical Name) records alias one hostname to another. They're the mechanism behind most third-party service integrations: your <code>docs.example.com</code> points to a Gitbook subdomain, <code>status.example.com</code> points to a Statuspage instance, <code>app.example.com</code> points to a Heroku or Vercel deployment. When those CNAME targets change — because a service migrated, an account was cancelled, or a deployment was removed — your subdomain either breaks or becomes vulnerable to takeover.</p>
+
+<p>This guide covers how to check CNAME records, what happens when CNAME chains break, and how continuous CNAME record monitoring protects against service disruption and subdomain hijacking.</p>
+
+<hr/>
+
+<h2>Check CNAME records manually</h2>
+
+<pre><code># Query CNAME for a specific subdomain
+dig CNAME docs.example.com +short
+
+# Follow the full resolution chain
+dig docs.example.com +trace
+
+# Check with a specific resolver
+dig CNAME docs.example.com @1.1.1.1 +short
+
+# nslookup equivalent
+nslookup -type=CNAME docs.example.com</code></pre>
+
+<p>A CNAME lookup returns the target hostname the subdomain resolves to:</p>
+
+<pre><code>docs.example.com. 300 IN CNAME myorg.gitbook.io.</code></pre>
+
+<p>The number (300) is the TTL in seconds. A CNAME record must point to a hostname, never directly to an IP address. Resolvers follow the chain until reaching an A or AAAA record.</p>
+
+<p>To check whether the CNAME target itself resolves:</p>
+
+<pre><code># Check the full resolution chain — returns the final IP
+dig docs.example.com A +short
+
+# Check if the CNAME target resolves
+dig $(dig CNAME docs.example.com +short) A +short</code></pre>
+
+<p>If the CNAME exists but its target returns NXDOMAIN (domain not found), the subdomain is dangling — and likely vulnerable to hijacking.</p>
+
+<hr/>
+
+<h2>What is subdomain hijacking via CNAME?</h2>
+
+<p>Subdomain hijacking occurs when a CNAME points to a service hostname that is no longer registered or provisioned to your organization. An attacker can claim the target hostname on the same service platform and serve content under your subdomain.</p>
+
+<p>Classic scenario:</p>
+
+<ol>
+<li>Your organization creates <code>blog.example.com</code> as a CNAME to <code>yourcompany.ghost.io</code></li>
+<li>Later, the Ghost blog account is cancelled and <code>yourcompany.ghost.io</code> is released</li>
+<li>The CNAME record in DNS is not removed</li>
+<li>An attacker creates a Ghost account at <code>yourcompany.ghost.io</code></li>
+<li>Now <code>blog.example.com</code> serves the attacker's content — under your domain</li>
+</ol>
+
+<p>This attack is documented against GitHub Pages, Heroku, Netlify, Fastly, AWS S3, Azure, and dozens of other services. It's not theoretical: security researchers regularly find and report hijackable subdomains on well-known company domains.</p>
+
+<div class="callout">
+<strong>How to detect a dangling CNAME</strong>
+Run <code>dig CNAME subdomain.example.com +short</code> — if it returns a target — then run <code>dig &lt;target&gt; A +short</code>. If the target returns NXDOMAIN or empty, the CNAME is dangling. If the target resolves but returns a 404 with a platform "claim this subdomain" message, the hijacking window is open.
+</div>
+
+<hr/>
+
+<h2>CNAME chain changes that break services</h2>
+
+<p>Beyond hijacking, CNAME changes cause ordinary service disruptions when third-party targets change without DNS updates:</p>
+
+<h3>SaaS migrations</h3>
+
+<p>Documentation platforms, status pages, analytics tools, and other SaaS services sometimes change their subdomain structure during platform upgrades. When the target hostname changes and your CNAME still points to the old one, the service breaks silently.</p>
+
+<pre><code># Old CNAME target (deprecated platform hostname)
+docs.example.com → myorg.readme.io  # no longer valid
+
+# New target after platform migration (not updated in DNS)
+docs.example.com → myorg.readme.io  # still wrong, service returns 404</code></pre>
+
+<h3>Heroku, Netlify, Vercel app deletions</h3>
+
+<p>When a deployment on a PaaS platform is deleted, the subdomain that was assigned to it is released back to the platform's pool. Your CNAME still points to it. New deploys or free-tier accounts can claim the old name:</p>
+
+<pre><code># Check if Heroku app subdomain still resolves
+dig $(dig CNAME app.example.com +short) A +short
+# If NXDOMAIN or 404 with "There's nothing here yet" — hijack risk</code></pre>
+
+<h3>CDN origin changes</h3>
+
+<p>CNAMEs to CDN edge hostnames (Cloudflare, CloudFront, Fastly, Akamai) break when the CDN configuration is deleted or the distribution is disabled. The CNAME continues to resolve to the CDN hostname, but the CDN returns an error for the missing origin.</p>
+
+<h3>Load balancer or service mesh changes</h3>
+
+<p>In cloud environments, CNAMEs to internal load balancers or service endpoints break when those resources are destroyed. Cloud load balancers typically have autogenerated hostnames that change on recreation.</p>
+
+<hr/>
+
+<h2>Audit all CNAME records for a domain</h2>
+
+<p>Most DNS providers offer zone export. Use it to get a complete list of CNAMEs for your domain:</p>
+
+<pre><code># If you have zone transfer access (less common)
+dig AXFR example.com @your-nameserver
+
+# Using AWS Route 53 CLI
+aws route53 list-resource-record-sets --hosted-zone-id ZONEID \
+  | jq -r '.ResourceRecordSets[] | select(.Type=="CNAME") | "\(.Name) -> \(.ResourceRecords[0].Value)"'
+
+# Using Cloudflare API
+curl -s -X GET "https://api.cloudflare.com/client/v4/zones/ZONEID/dns_records?type=CNAME" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  | jq -r '.result[] | "\(.name) -> \(.content)"'</code></pre>
+
+<p>For each CNAME, verify the target resolves and returns expected content:</p>
+
+<pre><code>#!/bin/bash
+# check-cnames.sh — verify all CNAMEs resolve correctly
+
+declare -A CNAMES=(
+  ["docs.example.com"]="myorg.gitbook.io"
+  ["status.example.com"]="myorg.statuspage.io"
+  ["app.example.com"]="myapp.vercel.app"
+  ["cdn.example.com"]="d1234.cloudfront.net"
+)
+
+for subdomain in "${!CNAMES[@]}"; do
+  expected="${CNAMES[$subdomain]}"
+  actual=$(dig CNAME "$subdomain" +short @1.1.1.1 | sed 's/\.$//')
+  target_resolves=$(dig "$actual" A +short @1.1.1.1)
+
+  if [ "$actual" != "$expected" ]; then
+    echo "CHANGED  $subdomain"
+    echo "  Expected: $expected"
+    echo "  Actual:   $actual"
+  elif [ -z "$target_resolves" ]; then
+    echo "DANGLING $subdomain -> $actual (target does not resolve)"
+  else
+    echo "OK       $subdomain -> $actual"
+  fi
+done</code></pre>
+
+<hr/>
+
+<h2>Monitor CNAME records for changes automatically</h2>
+
+<p>A change-detection script runs on a schedule, compares current CNAME values against a stored baseline, and alerts on any difference:</p>
+
+<pre><code>#!/bin/bash
+# monitor-cnames.sh — detect CNAME changes and alert
+
+DOMAIN="example.com"
+SUBDOMAINS=("docs" "status" "app" "api" "cdn" "blog")
+SNAPSHOT_DIR="/var/lib/dns-monitor"
+ALERT_EMAIL="ops@example.com"
+CHANGES=""
+
+mkdir -p "$SNAPSHOT_DIR"
+
+for sub in "${SUBDOMAINS[@]}"; do
+  fqdn="${sub}.${DOMAIN}"
+  snapshot_file="${SNAPSHOT_DIR}/cname-${sub}.${DOMAIN}.txt"
+
+  current=$(dig CNAME "$fqdn" +short @8.8.8.8 | sed 's/\.$//')
+  [ -z "$current" ] && current="(no CNAME)"
+
+  if [ ! -f "$snapshot_file" ]; then
+    echo "$current" > "$snapshot_file"
+    continue
+  fi
+
+  previous=$(cat "$snapshot_file")
+
+  if [ "$current" != "$previous" ]; then
+    CHANGES="${CHANGES}${fqdn}:\n  Was: ${previous}\n  Now: ${current}\n\n"
+    echo "$current" > "$snapshot_file"
+  fi
+done
+
+if [ -n "$CHANGES" ]; then
+  echo -e "CNAME changes detected for ${DOMAIN}:\n\n${CHANGES}" \
+    | mail -s "DNS ALERT: CNAME changes on ${DOMAIN}" "$ALERT_EMAIL"
+fi</code></pre>
+
+<p>Add to cron for near-real-time monitoring:</p>
+
+<pre><code>*/5 * * * * /usr/local/bin/monitor-cnames.sh</code></pre>
+
+<hr/>
+
+<h2>What CNAME record monitoring should cover</h2>
+
+<p>A complete CNAME monitoring approach does more than detect value changes:</p>
+
+<ul>
+<li><strong>Detect CNAME target changes</strong> — alert when any CNAME value changes unexpectedly</li>
+<li><strong>Detect dangling CNAMEs</strong> — alert when a CNAME target stops resolving (hijacking risk)</li>
+<li><strong>Detect CNAME deletions</strong> — alert when a CNAME record disappears entirely</li>
+<li><strong>Monitor across resolvers</strong> — check from multiple DNS resolvers to detect split-horizon or inconsistent propagation</li>
+<li><strong>Track CNAME chain depth</strong> — flag unusually deep CNAME chains that indicate misconfiguration</li>
+<li><strong>Alert on new subdomains</strong> — detect when new CNAMEs appear in your zone that weren't expected</li>
+</ul>
+
+<div class="callout">
+<strong>Subdomain enumeration for CNAME audits</strong>
+Your own DNS zone exports give you authoritative CNAME data. Certificate Transparency logs (crt.sh) and passive DNS databases reveal subdomains you may have forgotten about — including old deployments that are still in DNS and potentially dangling.
+</div>
+
+<hr/>
+
+<h2>Check your CNAME records now</h2>
+
+<div class="cta-box">
+  <h3>Free DNS record checker</h3>
+  <p>Look up current CNAME records for any subdomain instantly. See the target value, resolution chain, and whether the target resolves — no signup required.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check CNAME records →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get change alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automated CNAME record monitoring</h2>
+
+<p>DNSWatch monitors CNAME records (and all other DNS record types) for your domains on a continuous schedule. When a CNAME value changes — planned migration or unauthorized modification — you get an immediate alert with the before and after values. It also detects dangling CNAMEs where the target has stopped resolving, so you catch subdomain hijacking risk before an attacker does.</p>
+
+<p>No zone access required. No script to maintain. Monitoring runs from external infrastructure and checks what the internet sees — from multiple resolvers.</p>
+
+<div class="cta-box">
+  <h3>Never miss a CNAME change or dangling subdomain again</h3>
+  <p>DNSWatch monitors all your DNS record types and alerts you immediately when anything changes — including subdomain hijacking risk.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cname-record-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

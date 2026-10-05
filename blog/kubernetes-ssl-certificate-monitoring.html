@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Kubernetes SSL Certificate Monitoring: Track TLS Expiry in Your Cluster</title>
+<meta name="description" content="Kubernetes TLS secrets expire silently. Learn how to monitor SSL certificate expiry in K8s clusters, catch ingress TLS failures, and get alerts before cert-manager misses a renewal."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/kubernetes-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="Kubernetes SSL Certificate Monitoring: Track TLS Expiry in Your Cluster"/>
+<meta property="og:description" content="Kubernetes TLS secrets expire silently. Monitor SSL certificate expiry in K8s clusters, catch ingress TLS failures, and get alerts before cert-manager misses a renewal."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/kubernetes-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Kubernetes SSL Certificate Monitoring: Track TLS Expiry in Your Cluster</h1>
+
+<p class="meta">cert-manager renews. Until it doesn't. Here's how to know when your K8s TLS certs are silently expiring.</p>
+
+<p>Kubernetes handles SSL certificates differently from traditional web servers. Instead of cert files on disk, TLS credentials live inside cluster secrets. cert-manager automates renewals. Ingress controllers handle TLS termination. The whole system looks automated — until a renewal silently fails and your service goes down with an expired certificate that nobody noticed.</p>
+
+<p>This guide covers how Kubernetes TLS certificate monitoring actually works: inspecting secrets, watching cert-manager resources, checking ingress TLS status, and getting external visibility on what your cluster is actually serving.</p>
+
+<hr/>
+
+<h2>How Kubernetes stores TLS certificates</h2>
+
+<p>In Kubernetes, TLS certificates are stored as Secrets of type <code>kubernetes.io/tls</code>. These contain two fields: <code>tls.crt</code> (the certificate chain) and <code>tls.key</code> (the private key).</p>
+
+<pre><code>kubectl get secrets --all-namespaces -o json \
+  | jq -r '.items[] | select(.type=="kubernetes.io/tls") | "\(.metadata.namespace)/\(.metadata.name)"'</code></pre>
+
+<p>To inspect the expiry date of a specific TLS secret:</p>
+
+<pre><code>kubectl get secret my-tls-secret -n my-namespace \
+  -o jsonpath='{.data.tls\.crt}' \
+  | base64 -d \
+  | openssl x509 -noout -enddate -subject</code></pre>
+
+<p>To check days remaining for all TLS secrets in a namespace:</p>
+
+<pre><code>#!/bin/bash
+NAMESPACE=${1:-default}
+kubectl get secrets -n "$NAMESPACE" --field-selector type=kubernetes.io/tls \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+| while read secret; do
+    expiry=$(kubectl get secret "$secret" -n "$NAMESPACE" \
+      -o jsonpath='{.data.tls\.crt}' \
+      | base64 -d \
+      | openssl x509 -noout -enddate 2>/dev/null \
+      | cut -d= -f2)
+    days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+    echo "$days days  $NAMESPACE/$secret  ($expiry)"
+done | sort -n</code></pre>
+
+<p>Run this script across all namespaces to get a sorted list of certificates by days remaining — soonest expiry first.</p>
+
+<hr/>
+
+<h2>cert-manager Certificate resources vs. actual TLS secrets</h2>
+
+<p>If you're using cert-manager, certificates are represented by <code>Certificate</code> custom resources. cert-manager watches these, issues certificates via an ACME or CA issuer, and stores the result in a TLS Secret. You can query cert-manager's view of certificate status:</p>
+
+<pre><code># List all Certificate resources and their ready state
+kubectl get certificates --all-namespaces
+
+# Describe a specific certificate for renewal status and events
+kubectl describe certificate my-cert -n my-namespace</code></pre>
+
+<p>The <code>describe</code> output shows the renewal time, last issued time, and any recent events — including renewal failures. Look for:</p>
+
+<pre><code>Status:
+  Conditions:
+    Type:    Ready
+    Status:  True
+    Reason:  Ready
+  Not After:  2026-12-14T00:00:00Z
+  Not Before: 2026-09-14T00:00:00Z
+  Renewal Time: 2026-11-24T00:00:00Z</code></pre>
+
+<p>If <code>Ready</code> is <code>False</code>, cert-manager is actively failing to renew the certificate. The events section will show why.</p>
+
+<div class="callout">
+<strong>cert-manager Ready: True does not mean the cert was recently renewed</strong>
+A certificate can be <code>Ready: True</code> while still approaching expiry if cert-manager hasn't attempted renewal yet (renewal begins 30 days before expiry by default). Always check <code>Not After</code> directly, not just the Ready condition.
+</div>
+
+<hr/>
+
+<h2>Common cert-manager silent failure modes</h2>
+
+<p>cert-manager can fail to renew certificates without generating obvious alerts. The most common silent failure scenarios:</p>
+
+<h3>ACME HTTP-01 challenge failures</h3>
+
+<p>HTTP-01 challenges require cert-manager to serve a validation token on port 80. If your ingress is misconfigured, a NetworkPolicy blocks the ACME server, or port 80 traffic is redirected before the challenge path is served, the challenge silently times out:</p>
+
+<pre><code>kubectl describe order my-cert-order -n my-namespace
+# Look for: "Error: failed to perform self check GET request"</code></pre>
+
+<h3>DNS-01 challenge failures</h3>
+
+<p>DNS-01 challenges modify DNS records via a cloud provider API. If the API credentials in your cert-manager secret expire, the DNS provider's API rate-limits the requests, or IAM permissions change, renewals fail silently:</p>
+
+<pre><code>kubectl logs -n cert-manager deployment/cert-manager | grep -i "error\|failed\|challenge"</code></pre>
+
+<h3>Issuer not ready</h3>
+
+<p>A ClusterIssuer that loses connectivity to the ACME endpoint (Let's Encrypt rate limit, network policy change, ACME directory URL change) will show <code>Ready: False</code> on the Issuer resource but won't prevent existing certificates from appearing valid until they expire:</p>
+
+<pre><code>kubectl get clusterissuer -o wide
+# Check the Ready column — should be True for all issuers</code></pre>
+
+<h3>cert-manager controller not running</h3>
+
+<pre><code>kubectl get pods -n cert-manager
+kubectl logs -n cert-manager deployment/cert-manager --since=1h | tail -50</code></pre>
+
+<p>A crash-looping cert-manager controller means no renewals are happening. Existing certificates continue serving, masking the problem until they expire.</p>
+
+<hr/>
+
+<h2>Kubernetes Ingress TLS monitoring</h2>
+
+<p>Ingress resources reference TLS secrets by name. If the referenced secret expires, the ingress controller continues serving the expired cert until the secret is replaced — no error, no restart, just an expired TLS handshake for every visitor:</p>
+
+<pre><code># List all ingresses and their TLS configuration
+kubectl get ingress --all-namespaces -o json \
+  | jq -r '.items[] | "\(.metadata.namespace)  \(.metadata.name)  \(.spec.tls[].secretName // "no-tls")"'</code></pre>
+
+<p>Cross-reference ingress TLS secret names against the expiry script above to prioritize which secrets matter most. An expiring TLS secret that backs a production ingress is critical. One that backs a staging environment is lower priority.</p>
+
+<div class="callout">
+<strong>SNI and wildcard certs in K8s</strong>
+Kubernetes ingress controllers use SNI to route TLS to the correct virtual host. If you're using a wildcard cert (<code>*.example.com</code>), a single expiring secret can take down all subdomains simultaneously. Wildcard certs warrant extra monitoring attention.
+</div>
+
+<hr/>
+
+<h2>Cluster-external SSL monitoring: what kubectl misses</h2>
+
+<p>Checking TLS secrets with kubectl tells you what's stored in the cluster. It doesn't tell you what the external world sees. The certificate that a visitor's browser negotiates depends on:</p>
+
+<ul>
+<li>Which certificate the ingress controller actually loaded (it may cache the old cert after a secret update until it receives a reload signal)</li>
+<li>Whether a CDN or load balancer in front of the cluster is terminating TLS with its own cert</li>
+<li>Whether the SNI routing is correct for the specific hostname the visitor uses</li>
+<li>Whether the cert chain is complete (intermediate CA certificates included)</li>
+</ul>
+
+<p>An external TLS handshake check — connecting to the actual HTTPS endpoint — is the only reliable way to confirm what a visitor's browser sees:</p>
+
+<pre><code>echo | openssl s_client -connect your-k8s-service.example.com:443 \
+  -servername your-k8s-service.example.com 2>/dev/null \
+  | openssl x509 -noout -enddate -issuer -subject</code></pre>
+
+<p>For Kubernetes services, this should be run against the external hostname (via LoadBalancer or Ingress), not the in-cluster service IP.</p>
+
+<hr/>
+
+<h2>Setting up Kubernetes TLS certificate monitoring alerts</h2>
+
+<p>For production clusters, a monitoring approach that covers all of these failure modes needs to:</p>
+
+<ul>
+<li><strong>Check external TLS endpoints</strong> — verify what the internet actually sees, not just what's in etcd</li>
+<li><strong>Alert at multiple thresholds</strong> — 30, 14, 7, and 1 day before expiry for meaningful runway</li>
+<li><strong>Cover all ingress hostnames automatically</strong> — not just the ones someone remembered to add to a spreadsheet</li>
+<li><strong>Work independently of cert-manager's health</strong> — if cert-manager is broken, monitoring should still catch the approaching expiry</li>
+<li><strong>Not require cluster access to check</strong> — an external monitoring service continues working even if the cluster is partially degraded</li>
+</ul>
+
+<p>External SSL monitoring services check your HTTPS endpoints from outside the cluster on a regular schedule. They see exactly what your users see and alert you when expiry is approaching — regardless of whether cert-manager is healthy.</p>
+
+<hr/>
+
+<h2>Check your Kubernetes SSL certificates now</h2>
+
+<p>Use the free SSLWatch checker to instantly verify what any public HTTPS endpoint is actually serving — useful for checking your ingress hostnames from outside the cluster:</p>
+
+<div class="cta-box">
+  <h3>Free SSL certificate expiry checker</h3>
+  <p>Enter any domain and see days remaining, expiry date, and issuer in seconds. No kubectl access needed — checks the live TLS handshake your visitors see.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automated Kubernetes SSL monitoring</h2>
+
+<p>SSLWatch monitors SSL certificate expiry for any HTTPS endpoint — including your Kubernetes ingress hostnames — and sends email alerts at 30, 14, 7, and 1 day before expiry. It checks via live TLS handshake from outside your cluster, so it catches cert-manager failures, ingress controller caching issues, and CDN cert problems that kubectl checks miss.</p>
+
+<p>No agent to install in your cluster. No dependency on cert-manager's self-reporting. Add your ingress hostnames and get alerts when they actually matter.</p>
+
+<div class="cta-box">
+  <h3>Never miss a Kubernetes TLS expiry again</h3>
+  <p>SSLWatch monitors all your ingress hostnames with external TLS checks and automatic alerts — independent of cert-manager's health.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free expiry checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=kubernetes-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

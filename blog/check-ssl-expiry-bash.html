@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Check SSL Certificate Expiry with Bash: Scripts and One-Liners</title>
+<meta name="description" content="Check SSL certificate expiry with bash using openssl and curl. One-liners, multi-domain scripts, cron job setup, and the limitations that push teams toward automated monitoring."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/check-ssl-expiry-bash.html"/>
+<meta property="og:title" content="Check SSL Certificate Expiry with Bash: Scripts and One-Liners"/>
+<meta property="og:description" content="Check SSL certificate expiry with bash using openssl and curl. One-liners, multi-domain scripts, cron setup, and the limitations that push teams toward automated monitoring."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/check-ssl-expiry-bash.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Check SSL Certificate Expiry with Bash: Scripts and One-Liners</h1>
+
+<p class="meta">The openssl command you already have, plus scripts for multiple domains, cron setup, and the gaps you'll need to fill.</p>
+
+<p>Checking SSL certificate expiry from the command line is a core sysadmin and DevOps task. The tools are already installed on virtually every Linux and macOS system — you just need the right invocations. This guide covers the essential bash one-liners, multi-domain scripts, and cron job patterns for SSL expiry checking, along with an honest assessment of where shell-script-based monitoring falls short.</p>
+
+<hr/>
+
+<h2>Check SSL expiry with openssl s_client</h2>
+
+<p>The canonical way to check a live certificate's expiry date from bash:</p>
+
+<pre><code>echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<p>Output:</p>
+
+<pre><code>notAfter=Dec 14 23:59:59 2026 GMT</code></pre>
+
+<p>The <code>-servername</code> flag enables SNI (Server Name Indication), which is required for virtual-hosted servers. Without it, servers with multiple certs on the same IP may return the wrong certificate.</p>
+
+<p>To get the number of days remaining:</p>
+
+<pre><code>expiry=$(echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+echo $(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 )) days remaining</code></pre>
+
+<p>On macOS, <code>date -d</code> is not available. Use this instead:</p>
+
+<pre><code>expiry=$(echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+echo $(( ($(date -j -f "%b %e %T %Y %Z" "$expiry" +%s) - $(date +%s)) / 86400 )) days remaining</code></pre>
+
+<hr/>
+
+<h2>Check SSL expiry with curl</h2>
+
+<p>If you prefer curl or need to avoid openssl directly, curl exposes certificate information via the <code>--head</code> and verbose flags:</p>
+
+<pre><code># Most portable curl approach — prints expiry to stderr
+curl -v --head https://example.com 2>&1 | grep "expire date"</code></pre>
+
+<p>Output:</p>
+
+<pre><code>*  expire date: Dec 14 23:59:59 2026 GMT</code></pre>
+
+<p>For scripting, the cleaner curl approach uses <code>-w</code> format strings if your curl version supports it, or pipes through grep:</p>
+
+<pre><code>curl -vI https://example.com 2>&1 \
+  | grep -i "expire date\|start date\|subject\|issuer" \
+  | head -10</code></pre>
+
+<div class="callout">
+<strong>curl vs. openssl for SSL checking</strong>
+curl follows redirects by default (use <code>-L</code> or <code>-I</code>) and respects system CA bundles, making it convenient for quick interactive checks. openssl s_client gives you raw TLS handshake detail and is more reliable in scripts because it doesn't depend on curl version or platform-specific behavior. For scripting multi-domain checks, openssl s_client is the safer choice.
+</div>
+
+<hr/>
+
+<h2>Check SSL expiry for a cert file on disk</h2>
+
+<p>If you have the certificate file itself (e.g., from a Kubernetes secret, Certbot renewal, or cert store):</p>
+
+<pre><code># From a PEM file
+openssl x509 -noout -enddate -in /etc/ssl/certs/example.com.crt
+
+# From a DER-encoded file
+openssl x509 -inform DER -noout -enddate -in example.com.der
+
+# Full details: subject, issuer, validity period
+openssl x509 -noout -text -in /etc/ssl/certs/example.com.crt | grep -A2 "Validity"</code></pre>
+
+<hr/>
+
+<h2>Bash script to check multiple domains</h2>
+
+<p>A straightforward script for checking a list of domains and printing days remaining for each:</p>
+
+<pre><code>#!/bin/bash
+# check-ssl-expiry.sh — check SSL expiry for a list of domains
+
+DOMAINS=(
+  "example.com"
+  "api.example.com"
+  "staging.example.com"
+  "mail.example.com"
+)
+
+WARN_DAYS=30
+
+for domain in "${DOMAINS[@]}"; do
+  expiry=$(echo | openssl s_client -connect "${domain}:443" \
+    -servername "$domain" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  if [ -z "$expiry" ]; then
+    echo "FAIL  $domain  (could not retrieve certificate)"
+    continue
+  fi
+
+  days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+
+  if [ "$days" -le 0 ]; then
+    echo "EXPIRED  $domain  (expired $((days * -1)) days ago)"
+  elif [ "$days" -le "$WARN_DAYS" ]; then
+    echo "WARN  $days days  $domain"
+  else
+    echo "OK    $days days  $domain"
+  fi
+done</code></pre>
+
+<p>Make it executable and run it:</p>
+
+<pre><code>chmod +x check-ssl-expiry.sh
+./check-ssl-expiry.sh</code></pre>
+
+<p>Sample output:</p>
+
+<pre><code>OK    73 days  example.com
+WARN  18 days  api.example.com
+OK    61 days  staging.example.com
+FAIL  mail.example.com  (could not retrieve certificate)</code></pre>
+
+<hr/>
+
+<h2>Add email alerts to the SSL check script</h2>
+
+<p>Extend the script to send an email when a cert is approaching expiry:</p>
+
+<pre><code>#!/bin/bash
+DOMAINS=("example.com" "api.example.com" "staging.example.com")
+WARN_DAYS=30
+ALERT_EMAIL="ops@example.com"
+
+for domain in "${DOMAINS[@]}"; do
+  expiry=$(echo | openssl s_client -connect "${domain}:443" \
+    -servername "$domain" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  [ -z "$expiry" ] && {
+    echo "SSL check failed for $domain" \
+      | mail -s "SSL Check Failed: $domain" "$ALERT_EMAIL"
+    continue
+  }
+
+  days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+
+  if [ "$days" -le "$WARN_DAYS" ]; then
+    echo "$domain SSL certificate expires in $days days ($expiry)" \
+      | mail -s "SSL Expiry Warning: $domain ($days days)" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<hr/>
+
+<h2>Set up a cron job for SSL expiry checking</h2>
+
+<p>Run the check daily. Add to crontab with <code>crontab -e</code>:</p>
+
+<pre><code># Run SSL expiry check daily at 8:00 AM
+0 8 * * * /usr/local/bin/check-ssl-expiry.sh >> /var/log/ssl-check.log 2>&1</code></pre>
+
+<p>Or using a more verbose format that logs timestamps:</p>
+
+<pre><code>0 8 * * * /usr/bin/bash -c 'echo "=== $(date) ===" >> /var/log/ssl-check.log && /usr/local/bin/check-ssl-expiry.sh >> /var/log/ssl-check.log 2>&1'</code></pre>
+
+<p>Verify the cron job runs by checking the log after the next scheduled time:</p>
+
+<pre><code>tail -f /var/log/ssl-check.log</code></pre>
+
+<hr/>
+
+<h2>The fundamental limitations of bash SSL checking</h2>
+
+<p>The scripts above work. They also have failure modes that are difficult to close with more bash:</p>
+
+<h3>The script can fail silently</h3>
+
+<p>If the cron daemon stops, the server migrates, the disk fills up, or the mail server is unavailable, no alerts fire. More importantly, you get no notification that monitoring stopped. This is the classic monitoring gap: you only find out something was broken when you notice the expired cert, not when the monitoring broke.</p>
+
+<h3>The script doesn't monitor itself</h3>
+
+<p>A cron-based SSL check has no watchdog. You'd need a second cron job to verify the first one ran, and a third to monitor the second. External monitoring services sidestep this by running from infrastructure you don't control — if your server goes down, they still check your endpoint.</p>
+
+<h3>You have to maintain the domain list</h3>
+
+<p>When a new domain goes live, someone has to remember to add it to the script. Teams regularly miss domains this way — especially subdomains, staging environments, and third-party services that use your TLS certs.</p>
+
+<h3>It checks what you have access to</h3>
+
+<p>The script connects from your server. It doesn't check from multiple geographic locations, it doesn't test what users in different regions see, and it can't detect CDN-terminated TLS issues where the CDN is serving an expired cert from its own cache.</p>
+
+<div class="callout">
+<strong>Cron job monitoring is also SSL monitoring</strong>
+If the cron job running your SSL check silently stops, you won't know your SSL monitoring is broken until a cert expires. External SSL monitoring avoids this dependency entirely.
+</div>
+
+<hr/>
+
+<h2>Check your domains now</h2>
+
+<p>Use the free SSLWatch checker to immediately see how many days remain on any domain's certificate — no bash, no openssl, no local setup required:</p>
+
+<div class="cta-box">
+  <h3>Free SSL certificate expiry checker</h3>
+  <p>Enter any domain and see days remaining, expiry date, issuer, and chain status in seconds. No signup required.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Beyond bash: automated SSL certificate monitoring</h2>
+
+<p>SSLWatch automates the SSL monitoring loop that bash scripts implement manually. It checks your HTTPS endpoints on a regular schedule, sends email alerts at 30, 14, 7, and 1 day before expiry, and runs from external infrastructure that isn't affected by your server's health.</p>
+
+<p>No script to maintain. No cron job to watch. No domain list to update manually. The monitoring runs whether your server is healthy or not.</p>
+
+<div class="cta-box">
+  <h3>Automated SSL certificate monitoring</h3>
+  <p>SSLWatch monitors your domains with scheduled external checks and sends expiry alerts before the cert becomes a problem.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free expiry checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=check-ssl-expiry-bash',{mode:'no-cors'});}());</script>
+</body>
+</html>

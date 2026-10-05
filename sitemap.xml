@@ -75,4 +75,9 @@
   <url><loc>https://lior-seats.github.io/blog/gcp-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/azure-dns-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/vercel-cron-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/kubernetes-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/check-ssl-expiry-bash.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/traefik-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/mx-record-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cname-record-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

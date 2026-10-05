@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>MX Record Monitoring: Get Alerted When Your Mail DNS Changes</title>
+<meta name="description" content="MX record changes kill email deliverability silently. Learn how to monitor MX records, detect changes with alerts, and protect your mail flow from unexpected DNS modifications."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/mx-record-monitoring.html"/>
+<meta property="og:title" content="MX Record Monitoring: Get Alerted When Your Mail DNS Changes"/>
+<meta property="og:description" content="MX record changes kill email deliverability silently. Monitor MX records, detect DNS changes with alerts, and protect your mail flow from unexpected modifications."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/mx-record-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>MX Record Monitoring: Get Alerted When Your Mail DNS Changes</h1>
+
+<p class="meta">Your MX records are correct today. A silent DNS change tomorrow means inbound mail bounces — and you won't know until customers complain.</p>
+
+<p>MX (Mail Exchanger) records are the DNS entries that tell the internet where to deliver email for your domain. Change them — or let someone else change them — and inbound email stops reaching you. Senders receive bounce messages or silent delivery failures. Business email disappears into a void. The problem can go undetected for hours or days before someone notices that expected messages never arrived.</p>
+
+<p>This guide covers how to check MX records manually, what causes unexpected MX record changes, and how continuous MX record monitoring catches changes before they become deliverability disasters.</p>
+
+<hr/>
+
+<h2>Check MX records manually</h2>
+
+<p>Three tools are available on any Linux, macOS, or Windows system:</p>
+
+<h3>dig (Linux/macOS)</h3>
+
+<pre><code># Query MX records for a domain
+dig MX example.com
+
+# Short output — just the records
+dig MX example.com +short
+
+# Query a specific DNS server (e.g., Google's 8.8.8.8)
+dig MX example.com @8.8.8.8 +short</code></pre>
+
+<p>Sample output:</p>
+
+<pre><code>10 aspmx.l.google.com.
+20 alt1.aspmx.l.google.com.
+20 alt2.aspmx.l.google.com.
+30 alt3.aspmx.l.google.com.
+30 alt4.aspmx.l.google.com.</code></pre>
+
+<p>The number before each hostname is the MX priority. Lower numbers are tried first. Multiple records with the same priority are used round-robin.</p>
+
+<h3>nslookup (cross-platform)</h3>
+
+<pre><code># Windows, macOS, Linux
+nslookup -type=MX example.com
+
+# Query a specific resolver
+nslookup -type=MX example.com 8.8.8.8</code></pre>
+
+<h3>host (Linux/macOS)</h3>
+
+<pre><code>host -t MX example.com</code></pre>
+
+<hr/>
+
+<h2>Why MX record changes kill email deliverability</h2>
+
+<p>MX records control inbound mail routing. When they change unexpectedly, the impact depends on how they changed:</p>
+
+<h3>Records deleted entirely</h3>
+
+<p>If MX records are accidentally deleted, sending servers fall back to the domain's A record (if any) or return a bounce. Most senders get an SMTP error like <code>550 5.1.2 Bad destination mailbox address</code> or simply time out. Inbound mail stops flowing immediately.</p>
+
+<h3>Records pointing to the wrong server</h3>
+
+<p>If MX records are changed to point to a non-existent or unreachable server, senders queue mail and retry for 4–5 days before giving up. You may not notice for hours — email appears to be working because outbound mail is unaffected, but inbound mail is silently queuing at senders' MTAs.</p>
+
+<h3>Records hijacked to an attacker-controlled server</h3>
+
+<p>In a DNS hijacking or domain takeover scenario, MX records can be changed to route inbound email to an attacker-controlled mail server. This enables email interception and account takeover at scale. The attack is silent — senders successfully deliver mail, it just doesn't reach you.</p>
+
+<h3>Migration gone wrong</h3>
+
+<p>Migrating from one email provider to another (e.g., self-hosted to Google Workspace, or Outlook to a new provider) requires changing MX records. A misconfigured migration — wrong priority values, old records left in place, TTL not lowered before the change — causes split delivery or complete loss during the transition window.</p>
+
+<div class="callout">
+<strong>TTL and propagation time</strong>
+MX record changes propagate according to the TTL set on the record. A TTL of 3600 (1 hour) means some resolvers may cache the old record for up to an hour after the change. Lower the TTL to 300 seconds before a planned MX migration to minimize the propagation window.
+</div>
+
+<hr/>
+
+<h2>Check MX record history with multiple resolvers</h2>
+
+<p>MX records can appear different depending on which DNS resolver you query, due to caching or split-horizon configurations. Check multiple resolvers to detect inconsistencies:</p>
+
+<pre><code>#!/bin/bash
+# check-mx-resolvers.sh — query MX from multiple resolvers and compare
+
+DOMAIN="example.com"
+RESOLVERS=("8.8.8.8" "1.1.1.1" "9.9.9.9" "208.67.222.222")
+
+echo "MX records for $DOMAIN:"
+echo ""
+for resolver in "${RESOLVERS[@]}"; do
+  echo "--- Resolver $resolver ---"
+  dig MX "$DOMAIN" @"$resolver" +short | sort
+  echo ""
+done</code></pre>
+
+<p>If the output is consistent across resolvers, the change has propagated fully. If resolvers disagree, propagation is still in progress (or a split-horizon configuration is intentional).</p>
+
+<hr/>
+
+<h2>Monitor MX records for changes with a bash script</h2>
+
+<p>A simple approach: snapshot current MX records and alert when they change.</p>
+
+<pre><code>#!/bin/bash
+# monitor-mx.sh — alert when MX records change
+
+DOMAIN="example.com"
+SNAPSHOT_FILE="/var/lib/dns-monitor/mx-${DOMAIN}.txt"
+ALERT_EMAIL="ops@example.com"
+
+mkdir -p "$(dirname "$SNAPSHOT_FILE")"
+
+# Get current MX records (sorted for consistent comparison)
+current=$(dig MX "$DOMAIN" +short @8.8.8.8 | sort)
+
+if [ ! -f "$SNAPSHOT_FILE" ]; then
+  # First run — create baseline
+  echo "$current" > "$SNAPSHOT_FILE"
+  echo "Baseline created for $DOMAIN MX records"
+  exit 0
+fi
+
+previous=$(cat "$SNAPSHOT_FILE")
+
+if [ "$current" != "$previous" ]; then
+  # Records changed — send alert
+  {
+    echo "MX records changed for $DOMAIN"
+    echo ""
+    echo "Previous:"
+    echo "$previous"
+    echo ""
+    echo "Current:"
+    echo "$current"
+    echo ""
+    echo "Time: $(date)"
+  } | mail -s "ALERT: MX record change detected for $DOMAIN" "$ALERT_EMAIL"
+
+  # Update snapshot
+  echo "$current" > "$SNAPSHOT_FILE"
+fi</code></pre>
+
+<p>Run this via cron every 5–15 minutes for near-real-time detection:</p>
+
+<pre><code># Check MX records every 10 minutes
+*/10 * * * * /usr/local/bin/monitor-mx.sh</code></pre>
+
+<hr/>
+
+<h2>What to verify in your MX records</h2>
+
+<p>When auditing MX records, check more than just the hostnames. A correct MX configuration requires:</p>
+
+<ul>
+<li><strong>Correct MX hostnames</strong> — the right mail server for your email provider (e.g., <code>aspmx.l.google.com</code> for Google Workspace)</li>
+<li><strong>Correct priority values</strong> — primary server at lower priority number, backups at higher</li>
+<li><strong>MX hosts have A/AAAA records</strong> — MX records must point to hostnames, not IP addresses; those hostnames must resolve</li>
+<li><strong>No bare IP addresses</strong> — RFC 5321 prohibits IP address literals in MX records</li>
+<li><strong>SPF record consistency</strong> — your SPF record should authorize the mail servers your MX records point to for outbound delivery</li>
+</ul>
+
+<pre><code># Verify MX host resolves
+host $(dig MX example.com +short @8.8.8.8 | awk '{print $2}' | head -1)
+
+# Check SPF record
+dig TXT example.com +short | grep "spf"</code></pre>
+
+<hr/>
+
+<h2>Common causes of unexpected MX record changes</h2>
+
+<ul>
+<li><strong>Accidental deletion during DNS zone edits</strong> — most DNS management UIs let you delete any record; MX records are frequently caught in bulk edits</li>
+<li><strong>Domain transfer with incomplete DNS migration</strong> — transferring a domain to a new registrar often requires recreating DNS records; MX records are sometimes missed</li>
+<li><strong>Email provider migration with wrong TTL</strong> — cutting over before lowering TTL causes extended propagation with mail delivery to the old server</li>
+<li><strong>Terraform or infrastructure-as-code overwrite</strong> — a <code>terraform apply</code> that recreates a DNS zone replaces all records; if MX records aren't in the Terraform state, they're deleted</li>
+<li><strong>Unauthorized access to DNS management console</strong> — compromised registrar or DNS provider credentials allow an attacker to modify any record</li>
+<li><strong>Nameserver change not coordinating MX records</strong> — changing nameservers without replicating MX records to the new zone</li>
+</ul>
+
+<hr/>
+
+<h2>Check your MX records now</h2>
+
+<div class="cta-box">
+  <h3>Free DNS record checker</h3>
+  <p>Look up current MX records for any domain instantly — see all records, priorities, and resolve status with no signup required.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check MX records →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get change alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automated MX record monitoring</h2>
+
+<p>DNSWatch monitors MX records (and all other DNS record types) for your domains on a continuous schedule. When records change, you get an immediate alert with the before and after values — so you know exactly what changed and when, whether it was a planned migration or an unauthorized modification.</p>
+
+<p>No script to maintain. No cron job to watch. Monitoring runs from external infrastructure independent of your DNS management environment.</p>
+
+<div class="cta-box">
+  <h3>Never miss an MX record change again</h3>
+  <p>DNSWatch monitors MX, A, CNAME, TXT, and NS records for your domains and alerts you the moment anything changes.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=mx-record-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
