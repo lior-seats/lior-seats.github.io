@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Apache SSL Certificate Monitoring: Automated Expiry Alerts for Your Web Server</title>
+<meta name="description" content="Monitor Apache SSL certificate expiry automatically. Move beyond manual openssl checks to multi-domain monitoring with email alerts at 30, 14, 7, and 1 day before expiry."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/apache-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="Apache SSL Certificate Monitoring: Automated Expiry Alerts for Your Web Server"/>
+<meta property="og:description" content="Move beyond manual openssl checks to automated Apache SSL expiry alerts. Catch certificate problems before they take your site down."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/apache-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Apache SSL Certificate Monitoring: Automated Expiry Alerts for Your Web Server</h1>
+
+<p class="meta">Your Apache cert is valid today. In 30 days it won't be. Here's how to know before that happens.</p>
+
+<p>Apache HTTP Server remains one of the most widely deployed web servers in the world. Whether you're running a LAMP stack on a VPS, a legacy application behind Apache, or a reverse proxy configuration, SSL certificate expiry is a threat that doesn't care about your server software. An expired cert on your Apache server causes the same result as any other: browser warnings that block users before they see a single pixel of your site.</p>
+
+<p>The problem is that most Apache operators rely on the same manual workflow they've used for years: a calendar reminder, a cron job that might or might not fire, or just hoping someone notices before the cert expires. This article walks through proper Apache SSL certificate monitoring.</p>
+
+<hr/>
+
+<h2>Check Apache SSL certificate expiry manually</h2>
+
+<p>The quickest way to check any certificate from the command line:</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<p>You'll get output like:</p>
+
+<pre><code>notBefore=Sep 15 00:00:00 2026 GMT
+notAfter=Dec 14 23:59:59 2026 GMT</code></pre>
+
+<p>If you want the number of days remaining:</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | awk -F'=' '{print $2}' \
+  | xargs -I{} date -d "{}" +%s \
+  | xargs -I{} bash -c 'echo $(( ({} - $(date +%s)) / 86400 )) days remaining'</code></pre>
+
+<p>This tells you where you stand right now. It doesn't help when you're on vacation in two weeks and nobody ran the check.</p>
+
+<hr/>
+
+<h2>Check the certificate Apache is actually serving</h2>
+
+<p>A common Apache misconfiguration: the cert file on disk has been updated but Apache is still serving the old cert from memory. After updating a cert, always restart or gracefully reload Apache:</p>
+
+<pre><code>sudo apachectl graceful
+# or
+sudo systemctl reload apache2</code></pre>
+
+<p>To confirm which cert Apache is currently serving (vs. which cert file is on disk), use the live TLS handshake check:</p>
+
+<pre><code>openssl s_client -connect localhost:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -subject -dates</code></pre>
+
+<p>This reaches out to Apache directly, even before DNS propagation, which is useful immediately after a cert swap.</p>
+
+<hr/>
+
+<h2>Apache virtual host certificate monitoring</h2>
+
+<p>Apache configurations frequently host multiple virtual hosts, each with its own SSL certificate. The naive approach — checking the primary domain — misses all of them:</p>
+
+<pre><code># Apache vhost config (typical)
+&lt;VirtualHost *:443&gt;
+    ServerName api.example.com
+    SSLCertificateFile /etc/ssl/certs/api_example_com.crt
+    SSLCertificateKeyFile /etc/ssl/private/api_example_com.key
+&lt;/VirtualHost&gt;
+
+&lt;VirtualHost *:443&gt;
+    ServerName admin.example.com
+    SSLCertificateFile /etc/ssl/certs/admin_example_com.crt
+    SSLCertificateKeyFile /etc/ssl/private/admin_example_com.key
+&lt;/VirtualHost&gt;</code></pre>
+
+<p>A script that extracts all SSL cert files and checks each one:</p>
+
+<pre><code>#!/bin/bash
+# check-apache-certs.sh — check expiry of all SSL certs in Apache config
+
+WARN_DAYS=30
+
+grep -r "SSLCertificateFile" /etc/apache2/sites-enabled/ \
+  | awk '{print $3}' | sort -u | while read certfile; do
+    if [ -f "$certfile" ]; then
+        expiry=$(openssl x509 -noout -enddate -in "$certfile" 2>/dev/null | cut -d= -f2)
+        expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null)
+        now_epoch=$(date +%s)
+        days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+        if [ "$days_left" -le "$WARN_DAYS" ]; then
+            echo "WARNING: $certfile expires in $days_left days ($expiry)"
+        else
+            echo "OK: $certfile — $days_left days remaining"
+        fi
+    fi
+done</code></pre>
+
+<p>Run this script via cron. The challenge is that the alert goes to a log file or email — which means someone has to read it, process it, and act on it.</p>
+
+<hr/>
+
+<h2>Let's Encrypt with Certbot and Apache</h2>
+
+<p>If you're using Let's Encrypt with Certbot for Apache, the renewal process is more automated, but monitoring still matters:</p>
+
+<pre><code># Check all Let's Encrypt certs managed by Certbot
+sudo certbot certificates
+
+# Dry-run renewal (doesn't actually renew)
+sudo certbot renew --dry-run</code></pre>
+
+<p>Let's Encrypt certs expire every 90 days. Certbot's renewal timer fires twice daily, but renewal is only attempted when fewer than 30 days remain. This means:</p>
+
+<ul>
+<li>Certbot's timer can fail silently (systemd service not running, network issue during renewal, DNS problem)</li>
+<li>You won't know until someone notices the browser warning</li>
+<li>You have at most 30 days of warning — less if the renewal retry logic misfires</li>
+</ul>
+
+<div class="callout">
+<strong>Let's Encrypt renewal failure scenarios</strong>
+Certbot renewal fails silently when: the renewal hook script has a permissions error, the Apache validation challenge fails (common after firewall or port changes), the ACME endpoint is unreachable, or systemd's certbot.timer is accidentally disabled after a system update.
+</div>
+
+<p>Checking that Certbot's timer is active isn't the same as confirming the cert was actually renewed:</p>
+
+<pre><code># Check that the timer is active
+systemctl status certbot.timer
+
+# Check when renewal last succeeded
+sudo journalctl -u certbot --since "7 days ago" | grep -i "renewed\|error\|failed"</code></pre>
+
+<hr/>
+
+<h2>Multi-domain Apache SSL monitoring with a cron script</h2>
+
+<p>For environments with many virtual hosts or managed servers, a centralized monitoring approach works better than per-server scripts:</p>
+
+<pre><code>#!/bin/bash
+# monitor-ssl.sh — check multiple domains and send email if any are expiring
+
+DOMAINS=("example.com" "api.example.com" "admin.example.com" "staging.example.com")
+WARN_DAYS=30
+ALERT_EMAIL="ops@example.com"
+
+for domain in "${DOMAINS[@]}"; do
+    expiry_date=$(echo | openssl s_client -connect "$domain:443" \
+        -servername "$domain" 2>/dev/null \
+        | openssl x509 -noout -enddate 2>/dev/null \
+        | cut -d= -f2)
+
+    if [ -z "$expiry_date" ]; then
+        echo "FAILED to check $domain" | mail -s "SSL Check Failed: $domain" "$ALERT_EMAIL"
+        continue
+    fi
+
+    expiry_epoch=$(date -d "$expiry_date" +%s)
+    now_epoch=$(date +%s)
+    days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+
+    if [ "$days_left" -le "$WARN_DAYS" ]; then
+        echo "$domain SSL expires in $days_left days" \
+          | mail -s "SSL Expiry Warning: $domain ($days_left days)" "$ALERT_EMAIL"
+    fi
+done</code></pre>
+
+<p>Add to cron:</p>
+
+<pre><code>0 8 * * * /usr/local/bin/monitor-ssl.sh</code></pre>
+
+<p>This approach works but has the same fundamental problem as all shell-script-based monitoring: the script itself can fail silently. If the cron job stops running — server migration, cron daemon issue, disk full preventing log writes — no alerts fire, but you also get no notification that the monitoring stopped.</p>
+
+<hr/>
+
+<h2>What Apache SSL monitoring should actually look like</h2>
+
+<p>A complete Apache SSL monitoring setup does the following:</p>
+
+<ul>
+<li><strong>Checks from outside the server</strong> — a TLS handshake from an external monitor catches the cert the world sees, including misconfigured SNI, CDN-terminated TLS, or load balancer cert issues that on-server checks miss</li>
+<li><strong>Sends alerts at multiple thresholds</strong> — 30 days, 14 days, 7 days, and 1 day before expiry gives enough runway to act without flooding inboxes with noise</li>
+<li><strong>Covers all domains in your Apache config</strong> — not just the primary hostname</li>
+<li><strong>Doesn't depend on a script that can silently fail</strong> — external monitoring services continue checking even if your server is down or the local cron job stops</li>
+<li><strong>Confirms the right cert is being served</strong> — catches cases where the cert file was updated but Apache wasn't reloaded</li>
+</ul>
+
+<div class="callout">
+<strong>The critical gap: on-server vs. external monitoring</strong>
+Your Apache cron script reads the cert file directly — it checks what's on disk, not what Apache is actively serving. An external TLS handshake check verifies what visitors actually encounter. These are different things, especially after a cert renewal where Apache wasn't reloaded.
+</div>
+
+<hr/>
+
+<h2>Check your Apache SSL certs now</h2>
+
+<p>Use the free SSLWatch checker to see how many days remain on any domain's certificate — no signup required, no Apache access needed:</p>
+
+<div class="cta-box">
+  <h3>Free SSL certificate expiry checker</h3>
+  <p>Enter any domain and see days remaining, expiry date, and issuer in seconds. Check all your Apache virtual hosts one by one.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Automated Apache SSL monitoring: the full solution</h2>
+
+<p>SSLWatch monitors SSL certificate expiry for any domain — including Apache virtual hosts — and sends you email alerts at 30, 14, 7, and 1 day before expiry. It checks from outside your server via a live TLS handshake, so it sees exactly what your visitors see.</p>
+
+<p>No agent to install on your Apache server. No script that can silently fail. No calendar reminders. Add your domains and the alerts arrive on schedule.</p>
+
+<div class="cta-box">
+  <h3>Never miss an Apache SSL expiry again</h3>
+  <p>SSLWatch monitors all your domains — Apache, Nginx, CDN-terminated, or any HTTPS endpoint — with automatic alerts before they expire.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free expiry checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=apache-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
