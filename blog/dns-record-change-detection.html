@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Record Change Detection: How to Get Alerted When DNS Changes Happen</title>
+<meta name="description" content="DNS changes silently break email, routing, and services. Learn dig/nslookup comparison scripts, automated polling, and how to get alerted the moment DNS changes."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-record-change-detection.html"/>
+<meta property="og:title" content="DNS Record Change Detection: How to Get Alerted When DNS Changes Happen"/>
+<meta property="og:description" content="DNS changes silently break email, routing, and services. Learn dig/nslookup comparison scripts, automated polling, and how to get alerted the moment DNS changes."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-record-change-detection.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Record Change Detection: How to Get Alerted When DNS Changes Happen</h1>
+
+<p class="meta">The MX record changed on Friday afternoon. Email stopped working. Nobody noticed until Monday when users started complaining.</p>
+
+<p>DNS changes are among the most invisible infrastructure failures. An A record points to the wrong IP, an MX record disappears, a CNAME resolves to a domain that no longer exists — and nothing raises an exception. Services degrade silently. Traffic routes to the wrong place. Email bounces. And because DNS TTLs cache the old result for hours or days, the breakage arrives slowly and at different times for different users.</p>
+
+<p>This guide covers why DNS changes are so hard to detect, how to build a polling script that compares current DNS values against a known baseline, and when to use automated detection tools.</p>
+
+<hr/>
+
+<h2>Why DNS changes silently break things</h2>
+
+<p>Most systems that break immediately produce an error. DNS changes break at a delay and break different users at different times depending on their resolver's cached values. This creates a confusing failure mode: some users see the problem, others don't, and the window between "change was made" and "impact is visible" can be hours.</p>
+
+<p>Real-world scenarios where DNS changes cause unexpected outages:</p>
+
+<h3>MX record change kills email delivery</h3>
+<p>An MX record change that drops an SPF-aligned mail server causes sent email to be flagged as spoofed or rejected outright. Incoming email may route to the wrong server and silently vanish. The change takes effect at TTL expiry, so some senders continue delivering successfully (cached old record) while others start bouncing. Support tickets arrive reporting "I never got your email" — but the problem started two days ago when someone updated the MX records during a provider migration.</p>
+
+<h3>A record with too-high TTL masks a server change</h3>
+<p>You migrate to a new server IP and update the A record. You set the TTL to 3600 (one hour) on the new record — but the old record had a TTL of 86400 (one day). Users whose resolvers cached the old A record before your migration continue hitting the old server for up to 24 hours, seeing a down site, even after your monitoring confirms the new server is healthy. Lowering TTL before a planned migration is a best practice specifically to avoid this window — but it requires knowing a change is coming.</p>
+
+<h3>Unauthorized CNAME change redirects traffic</h3>
+<p>DNS access credentials shared across a team create a risk of unauthorized changes — whether accidental or malicious. A CNAME changed to point at a different service silently redirects all traffic to that service without any application-level error. Without change detection, the only signal is user reports that the site "looks different."</p>
+
+<hr/>
+
+<h2>Building a DNS comparison script with dig</h2>
+
+<p>The most reliable way to detect DNS record changes is to capture a baseline and compare against it on a schedule. <code>dig</code> is the standard tool for querying DNS records from the command line:</p>
+
+<pre><code># Query the A record for a domain
+dig +short A example.com
+
+# Query MX records
+dig +short MX example.com
+
+# Query from a specific authoritative nameserver (bypass local cache)
+dig +short A example.com @8.8.8.8
+
+# Query with TTL visible
+dig A example.com | grep -v "^;"</code></pre>
+
+<p>A complete change-detection script:</p>
+
+<pre><code>#!/bin/bash
+# dns-change-check.sh — detect DNS record changes
+
+DOMAIN="example.com"
+RECORD_TYPE="A"
+BASELINE_FILE="/var/lib/dns-monitor/${DOMAIN}-${RECORD_TYPE}.baseline"
+ALERT_EMAIL="ops@example.com"
+
+# Query current value (using Google DNS to bypass local cache)
+CURRENT=$(dig +short "$RECORD_TYPE" "$DOMAIN" @8.8.8.8 | sort)
+
+if [ -z "$CURRENT" ]; then
+  echo "DNS query failed for $DOMAIN $RECORD_TYPE at $(date)" \
+    | mail -s "DNS ALERT: query failed for $DOMAIN" "$ALERT_EMAIL"
+  exit 1
+fi
+
+# Create baseline on first run
+if [ ! -f "$BASELINE_FILE" ]; then
+  mkdir -p "$(dirname "$BASELINE_FILE")"
+  echo "$CURRENT" > "$BASELINE_FILE"
+  echo "Baseline created for $DOMAIN $RECORD_TYPE: $CURRENT"
+  exit 0
+fi
+
+BASELINE=$(cat "$BASELINE_FILE")
+
+if [ "$CURRENT" != "$BASELINE" ]; then
+  ALERT_MSG="DNS CHANGE DETECTED: $DOMAIN $RECORD_TYPE
+Previous: $BASELINE
+Current:  $CURRENT
+Time: $(date)"
+
+  echo "$ALERT_MSG" | mail -s "DNS CHANGE: $DOMAIN $RECORD_TYPE changed" "$ALERT_EMAIL"
+  echo "$ALERT_MSG"
+
+  # Update baseline to the new value after alerting
+  echo "$CURRENT" > "$BASELINE_FILE"
+fi</code></pre>
+
+<p>Add to crontab to run every 15 minutes:</p>
+
+<pre><code>*/15 * * * * /usr/local/bin/dns-change-check.sh >> /var/log/dns-monitor.log 2>&1</code></pre>
+
+<p>To monitor multiple record types for the same domain, run the script once per record type by passing arguments:</p>
+
+<pre><code>*/15 * * * * RECORD_TYPE=MX /usr/local/bin/dns-change-check.sh
+*/15 * * * * RECORD_TYPE=TXT /usr/local/bin/dns-change-check.sh
+*/15 * * * * RECORD_TYPE=A /usr/local/bin/dns-change-check.sh</code></pre>
+
+<div class="callout">
+  <strong>Always use an external resolver for change detection</strong>
+  Querying against your local system resolver (<code>dig example.com</code> without <code>@8.8.8.8</code>) returns cached values and can miss a real change for as long as the TTL. For change detection, always query a public resolver like <code>8.8.8.8</code> (Google) or <code>1.1.1.1</code> (Cloudflare) to get the authoritative current value.
+</div>
+
+<hr/>
+
+<h2>The TTL problem: when to check</h2>
+
+<p>DNS changes propagate at TTL expiry, not instantly. A record with a TTL of 3600 (one hour) won't be visible to all resolvers for up to one hour after the change is published at the authoritative nameserver. This means:</p>
+
+<ul>
+  <li>Checking every 15 minutes may not catch a change until 1–2 check cycles after the authoritative change was made</li>
+  <li>For records with very high TTLs (86400 or above), a 15-minute check interval may return the old cached value for hours</li>
+  <li>To check the authoritative value (ignoring all TTL caching), query the domain's nameserver directly</li>
+</ul>
+
+<p>To find and query the authoritative nameserver directly:</p>
+
+<pre><code># Find the authoritative nameservers
+dig +short NS example.com
+
+# Query the authoritative nameserver directly (no cache)
+dig +short A example.com @ns1.example-dns-provider.com</code></pre>
+
+<p>Querying the authoritative server catches changes the moment they're published, before any resolver caches propagate the new value.</p>
+
+<hr/>
+
+<h2>Webhook alerts: getting notified immediately</h2>
+
+<p>Email is a reasonable alert channel for DNS changes that happen during business hours. For critical domains — primary sales site, payment pages, email infrastructure — you want faster notification. Integrating a webhook into the change detection script routes alerts to Slack:</p>
+
+<pre><code">#!/bin/bash
+# Alert via Slack webhook
+SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+
+send_slack_alert() {
+  local message="$1"
+  curl -s -X POST "$SLACK_WEBHOOK" \
+    -H 'Content-type: application/json' \
+    --data "{\"text\": \"$message\"}" > /dev/null
+}
+
+# In the change detection block:
+if [ "$CURRENT" != "$BASELINE" ]; then
+  send_slack_alert ":rotating_light: DNS change detected on \`$DOMAIN\` ($RECORD_TYPE)\\nOld: \`$BASELINE\`\\nNew: \`$CURRENT\`"
+fi</code></pre>
+
+<hr/>
+
+<h2>Where DIY detection falls short</h2>
+
+<p>A polling script that runs every 15 minutes on a single server has several gaps:</p>
+
+<ul>
+  <li><strong>Single vantage point:</strong> DNS propagation varies by geography. A change visible from a US East Coast resolver may not be visible from APAC for hours. A single polling location misses regional propagation inconsistencies.</li>
+  <li><strong>The monitor can miss changes that revert quickly:</strong> A temporary misconfiguration that's fixed within 15 minutes may never be caught by a 15-minute polling interval.</li>
+  <li><strong>The monitoring server itself can go offline:</strong> If the server running your DNS checks goes down, the monitoring stops silently — no alert that monitoring has stopped.</li>
+  <li><strong>History and audit trail:</strong> A script that writes to a log file gives you a text log. A dedicated monitoring service gives you a queryable history of every change, when it happened, and what the record was before and after.</li>
+</ul>
+
+<div class="cta-box">
+  <h3>🌐 Check your DNS records now</h3>
+  <p>The free DNS Checker lets you instantly look up A, MX, CNAME, TXT, and NS records from multiple global resolvers — and compare what different resolvers see. For continuous change monitoring with Slack and email alerts, DNSWatch polls your records automatically and alerts the moment anything changes.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check DNS records →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get DNS change alerts with DNSWatch</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">DNS checker tool</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-record-change-detection',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

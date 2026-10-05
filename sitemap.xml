@@ -100,4 +100,9 @@
   <url><loc>https://lior-seats.github.io/blog/ssl-certificate-renewal-reminder.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/best-free-ssl-certificate-checker-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/github-actions-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/nginx-ssl-certificate-expiry-check.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/ssl-monitoring-multiple-domains.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cron-job-monitoring-best-practices.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/dns-record-change-detection.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/ssl-certificate-expiry-alert-email.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Monitoring Best Practices: How to Know When Your Scheduled Tasks Fail</title>
+<meta name="description" content="7 cron job monitoring best practices for production: logging, exit codes, heartbeats, grace periods, retries, alerting, and dashboards. With real examples."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-monitoring-best-practices.html"/>
+<meta property="og:title" content="Cron Job Monitoring Best Practices: How to Know When Your Scheduled Tasks Fail"/>
+<meta property="og:description" content="7 cron job monitoring best practices for production: logging, exit codes, heartbeats, grace periods, retries, alerting, and dashboards. With real examples."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-monitoring-best-practices.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Monitoring Best Practices: How to Know When Your Scheduled Tasks Fail</h1>
+
+<p class="meta">The nightly backup job last ran 11 days ago. Nobody noticed. The backup you needed this morning doesn't exist.</p>
+
+<p>Cron jobs are among the most relied-upon and least-observed parts of production infrastructure. A web request that fails generates a 500 error, an exception in logs, and often a user complaint. A cron job that fails generates nothing. It simply stops producing results, and the gap isn't noticed until someone tries to use those results.</p>
+
+<p>This guide covers seven concrete practices for making cron jobs observable in production — with examples for standard crontab, GitHub Actions, and other schedulers.</p>
+
+<hr/>
+
+<h2>Practice 1: Always redirect output to a log file</h2>
+
+<p>By default, crontab on Linux delivers stdout and stderr to the local mail spool. Nobody reads the mail spool on production servers. The fastest thing you can do right now is redirect output to a real log file:</p>
+
+<pre><code># Before: output goes nowhere visible
+0 3 * * * /opt/jobs/sync.py
+
+# After: stdout and stderr go to a log file with timestamps
+0 3 * * * /opt/jobs/sync.py >> /var/log/nightly-sync.log 2>&1</code></pre>
+
+<p>Rotate logs to prevent unbounded growth:</p>
+
+<pre><code># /etc/logrotate.d/nightly-sync
+/var/log/nightly-sync.log {
+  daily
+  rotate 14
+  compress
+  missingok
+  notifempty
+}</code></pre>
+
+<p>This doesn't alert you — but it gives you something to inspect when things go wrong, and the timestamps let you immediately see whether a run happened and what it produced.</p>
+
+<hr/>
+
+<h2>Practice 2: Check exit codes explicitly</h2>
+
+<p>Cron runs whatever command you give it and ignores the exit code unless you build exit code awareness into your wrapper. Make it explicit:</p>
+
+<pre><code>#!/bin/bash
+# run-sync.sh — wrapper that checks exit code
+
+/opt/jobs/sync.py
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "sync.py failed with exit code $EXIT_CODE at $(date)" \
+    | mail -s "CRON FAILURE: nightly-sync" ops@example.com
+  exit $EXIT_CODE
+fi
+
+echo "sync.py completed successfully at $(date)"</code></pre>
+
+<p>Then in crontab:</p>
+
+<pre><code>0 3 * * * /opt/jobs/run-sync.sh >> /var/log/nightly-sync.log 2>&1</code></pre>
+
+<p>This catches failures in the job itself. It does <em>not</em> catch the job never running — for that, you need a heartbeat.</p>
+
+<hr/>
+
+<h2>Practice 3: Add a heartbeat ping (dead man's switch)</h2>
+
+<p>A heartbeat monitoring pattern inverts the detection model: instead of alerting on failure, the job signals success — and the monitoring service alerts when the signal stops arriving. This single technique catches three failure modes at once: job fails, job never starts, and job is killed before completing.</p>
+
+<pre><code># Crontab: ping on success only (the && ensures the ping only fires on exit 0)
+0 3 * * * /opt/jobs/sync.py && curl -s "https://cron.watch/ping/your-job-id" >/dev/null 2>&1</code></pre>
+
+<p>For jobs with complex logic where you want to ping from inside the script:</p>
+
+<pre><code">#!/bin/bash
+set -e  # exit on any error
+
+# ... job logic here ...
+
+# Only reached if no errors occurred above
+curl -s "https://cron.watch/ping/your-job-id" >/dev/null 2>&1
+echo "Job completed and heartbeat sent at $(date)"</code></pre>
+
+<p>The monitoring service checks for the ping within the expected window. If your job runs at 3am daily, configure a 26-hour grace window — the service alerts if no ping arrives within 26 hours of the last one.</p>
+
+<hr/>
+
+<h2>Practice 4: Configure grace periods to reduce false positives</h2>
+
+<p>Not all cron delays are failures. A job that normally takes 2 minutes occasionally takes 15 minutes when the server is under load, or when the dataset is larger than usual. Without a grace period, you'll get alerts for normal variation.</p>
+
+<p>A grace period is the amount of extra time beyond the expected run window before the monitoring service fires an alert. For a job that runs every hour and usually takes 5 minutes, a reasonable grace period is 10–15 minutes. For a nightly job, 2–3 hours is typically enough buffer to avoid false positives from server maintenance windows.</p>
+
+<div class="callout">
+  <strong>Grace period tuning</strong>
+  Start with a larger grace period and tighten it over time as you observe actual job duration variance. A grace period that's too short creates alert fatigue. A grace period that's too long delays legitimate failure alerts. Most teams land at 20–30% of the expected job duration as a reasonable default.
+</div>
+
+<hr/>
+
+<h2>Practice 5: Build retry logic for transient failures</h2>
+
+<p>Many cron job failures are transient: a database is briefly unavailable, an external API returns a 503, a network timeout. A job that retries once or twice before failing permanently generates far fewer spurious alerts:</p>
+
+<pre><code>#!/bin/bash
+# run-with-retry.sh — retry up to 3 times with 60-second backoff
+
+MAX_ATTEMPTS=3
+ATTEMPT=0
+SLEEP_BETWEEN=60
+
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+  ATTEMPT=$((ATTEMPT + 1))
+  echo "Attempt $ATTEMPT of $MAX_ATTEMPTS at $(date)"
+
+  if /opt/jobs/sync.py; then
+    echo "Success on attempt $ATTEMPT"
+    curl -s "https://cron.watch/ping/your-job-id" >/dev/null 2>&1
+    exit 0
+  fi
+
+  echo "Attempt $ATTEMPT failed"
+  if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+    echo "Waiting ${SLEEP_BETWEEN}s before retry..."
+    sleep $SLEEP_BETWEEN
+  fi
+done
+
+echo "All $MAX_ATTEMPTS attempts failed — alerting"
+echo "Sync job failed after $MAX_ATTEMPTS attempts" \
+  | mail -s "CRON FAILURE: nightly-sync (all retries exhausted)" ops@example.com
+exit 1</code></pre>
+
+<p>Don't add retries blindly. For jobs with side effects (writing to a database, sending emails, charging cards), retrying on failure can create duplicate actions. Make sure the underlying operation is idempotent before adding automatic retries.</p>
+
+<hr/>
+
+<h2>Practice 6: Alert on the right channels with the right urgency</h2>
+
+<p>Email is the default alert destination for cron failures, but it's often the wrong one. Email inboxes are noisy; a failure alert at 3am may not be seen until 9am. Match alert channel to job criticality:</p>
+
+<ul>
+  <li><strong>Critical jobs</strong> (billing, data integrity, external commitments): PagerDuty, OpsGenie, or SMS. Page someone.</li>
+  <li><strong>Important jobs</strong> (nightly syncs, report generation, cleanup): Slack channel with <code>@channel</code> or <code>@here</code> mention. Visible to the team during business hours.</li>
+  <li><strong>Background jobs</strong> (cache warming, analytics aggregation): email or low-priority Slack. Team-visible but not urgent.</li>
+</ul>
+
+<p>For GitHub Actions, configure branch protection to require the scheduled workflow to pass before merges, and set up Slack integration via the GitHub Actions Slack app for workflow failures.</p>
+
+<hr/>
+
+<h2>Practice 7: Maintain a monitoring dashboard</h2>
+
+<p>Individual alerts tell you when something is wrong. A dashboard tells you the overall health of your scheduled job infrastructure at a glance. At minimum, the dashboard should show: job name, schedule, last run time, last run status, and whether the next run is expected within the grace window.</p>
+
+<p>This matters most when investigating an incident. When a data discrepancy is discovered on Monday morning, the first question is: "did all the weekend jobs run successfully?" Without a dashboard, answering that requires digging through log files on multiple servers. With a dashboard, it takes ten seconds.</p>
+
+<p>For self-hosted cron jobs, a simple approach is a status table generated from log file timestamps and stored in a web-accessible location. For managed schedulers (Heroku, Render, GitHub Actions), the platform UI serves this function — but only shows its own jobs, not cross-platform visibility.</p>
+
+<hr/>
+
+<h2>Putting it together</h2>
+
+<p>The minimum viable monitoring stack for a production cron job is practices 1, 3, and 6: structured logging, a heartbeat ping, and alerts that reach someone who can act. The other practices reduce alert fatigue and improve investigation speed, but the three-part core is what prevents silent failures.</p>
+
+<p>The one failure mode that catches teams most often is not a noisy crash — it's the job that exits 0, produces no errors, and simply stops generating the output it was supposed to produce. For that failure mode, a heartbeat monitor is the only detection mechanism that works reliably.</p>
+
+<div class="cta-box">
+  <h3>📟 Cron job monitoring without the setup overhead</h3>
+  <p>CronWatch implements heartbeat monitoring, grace periods, escalating alerts, and a cross-platform dashboard out of the box. Add one line to any cron job to get started — no agent to install, no server to maintain.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-monitoring-best-practices',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

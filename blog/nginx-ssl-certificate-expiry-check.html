@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Check and Monitor nginx SSL Certificate Expiry (Without Downtime)</title>
+<meta name="description" content="Check nginx SSL certificate expiry with openssl s_client, set up a cron alert before it expires, and automate monitoring so you never get caught off guard."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/nginx-ssl-certificate-expiry-check.html"/>
+<meta property="og:title" content="How to Check and Monitor nginx SSL Certificate Expiry (Without Downtime)"/>
+<meta property="og:description" content="Check nginx SSL certificate expiry with openssl s_client, set up a cron alert before it expires, and automate monitoring so you never get caught off guard."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/nginx-ssl-certificate-expiry-check.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Check and Monitor nginx SSL Certificate Expiry (Without Downtime)</h1>
+
+<p class="meta">Your nginx config says <code>ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem</code>. Do you know when that cert expires?</p>
+
+<p>SSL certificate expiry is one of the most embarrassing outages a server operator can cause. The cert works perfectly until midnight on expiry day, then every visitor gets a browser warning and your site looks compromised. The fix takes five minutes — but only if you know it's coming.</p>
+
+<p>This guide covers three things: how to check nginx SSL certificate expiry from the command line right now, how to read the expiry date from your nginx configuration directly, and how to set up a cron-based alert so you get notified before the expiry date arrives.</p>
+
+<hr/>
+
+<h2>Method 1: Check expiry with openssl s_client</h2>
+
+<p>The fastest way to check an SSL certificate expiry date from the command line is <code>openssl s_client</code>. This connects to the live server and reads the certificate it serves — exactly what a browser would see:</p>
+
+<pre><code>echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<p>You'll get output like:</p>
+
+<pre><code>notBefore=Aug 10 12:00:00 2026 GMT
+notAfter=Nov  8 12:00:00 2026 GMT</code></pre>
+
+<p>The <code>notAfter</code> field is your expiry date. The <code>-servername</code> flag is important — it enables SNI (Server Name Indication), which nginx uses to serve the correct certificate when multiple domains share the same IP. Without it, nginx may return the wrong certificate.</p>
+
+<p>To get just the number of days remaining:</p>
+
+<pre><code>EXPIRY=$(echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+echo "Days until expiry: $DAYS"</code></pre>
+
+<div class="callout">
+  <strong>Linux vs macOS date syntax</strong>
+  The <code>date -d</code> flag is Linux (GNU coreutils). On macOS, use <code>date -j -f</code> instead. The script above handles both — the <code>2>/dev/null ||</code> falls back to the macOS syntax if the Linux one fails.
+</div>
+
+<hr/>
+
+<h2>Method 2: Check the certificate file directly</h2>
+
+<p>If you have local access to the server, you can inspect the certificate file referenced in your nginx config without making a network connection. This is useful for scripting on the server itself or for checking certs that aren't yet serving traffic.</p>
+
+<p>Find your certificate path in the nginx config:</p>
+
+<pre><code>grep ssl_certificate /etc/nginx/sites-enabled/* /etc/nginx/nginx.conf 2>/dev/null</code></pre>
+
+<p>Then read the expiry date directly from the file:</p>
+
+<pre><code># Replace with your actual certificate path
+openssl x509 -in /etc/letsencrypt/live/example.com/fullchain.pem -noout -enddate</code></pre>
+
+<p>For Let's Encrypt certificates managed by Certbot, you can also use Certbot's own reporting:</p>
+
+<pre><code>certbot certificates</code></pre>
+
+<p>This lists all managed certificates with their expiry dates and renewal status, including whether auto-renewal is configured and when it last ran.</p>
+
+<hr/>
+
+<h2>Method 3: Cron job to alert before expiry</h2>
+
+<p>Checking manually works once. A cron job that runs weekly and sends you an email when expiry is within 30 days works indefinitely.</p>
+
+<p>Create a script at <code>/usr/local/bin/check-ssl-expiry.sh</code>:</p>
+
+<pre><code>#!/bin/bash
+# check-ssl-expiry.sh — alert when SSL cert expires within WARN_DAYS
+
+DOMAIN="example.com"
+WARN_DAYS=30
+ALERT_EMAIL="ops@example.com"
+
+EXPIRY=$(echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+
+if [ -z "$EXPIRY" ]; then
+  echo "SSL check failed: could not retrieve certificate for $DOMAIN" \
+    | mail -s "SSL check failed: $DOMAIN" "$ALERT_EMAIL"
+  exit 1
+fi
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+if [ "$DAYS" -le "$WARN_DAYS" ]; then
+  echo "SSL certificate for $DOMAIN expires in $DAYS days ($EXPIRY)." \
+    | mail -s "ACTION REQUIRED: SSL cert for $DOMAIN expires in $DAYS days" "$ALERT_EMAIL"
+fi</code></pre>
+
+<p>Make it executable and add it to crontab:</p>
+
+<pre><code>chmod +x /usr/local/bin/check-ssl-expiry.sh
+
+# Add to crontab — runs every Monday at 8am
+crontab -e
+# Add this line:
+0 8 * * 1 /usr/local/bin/check-ssl-expiry.sh</code></pre>
+
+<p>Test it before you rely on it:</p>
+
+<pre><code># Test with a shorter warning window to trigger the email
+WARN_DAYS=9999 bash /usr/local/bin/check-ssl-expiry.sh</code></pre>
+
+<div class="callout">
+  <strong>Don't forget to test the email path</strong>
+  A cron script that silently fails to send email is worse than no monitoring — it gives you false confidence. Use a generous <code>WARN_DAYS</code> value when first testing to confirm you actually receive the alert email before lowering it to 30.
+</div>
+
+<hr/>
+
+<h2>The nginx-specific wrinkle: nginx doesn't reload the cert on expiry</h2>
+
+<p>One detail that trips up nginx operators: when you renew a Let's Encrypt certificate, nginx continues serving the old certificate from memory until you reload it. The renewal itself doesn't cause downtime, but the swap does require a reload.</p>
+
+<p>Certbot's nginx plugin handles this automatically with a <code>--deploy-hook</code>. If you're managing renewal manually or using a different renewal tool, add a reload step:</p>
+
+<pre><code># In your renewal script or cron job, after the renewal succeeds:
+nginx -t && systemctl reload nginx
+
+# Or with certbot deploy hook:
+certbot renew --deploy-hook "nginx -t && systemctl reload nginx"</code></pre>
+
+<p>Always run <code>nginx -t</code> before reloading — it validates the config and prevents a reload that would take nginx down if the config has errors. The <code>&&</code> ensures the reload only happens if the test passes.</p>
+
+<hr/>
+
+<h2>Limitations of the DIY approach</h2>
+
+<p>The openssl + cron approach works well for a handful of domains you manage directly. It breaks down when:</p>
+
+<ul>
+  <li>You have more than a few domains — the script needs to loop over all of them and manage separate notification thresholds</li>
+  <li>The server running the cron job is the same server hosting the site — if nginx goes down entirely, the check may also fail silently</li>
+  <li>You need certificate chain validation, not just expiry date reading</li>
+  <li>You want alerting in Slack or PagerDuty rather than email</li>
+  <li>You want a dashboard showing all cert statuses at once</li>
+</ul>
+
+<p>For simple cases, the bash script above is sufficient. For anything beyond two or three domains with real production traffic, external monitoring avoids the failure mode where the monitoring tool and the monitored service go down together.</p>
+
+<div class="cta-box">
+  <h3>🔒 Check your nginx SSL certificate right now</h3>
+  <p>Paste your domain into the free SSL Certificate Checker to see expiry date, issuer, chain validity, and how many days remain. No signup required.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL certificate →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts with SSLWatch</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL checker tool</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=nginx-ssl-certificate-expiry-check',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

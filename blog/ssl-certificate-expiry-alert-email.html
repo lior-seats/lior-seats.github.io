@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Set Up SSL Certificate Expiry Email Alerts</title>
+<meta name="description" content="SSL expiry emails get missed. Here's why, plus a working bash script to send SSL expiry email alerts with openssl and sendmail — and when to use managed monitoring."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-expiry-alert-email.html"/>
+<meta property="og:title" content="How to Set Up SSL Certificate Expiry Email Alerts"/>
+<meta property="og:description" content="SSL expiry emails get missed. Here's why, plus a working bash script to send SSL expiry email alerts with openssl and sendmail — and when to use managed monitoring."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-expiry-alert-email.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Set Up SSL Certificate Expiry Email Alerts</h1>
+
+<p class="meta">Your certificate registrar did send a renewal reminder. It went to a shared inbox that nobody checks. Three people assumed someone else handled it.</p>
+
+<p>SSL certificate expiry is one of the most preventable outages in web operations — and one of the most common. The fix is simple: get an email alert far enough in advance to act on it. In practice, this turns out to be harder than it sounds, because the places you'd expect the alert to come from tend to fail silently.</p>
+
+<p>This guide explains why SSL expiry email alerts get missed, how to build a working bash script that sends alerts directly from your server using openssl and sendmail, and the limitations you'll hit as the number of certificates grows.</p>
+
+<hr/>
+
+<h2>Why SSL expiry emails get missed</h2>
+
+<p>There are several common alert paths for SSL expiry, and each has a characteristic failure mode:</p>
+
+<h3>Certificate registrar renewal reminders</h3>
+<p>Most certificate authorities and domain registrars send renewal reminder emails 30 and 7 days before expiry. These emails go to the address on file when the certificate was purchased — which may be a colleague who left the company, a shared inbox that nobody actively monitors, or a personal email that the original purchaser used when setting up a freelance project. When the team rotates or the original owner moves on, the alert path breaks.</p>
+
+<h3>Let's Encrypt expiry emails</h3>
+<p>Let's Encrypt sends an expiry notification to the email address registered when the certificate was created. This has the same problem: the email goes to whoever ran <code>certbot certonly</code> the first time, not to whoever is currently responsible for the infrastructure. If auto-renewal is configured correctly, these emails become background noise and people stop reading them. If auto-renewal breaks, the emails arrive but are ignored because they've always arrived and the cert has always renewed.</p>
+
+<h3>Server-local mail</h3>
+<p>Cron jobs that send alerts via <code>mail</code> or <code>sendmail</code> on the same server route to the local mail spool (<code>/var/mail/root</code> or similar). On most production Linux servers, nobody reads the local mail spool. These alerts are functionally invisible unless you've explicitly configured mail forwarding.</p>
+
+<hr/>
+
+<h2>A working bash script for SSL expiry email alerts</h2>
+
+<p>The most reliable DIY approach is a script that checks expiry directly and sends an email via SMTP — bypassing the local mail spool and going directly to an address you actually monitor:</p>
+
+<pre><code>#!/bin/bash
+# ssl-expiry-alert.sh
+# Dependencies: openssl, curl (for SMTP via curl, or configure sendmail/postfix)
+
+DOMAINS=(
+  "example.com"
+  "api.example.com"
+  "staging.example.com"
+)
+WARN_DAYS=30
+ALERT_FROM="monitoring@example.com"
+ALERT_TO="ops@example.com"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER="monitoring@example.com"
+SMTP_PASS="your-app-password"  # Use an app password, not your main password
+
+send_alert_email() {
+  local domain="$1"
+  local days="$2"
+  local expiry="$3"
+
+  local subject="SSL EXPIRY ALERT: $domain expires in $days days"
+  local body="SSL Certificate Expiry Warning
+
+Domain:     $domain
+Expires:    $expiry
+Days left:  $days
+
+Action required: renew the certificate before expiry to avoid browser security warnings.
+
+-- SSL Monitoring Script"
+
+  curl -s --ssl-reqd \
+    --url "smtps://$SMTP_HOST:$SMTP_PORT" \
+    --user "$SMTP_USER:$SMTP_PASS" \
+    --mail-from "$ALERT_FROM" \
+    --mail-rcpt "$ALERT_TO" \
+    --upload-file - <<EOF
+From: SSL Monitor <$ALERT_FROM>
+To: Ops Team <$ALERT_TO>
+Subject: $subject
+
+$body
+EOF
+}
+
+for DOMAIN in "${DOMAINS[@]}"; do
+  EXPIRY=$(echo | openssl s_client \
+    -connect "$DOMAIN:443" \
+    -servername "$DOMAIN" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  if [ -z "$EXPIRY" ]; then
+    echo "$(date): WARNING — could not retrieve cert for $DOMAIN"
+    continue
+  fi
+
+  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || \
+    date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+  NOW_EPOCH=$(date +%s)
+  DAYS=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+  echo "$(date): $DOMAIN — $DAYS days until expiry ($EXPIRY)"
+
+  if [ "$DAYS" -le "$WARN_DAYS" ]; then
+    echo "$(date): Sending alert for $DOMAIN ($DAYS days)"
+    send_alert_email "$DOMAIN" "$DAYS" "$EXPIRY"
+  fi
+done</code></pre>
+
+<p>Schedule it in crontab to run daily:</p>
+
+<pre><code># Run daily at 8am, log output
+0 8 * * * /usr/local/bin/ssl-expiry-alert.sh >> /var/log/ssl-expiry-alerts.log 2>&1</code></pre>
+
+<div class="callout">
+  <strong>Use app passwords, not main passwords</strong>
+  For Gmail and most modern email providers, SMTP authentication requires an app-specific password (not your login password), and you must enable "less secure app access" or use OAuth. Gmail's app password is found at myaccount.google.com → Security → App passwords. Never hardcode your main account password in a shell script.
+</div>
+
+<hr/>
+
+<h2>Escalating alerts as expiry approaches</h2>
+
+<p>A single alert 30 days out is easy to miss or defer. A better approach is escalating alerts at multiple thresholds — with increasing urgency:</p>
+
+<pre><code">WARN_DAYS_CRITICAL=7
+WARN_DAYS_HIGH=14
+WARN_DAYS_MEDIUM=30
+
+if [ "$DAYS" -le "$WARN_DAYS_CRITICAL" ]; then
+  SUBJECT="🚨 CRITICAL: SSL cert for $DOMAIN expires in $DAYS days"
+  PRIORITY="high"
+elif [ "$DAYS" -le "$WARN_DAYS_HIGH" ]; then
+  SUBJECT="⚠️ URGENT: SSL cert for $DOMAIN expires in $DAYS days"
+  PRIORITY="normal"
+elif [ "$DAYS" -le "$WARN_DAYS_MEDIUM" ]; then
+  SUBJECT="SSL cert for $DOMAIN expires in $DAYS days — action needed"
+  PRIORITY="low"
+else
+  # No alert needed
+  continue
+fi</code></pre>
+
+<p>This structure means you get a low-urgency prompt at 30 days, a higher-urgency prompt at 14, and an actionable critical alert at 7. The critical alert should also go to a channel you're guaranteed to see promptly (Slack, SMS, PagerDuty) rather than only email.</p>
+
+<hr/>
+
+<h2>Testing your alert script before relying on it</h2>
+
+<p>The most important thing you can do after setting up any alert script is confirm it actually delivers the email before depending on it. Set the warning threshold temporarily to a large number to force the alert to fire:</p>
+
+<pre><code># Test: force alert for any cert with less than 9999 days remaining
+WARN_DAYS=9999 bash /usr/local/bin/ssl-expiry-alert.sh</code></pre>
+
+<p>If you don't receive the email within a few minutes, check:</p>
+
+<ol>
+  <li>SMTP credentials — test independently with a minimal <code>curl --mail-from ... --mail-rcpt ...</code> call</li>
+  <li>Spam folder — transactional email from a new server IP often lands in spam initially</li>
+  <li>SPF/DKIM setup on your sending domain — without SPF records, email from your server may be rejected by the recipient's spam filter</li>
+  <li>Firewall rules — outbound port 587 may be blocked on some hosting providers</li>
+</ol>
+
+<div class="callout">
+  <strong>Test the failure case, not just the success case</strong>
+  Run the script with a domain that doesn't exist or has a firewall blocking port 443. Verify that a connection failure produces a meaningful log entry rather than silently passing — an unchecked domain is indistinguishable from a healthy one if the script swallows errors.
+</div>
+
+<hr/>
+
+<h2>Where the bash script approach breaks down</h2>
+
+<p>The openssl + curl + cron script works well for a handful of domains on infrastructure you control. It has real limitations:</p>
+
+<ul>
+  <li><strong>Self-hosting the monitoring on the monitored server</strong> means if the server goes down, the alert also fails to fire. External monitoring avoids this.</li>
+  <li><strong>No certificate chain validation</strong> — the script checks expiry but doesn't verify the certificate chain is correctly configured. A cert with a missing intermediate can cause browser errors even with 90 days remaining.</li>
+  <li><strong>No history or dashboard</strong> — the log file tells you what happened; a monitoring service tells you what all your certificates look like at once.</li>
+  <li><strong>SMTP deliverability issues</strong> — email from a new server IP often has deliverability problems until SPF, DKIM, and DMARC are configured. A monitoring service sends from an established IP with good reputation.</li>
+</ul>
+
+<p>For personal projects and small deployments, the script is a practical solution. For any domain where SSL expiry has material business impact, external monitoring that sends from a reliable email infrastructure is worth the low cost.</p>
+
+<div class="cta-box">
+  <h3>🔒 Get SSL expiry alerts without the script maintenance</h3>
+  <p>Check your SSL certificate right now with the free SSL Certificate Checker — see expiry date, issuer, and chain validity instantly. SSLWatch monitors your certificates continuously and sends escalating email alerts before expiry, from an infrastructure built for reliable delivery.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL certificate →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get automated alerts with SSLWatch</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL checker tool</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-expiry-alert-email',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Monitoring SSL Certificates Across Multiple Domains: A Practical Guide</title>
+<meta name="description" content="Managing SSL certs for 10+ domains manually doesn't scale. Here's where shell scripts fail and what automated bulk SSL monitoring actually looks like."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-monitoring-multiple-domains.html"/>
+<meta property="og:title" content="Monitoring SSL Certificates Across Multiple Domains: A Practical Guide"/>
+<meta property="og:description" content="Managing SSL certs for 10+ domains manually doesn't scale. Here's where shell scripts fail and what automated bulk SSL monitoring actually looks like."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-monitoring-multiple-domains.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Monitoring SSL Certificates Across Multiple Domains: A Practical Guide</h1>
+
+<p class="meta">Managing three SSL certs is easy. Managing thirty is where things go wrong at 2am on a Saturday.</p>
+
+<p>Most developers start with a single domain. One Let's Encrypt certificate, one auto-renewal cron job, and everything works. Then the portfolio grows: staging environments, client projects, acquired domains, subdomains for marketing campaigns. Suddenly you have fifteen SSL certificates from three different providers on four different servers, and no single place to see when any of them expire.</p>
+
+<p>This guide covers the practical options for bulk SSL certificate monitoring — from manual shell scripts to automated monitoring — and where each approach breaks down as scale increases.</p>
+
+<hr/>
+
+<h2>The problem with monitoring SSL certificates at scale</h2>
+
+<p>SSL certificates have a surprisingly short lifespan. Let's Encrypt certificates expire every 90 days, which means auto-renewal needs to run successfully eight times per year per domain — and fail silently the one time it matters most. Commercial certificates typically last one or two years, long enough to forget you configured them.</p>
+
+<p>The failure modes that catch multi-domain operators off guard:</p>
+
+<ul>
+  <li><strong>Renewal runs on the wrong server.</strong> You moved a domain to a new host but the old cron job still runs on the old host — which no longer has write access to the webroot. The job reports success; nothing actually renewed.</li>
+  <li><strong>Wildcard certificates need manual renewal.</strong> DNS-validated wildcard certs (<code>*.example.com</code>) require API credentials for your DNS provider to renew automatically. Change the DNS provider and the renewal breaks with no alert.</li>
+  <li><strong>Different certificates, different timelines.</strong> One domain expires in 6 days; another in 400 days. Without a unified view, you can't see the immediate risk buried in a list of healthy certificates.</li>
+  <li><strong>Purchased/transferred domains have unknown cert state.</strong> When you inherit a domain or bring on a new client, you don't always know the cert provider, expiry date, or renewal configuration until it expires.</li>
+</ul>
+
+<hr/>
+
+<h2>The manual approach: an openssl loop script</h2>
+
+<p>For small numbers of domains, a bash script that loops through a list is a reasonable starting point. Here's a functional version:</p>
+
+<pre><code>#!/bin/bash
+# check-multi-ssl.sh — check expiry for multiple domains
+
+DOMAINS=(
+  "example.com"
+  "api.example.com"
+  "staging.example.com"
+  "client-one.com"
+  "client-two.net"
+)
+WARN_DAYS=30
+
+for DOMAIN in "${DOMAINS[@]}"; do
+  EXPIRY=$(echo | openssl s_client -connect "$DOMAIN:443" \
+    -servername "$DOMAIN" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+
+  if [ -z "$EXPIRY" ]; then
+    echo "FAIL  $DOMAIN (could not retrieve certificate)"
+    continue
+  fi
+
+  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null)
+  NOW_EPOCH=$(date +%s)
+  DAYS=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+  if [ "$DAYS" -le "$WARN_DAYS" ]; then
+    echo "WARN  $DOMAIN — expires in $DAYS days ($EXPIRY)"
+  else
+    echo "OK    $DOMAIN — expires in $DAYS days"
+  fi
+done</code></pre>
+
+<p>Run this daily via cron and pipe the output to a log file or email. For 5–10 domains, this works. For 30+, it becomes unwieldy.</p>
+
+<div class="callout">
+  <strong>The connection timeout problem</strong>
+  <code>openssl s_client</code> doesn't have a built-in timeout flag on all platforms. For unreachable domains, the script hangs indefinitely. Add <code>timeout 10</code> before the openssl command on Linux: <code>timeout 10 openssl s_client ...</code>. Otherwise a single unreachable domain stalls the entire loop.
+</div>
+
+<hr/>
+
+<h2>Where the shell script approach breaks down</h2>
+
+<h3>No persistent state between runs</h3>
+<p>A script that runs daily either emails you every day for the last 30 days before expiry, or emails you only on the first day of the warning window. Neither is ideal. A proper monitoring system tracks state: it knows you've already been notified and sends escalating alerts (30 days out, 14 days out, 7 days out, 1 day out) without flooding your inbox.</p>
+
+<h3>No dashboard visibility</h3>
+<p>A loop script produces text output. Text output lives in a log file or email inbox. When a teammate asks "are all our SSL certificates healthy?" you can't point them at anything. You have to run the script and parse the output again.</p>
+
+<h3>False negatives on connection failures</h3>
+<p>If a domain becomes unreachable — DNS failure, firewall rule, server down — an openssl check returns empty output. A naive script either logs a warning or skips the domain. A monitoring system distinguishes between "cert is expiring" and "cert is unreachable" and alerts on both.</p>
+
+<h3>Certificate chain issues aren't caught</h3>
+<p><code>openssl x509 -noout -enddate</code> reads the leaf certificate only. A misconfigured certificate chain (missing intermediate cert) causes browser errors even when the leaf certificate has 90 days remaining. A proper check validates the full chain, not just the expiry date.</p>
+
+<hr/>
+
+<h2>What automated multi-domain monitoring looks like</h2>
+
+<p>The practical difference between a script and a monitoring service is state management. A monitoring service:</p>
+
+<ol>
+  <li>Checks each domain on a defined schedule (every 24 hours is typical)</li>
+  <li>Records the result with a timestamp</li>
+  <li>Sends an initial alert when the threshold is crossed</li>
+  <li>Escalates alerts as expiry approaches (rather than sending the same alert daily)</li>
+  <li>Sends a distinct alert if the check itself fails (unreachable, chain error, wrong hostname)</li>
+  <li>Provides a dashboard so the current health of all domains is visible at once</li>
+  <li>Checks from external infrastructure — so a server-side failure doesn't also take out the monitoring</li>
+</ol>
+
+<p>For teams managing 10 or more SSL certificates, the operational overhead of maintaining a DIY solution usually exceeds the cost of a hosted monitoring service. The failure mode that matters most — a cert that expires because renewal silently broke — is exactly the failure mode that a self-hosted script on the same server won't catch reliably.</p>
+
+<hr/>
+
+<h2>Choosing an approach by scale</h2>
+
+<ul>
+  <li><strong>1–5 domains, personal projects:</strong> browser reminder or a simple cron script. Let's Encrypt auto-renewal is usually sufficient with certbot's built-in renewal cron.</li>
+  <li><strong>5–15 domains, small team:</strong> a shared loop script with email output works as a stopgap. The main risk is the script itself failing silently.</li>
+  <li><strong>15+ domains, or any production service:</strong> external monitoring with dashboard visibility and escalating alerts. The cost of an expiry incident (lost traffic, support load, customer trust) exceeds the monitoring cost at this scale.</li>
+</ul>
+
+<div class="cta-box">
+  <h3>🔒 Check all your SSL certificates in seconds</h3>
+  <p>Paste any domain into the free SSL Certificate Checker to see expiry, issuer, and chain validity instantly — no signup required. For continuous monitoring across multiple domains, SSLWatch runs checks automatically and alerts you before anything expires.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL certificate →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Monitor multiple domains with SSLWatch</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL checker tool</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-monitoring-multiple-domains',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
