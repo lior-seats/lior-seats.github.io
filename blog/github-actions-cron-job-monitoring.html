@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GitHub Actions Scheduled Job Monitoring: Know When Your Cron Workflows Stop Running</title>
+<meta name="description" content="GitHub Actions scheduled workflows silently stop after 60 days of repo inactivity. Learn how to detect missed runs and add reliable cron job monitoring."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/github-actions-cron-job-monitoring.html"/>
+<meta property="og:title" content="GitHub Actions Scheduled Job Monitoring: Know When Your Cron Workflows Stop Running"/>
+<meta property="og:description" content="GitHub Actions scheduled workflows silently stop after 60 days of repo inactivity. Learn how to detect missed runs and add reliable cron job monitoring."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/github-actions-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .warning strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>GitHub Actions Scheduled Job Monitoring: Know When Your Cron Workflows Stop Running</h1>
+
+<p class="meta">Your nightly sync workflow ran fine for months. Then GitHub quietly disabled it. You found out when the data was stale.</p>
+
+<div class="warning">
+  <strong>The 60-day silence rule:</strong> GitHub automatically disables scheduled workflows on repositories that have had no commit activity for 60 days. No notification is sent. The jobs simply stop running. Everything looks normal in the Actions tab until you go looking for the missing runs.
+</div>
+
+<p>GitHub Actions <code>on: schedule</code> workflows are one of the most popular ways to run recurring automation — nightly reports, stale-issue sweeps, dependency updates, data syncs, cache warm-ups. They're easy to set up and cheap to run. They're also surprisingly easy to lose track of, because GitHub gives you almost no visibility when a scheduled workflow stops executing.</p>
+
+<p>This guide covers every failure mode for GitHub Actions cron jobs, how to detect them, and how to add reliable external monitoring so you know immediately when a scheduled run is missed.</p>
+
+<hr/>
+
+<h2>The 60-Day Inactivity Disable: The Failure Nobody Expects</h2>
+
+<p>GitHub's <a href="https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/disabling-and-enabling-a-workflow">documented behavior</a>: scheduled workflows are automatically disabled if the repository has no activity for 60 days. "Activity" means commits, pull requests, or other pushes to the default branch — not workflow runs themselves.</p>
+
+<p>This creates a specific trap for utility repositories. Consider a small repo that exists solely to run a nightly script — a backup job, an inventory sync, a report mailer. Once the initial setup is committed, there's no ongoing code activity. The repo sits idle. Sixty days later, GitHub disables the scheduled workflow. The repository owner gets no email, no notification, and no indication in the GitHub UI unless they actively navigate to the Actions tab and notice the workflow shows as "disabled."</p>
+
+<div class="callout">
+  <strong>How to check if your workflow was disabled:</strong> Go to the repository → Actions tab → click the scheduled workflow. If it has been auto-disabled, you'll see a banner that says "This workflow has a schedule trigger, but schedules are disabled for inactive repositories." You can re-enable it with one click — but you have to know to look.
+</div>
+
+<p>The fix is to keep the repository minimally active. A common workaround is a second workflow that commits a timestamp file every 30 days, but this adds complexity. The more reliable solution is external monitoring that alerts you when the expected run doesn't happen.</p>
+
+<hr/>
+
+<h2>Other Failure Modes for GitHub Actions Cron Jobs</h2>
+
+<p>The 60-day disable is the most invisible failure, but it's not the only one.</p>
+
+<h3>Queue delays during high-traffic periods</h3>
+<p>GitHub Actions runs on shared infrastructure. During incidents, major events, or peak usage times, scheduled workflows can be delayed by minutes to hours — or skipped entirely if the queue backlog causes them to miss their window. GitHub doesn't retry missed scheduled runs; if the slot was missed, that run is gone.</p>
+
+<h3>Billing limits and spending caps</h3>
+<p>Free GitHub accounts include a monthly compute budget for Actions minutes. Private repositories draw from this budget; public repositories run for free. If your account hits its spending cap — or if a billing card fails and the account is restricted — scheduled workflows stop running without warning. The error state shows in the billing settings, not in the Actions tab.</p>
+
+<h3>Runner exhaustion on self-hosted setups</h3>
+<p>If your organization uses self-hosted runners, a scheduled workflow queues up and waits for an available runner. If all runners are busy, crashed, or offline, the job stays queued indefinitely. GitHub will eventually cancel long-queued jobs, but there's no alert sent when this happens.</p>
+
+<h3>Workflow file errors after a merge</h3>
+<p>A pull request that changes the workflow YAML can introduce a syntax error or invalid expression that only manifests at runtime. The workflow runs until the bad change is merged, then silently fails. The failure appears in the Actions tab — but only if someone goes looking.</p>
+
+<h3>Cron expression misconfiguration</h3>
+<p>GitHub Actions uses UTC for all cron expressions. A workflow meant to run at 3 AM local time will run at a different UTC hour depending on DST transitions and the team's time zone. If the intended window is critical (e.g., "before business opens"), a misconfigured expression can mean the job runs at the wrong time without technically failing.</p>
+
+<p>You can verify any cron expression before committing it:</p>
+
+<div class="cta-box">
+  <h3>&#128336; Parse your cron expression</h3>
+  <p>Enter any cron expression to see exactly when it will next fire, what the human-readable schedule means, and whether there are edge cases (DST, leap years, end-of-month behavior).</p>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron parser &#8594;</a>
+</div>
+
+<hr/>
+
+<h2>How to Detect Missed GitHub Actions Runs</h2>
+
+<h3>Option 1: Check the Actions tab manually</h3>
+<p>The most obvious approach, and the least reliable. You can go to the repository Actions tab, filter by the scheduled workflow, and verify the last successful run timestamp. For critical workflows, this means manual checking on a regular schedule — which is easy to forget and doesn't work across many repositories.</p>
+
+<h3>Option 2: Add a self-monitor step to the workflow</h3>
+<p>A workflow can check its own recent run history using the GitHub API and fail loudly if the previous run was too long ago:</p>
+
+<pre><code>- name: Check for missed previous run
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    LAST_RUN=$(gh run list \
+      --workflow=nightly-sync.yml \
+      --status=success \
+      --limit=1 \
+      --json=createdAt \
+      --jq='.[0].createdAt')
+    
+    HOURS_SINCE=$(( ($(date +%s) - $(date -d "$LAST_RUN" +%s)) / 3600 ))
+    
+    if [ "$HOURS_SINCE" -gt 26 ]; then
+      echo "ERROR: Last successful run was $HOURS_SINCE hours ago"
+      exit 1
+    fi</code></pre>
+
+<p>This step only runs if the workflow itself runs — it won't catch the case where the workflow stops executing entirely. It's useful for catching partial failures (the workflow runs but the logic inside breaks), not missed runs.</p>
+
+<h3>Option 3: Dead man's switch with external monitoring</h3>
+<p>The only approach that catches every failure mode — including the 60-day disable — is a dead man's switch: your workflow sends an HTTP ping to an external monitoring service at the end of each successful run. If the monitoring service doesn't receive the ping within the expected window, it sends an alert.</p>
+
+<p>Implementation is a single step at the end of your workflow:</p>
+
+<pre><code>name: Nightly Sync
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 3:00 AM UTC daily
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run sync
+        run: python sync.py
+      
+      - name: Notify CronWatch (heartbeat)
+        if: success()
+        run: |
+          curl -fsS "https://cronwatch.example.com/heartbeat/${{ secrets.CRONWATCH_TOKEN }}"</code></pre>
+
+<p>The <code>if: success()</code> condition ensures the ping only fires when the sync step completes without errors. If the sync fails, the heartbeat step is skipped, and the monitoring service alerts you after the expected window passes.</p>
+
+<div class="callout">
+  <strong>Why this catches the 60-day disable:</strong> When GitHub disables your workflow, no run happens, so no ping is sent. The monitoring service doesn't receive the expected heartbeat for 24+ hours and fires an alert — even though nothing "failed" in the traditional sense.
+</div>
+
+<hr/>
+
+<h2>Writing a Reliable Scheduled Workflow</h2>
+
+<p>Beyond monitoring, a few structural choices make scheduled workflows more resilient:</p>
+
+<h3>Use <code>workflow_dispatch</code> alongside <code>schedule</code></h3>
+<p>Adding a manual trigger lets you re-run a missed job on demand without modifying the code:</p>
+
+<pre><code>on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:  # allows manual trigger from Actions UI or API</code></pre>
+
+<h3>Add explicit timeouts</h3>
+<p>Without a timeout, a hung job occupies a runner indefinitely and blocks subsequent runs. Set a job-level timeout:</p>
+
+<pre><code>jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # force-kill if the job exceeds this
+    steps:
+      - ...</code></pre>
+
+<h3>Use concurrency controls to prevent overlap</h3>
+<p>If a scheduled run takes longer than its period, the next run can start before the previous finishes. Use <code>concurrency</code> to prevent stacked runs:</p>
+
+<pre><code>concurrency:
+  group: nightly-sync
+  cancel-in-progress: false  # let the running job finish; queue the next one</code></pre>
+
+<h3>Pin action versions</h3>
+<p>Using <code>@main</code> or <code>@latest</code> for actions means a third-party change can silently break your workflow. Pin to a specific commit SHA for scheduled jobs where reliability matters:</p>
+
+<pre><code>- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1</code></pre>
+
+<hr/>
+
+<h2>Monitoring Across Many Repositories</h2>
+
+<p>If your organization has dozens of repositories with scheduled workflows, manual checking is not viable. The approaches that scale:</p>
+
+<ul>
+  <li><strong>GitHub API polling</strong>: Query <code>GET /repos/{owner}/{repo}/actions/runs?event=schedule&amp;per_page=1</code> for each repo and check the <code>created_at</code> timestamp. Write a script that runs hourly and alerts when any workflow is behind schedule.</li>
+  <li><strong>Heartbeat monitoring service</strong>: Each workflow sends a ping with a unique token. The service tracks expected intervals per token and alerts on any missed window. This works regardless of where the workflow runs and doesn't require GitHub API access.</li>
+  <li><strong>GitHub Enterprise or organization-level monitoring</strong>: GitHub Enterprise has audit log streaming that can route workflow events to a SIEM or monitoring platform. For most smaller teams, this is overkill.</li>
+</ul>
+
+<hr/>
+
+<h2>What to Do When a Scheduled Workflow Stops Running</h2>
+
+<p>When you discover a scheduled workflow hasn't run, work through this checklist:</p>
+
+<ol>
+  <li>Go to Actions tab → check if the workflow shows as disabled (60-day inactivity)</li>
+  <li>Check the most recent runs — look for queued jobs that never started, or jobs cancelled mid-run</li>
+  <li>Check GitHub status at <a href="https://www.githubstatus.com">githubstatus.com</a> for any Actions incidents during the missed window</li>
+  <li>Check your GitHub billing settings — verify the account isn't restricted</li>
+  <li>Look at the workflow YAML for any recent changes merged since the last successful run</li>
+  <li>Try triggering the workflow manually via <code>workflow_dispatch</code> to verify it runs successfully</li>
+  <li>If using self-hosted runners, check runner health in Settings → Actions → Runners</li>
+</ol>
+
+<div class="cta-box">
+  <h3>&#128276; Get alerted when your GitHub Actions cron jobs stop running</h3>
+  <p>CronWatch monitors your scheduled workflows with a dead man's switch. Add one <code>curl</code> step to your workflow, set the expected interval, and get alerted via email or Slack if any run is missed &mdash; including the silent 60-day GitHub disable.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist &#8594;</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression &#8594;</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">&#8592; All articles</a> &nbsp;&middot;&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;&middot;&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-gh-cron',{mode:'no-cors'});}());</script>
+</body>
+</html>
