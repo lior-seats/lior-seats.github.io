@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heroku Scheduler Alternatives in 2026: Migrate Your Cron Jobs</title>
+  <meta name="description" content="Heroku Scheduler was free and simple. Here are the best alternatives in 2026—plus the monitoring layer you'll need once you migrate.">
+  <link rel="canonical" href="https://lior-seats.github.io/blog/heroku-scheduler-alternative.html">
+  <meta property="og:title" content="Heroku Scheduler Alternatives in 2026: Migrate Your Cron Jobs">
+  <meta property="og:description" content="Heroku Scheduler was free and simple. Here are the best alternatives in 2026—plus the monitoring layer you'll need once you migrate.">
+  <meta property="og:url" content="https://lior-seats.github.io/blog/heroku-scheduler-alternative.html">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="../blog-style.css">
+  <script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=heroku-scheduler-alternative',{mode:'no-cors'});}());</script>
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="../blog/">← All posts</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="nav-tool">Free: Cron Expression Parser →</a>
+</nav>
+
+<article class="blog-post">
+<header>
+  <h1>Heroku Scheduler Alternatives in 2026: Migrate Your Cron Jobs</h1>
+  <p class="post-meta">
+    <span class="tag">cron monitoring</span>
+    <span class="tag">heroku</span>
+    October 2026
+  </p>
+</header>
+
+<p>Heroku Scheduler was simple: add a one-liner, pick a frequency (every 10 minutes, hourly, or daily), and forget about it. Until you couldn't, because Heroku's free tier disappeared in November 2022—and with it, the zero-cost scheduler that hundreds of thousands of small projects relied on.</p>
+
+<p>If you're still running scheduled tasks on Heroku or just migrated, you need a replacement. But there's a second problem most migration guides miss: <strong>your new scheduler also needs monitoring</strong>. Heroku's dashboard at least showed you recent runs. Most replacements give you nothing.</p>
+
+<p>This guide covers both: the best alternatives for running cron jobs in 2026, and how to make sure you know when they stop.</p>
+
+<h2>Why Developers Miss Heroku Scheduler</h2>
+
+<p>Heroku Scheduler had three things going for it:</p>
+<ul>
+  <li><strong>Zero configuration</strong> — no YAML, no workflows, no separate infrastructure</li>
+  <li><strong>Attached to your dyno</strong> — ran in the same environment as your app, with all your env vars automatically</li>
+  <li><strong>Free</strong> — it never cost anything on the free tier</li>
+</ul>
+
+<p>The weaknesses: it only supported 10-minute, hourly, and daily frequencies (no arbitrary cron expressions), it had no retry logic, and failures were largely invisible unless you were watching logs.</p>
+
+<p>Most alternatives fix the frequency problem. Few fix the visibility problem.</p>
+
+<h2>The Best Heroku Scheduler Alternatives</h2>
+
+<h3>1. Render Cron Jobs</h3>
+<p>If you migrated from Heroku to Render (a common path), Render has a first-class Cron Jobs feature. You define a service, pick a cron schedule (full 5-field expressions supported), and Render runs it on their infrastructure.</p>
+
+<ul>
+  <li><strong>Pricing:</strong> Free tier available; paid from $7/month for reliable execution</li>
+  <li><strong>Best for:</strong> Teams already on Render</li>
+  <li><strong>Limitation:</strong> No built-in failure alerting — you get logs, not alerts</li>
+</ul>
+
+<h3>2. Railway Cron</h3>
+<p>Railway has a cron job primitive that runs a command on a schedule. Configuration is simple and it supports full cron expressions. Like Render, it's tightly integrated with your deployed services.</p>
+
+<ul>
+  <li><strong>Pricing:</strong> Pay-as-you-go; very cheap for infrequent jobs</li>
+  <li><strong>Best for:</strong> Projects already on Railway</li>
+  <li><strong>Limitation:</strong> No failure alerting out of the box</li>
+</ul>
+
+<h3>3. GitHub Actions Scheduled Workflows</h3>
+<p>GitHub Actions supports cron schedules via the <code>schedule</code> trigger. It's free for public repos and included in most GitHub plans. For jobs that are loosely coupled from your app (data exports, cleanup scripts, reports), this is a solid zero-dependency option.</p>
+
+<pre><code>on:
+  schedule:
+    - cron: '0 8 * * 1-5'  # 8am weekdays UTC</code></pre>
+
+<ul>
+  <li><strong>Pricing:</strong> Free on public repos; included minutes on paid plans</li>
+  <li><strong>Best for:</strong> Scripts that can live in a repo</li>
+  <li><strong>Gotcha:</strong> <a href="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html">GitHub Actions scheduled workflows can stop silently</a> if the repo is inactive — a known limitation</li>
+</ul>
+
+<h3>4. AWS EventBridge Scheduler</h3>
+<p>AWS EventBridge Scheduler is the enterprise-grade option. It supports one-time and recurring schedules, scales to millions of invocations, and integrates natively with Lambda, ECS, SQS, and hundreds of other AWS services.</p>
+
+<ul>
+  <li><strong>Pricing:</strong> ~$1 per million invocations (essentially free at small scale)</li>
+  <li><strong>Best for:</strong> Lambda functions, ECS tasks, AWS-native workloads</li>
+  <li><strong>Limitation:</strong> More setup; requires AWS account</li>
+</ul>
+
+<h3>5. Fly.io Machines (with cron)</h3>
+<p>Fly.io doesn't have a first-class cron feature, but you can run a lightweight cron container using a Docker image with <code>crond</code> or a similar scheduler baked in. It's more DIY but gives you full control.</p>
+
+<ul>
+  <li><strong>Best for:</strong> Teams on Fly.io who want to keep everything in one place</li>
+  <li><strong>Limitation:</strong> Requires building and maintaining a cron container</li>
+</ul>
+
+<h3>6. EasyCron</h3>
+<p>EasyCron is a pure-play hosted cron service — you give it a URL to hit, it hits it on a schedule. If your cron jobs are HTTP-triggered (common in Rails, Django, and Laravel apps), this is dead simple.</p>
+
+<ul>
+  <li><strong>Pricing:</strong> Free tier (limited); $12/year for basic paid plan</li>
+  <li><strong>Best for:</strong> HTTP-triggered jobs that were triggered by Heroku Scheduler hitting an endpoint</li>
+  <li><strong>Limitation:</strong> Only works for HTTP-based jobs</li>
+</ul>
+
+<h3>7. Temporal / Inngest (for complex workflows)</h3>
+<p>If your cron jobs do more than simple scripted tasks — if they orchestrate steps, retry on failure, or fan out to parallel work — Temporal and Inngest are worth a look. They're overkill for a "clean up old rows" job but powerful for anything with real complexity.</p>
+
+<h2>The Hidden Problem: Your New Scheduler Has No Monitor</h2>
+
+<p>Here's what all the options above have in common: <strong>when your job stops running, nothing tells you.</strong></p>
+
+<p>With Heroku, you at least had the dashboard. With your new scheduler, you have logs — which you'll check when something is visibly broken, not when a silent job quietly stopped firing three weeks ago.</p>
+
+<p>The pattern that fixes this is a <strong>heartbeat monitor</strong> (also called a dead man's switch). Instead of the monitor checking whether your job ran, your job checks in with the monitor. If a check-in doesn't arrive within the expected window, you get an alert.</p>
+
+<p>The integration is a single <code>curl</code> call at the end of your job:</p>
+
+<pre><code># Add to the end of any cron job
+curl -s https://cronwatch.io/api/heartbeat/your-token</code></pre>
+
+<p>If that line doesn't execute — because the job failed, errored, or never started — the monitor alerts you.</p>
+
+<p>This pattern works with every scheduler above: Render, Railway, GitHub Actions, AWS EventBridge, Fly.io, EasyCron, whatever you end up using.</p>
+
+<h2>Quick Comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Alternative</th>
+      <th>Full cron expressions</th>
+      <th>Free tier</th>
+      <th>Failure alerts</th>
+      <th>Best fit</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Render Cron Jobs</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>❌ (logs only)</td>
+      <td>Render users</td>
+    </tr>
+    <tr>
+      <td>Railway Cron</td>
+      <td>✅</td>
+      <td>✅</td>
+      <td>❌</td>
+      <td>Railway users</td>
+    </tr>
+    <tr>
+      <td>GitHub Actions</td>
+      <td>✅</td>
+      <td>✅ (public repos)</td>
+      <td>⚠️ (can go silent)</td>
+      <td>Repo-based scripts</td>
+    </tr>
+    <tr>
+      <td>AWS EventBridge</td>
+      <td>✅</td>
+      <td>✅ (pay-per-use)</td>
+      <td>⚠️ (CloudWatch only)</td>
+      <td>AWS workloads</td>
+    </tr>
+    <tr>
+      <td>EasyCron</td>
+      <td>✅</td>
+      <td>Limited</td>
+      <td>✅ (basic)</td>
+      <td>HTTP-triggered jobs</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Summary</h2>
+
+<p>If you were on Heroku Scheduler and need a drop-in replacement:</p>
+
+<ul>
+  <li><strong>Already on Render/Railway?</strong> Use their native cron feature. It's the closest to what Heroku gave you.</li>
+  <li><strong>Running AWS Lambda?</strong> EventBridge Scheduler is the right tool.</li>
+  <li><strong>Script lives in a GitHub repo?</strong> GitHub Actions scheduled workflows are free and easy.</li>
+  <li><strong>HTTP-triggered job?</strong> EasyCron or a cron-friendly PaaS works well.</li>
+</ul>
+
+<p>Whichever option you pick, add a heartbeat monitor so you find out when it stops — before your users do.</p>
+
+<div class="cta-box">
+  <h3>Know instantly when your cron job stops running</h3>
+  <p>CronWatch is a dead man's switch monitor for scheduled jobs. Add one line to any cron job; get an alert if it doesn't check in on time. Works with every scheduler above.</p>
+  <p>
+    <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="cta-button">Join the CronWatch waitlist →</a>
+  </p>
+  <p style="margin-top:0.75rem;font-size:0.9rem;opacity:0.8;">Or check your cron expression first: <a href="https://lior-seats.github.io/cron-expression-parser/">free cron parser →</a></p>
+</div>
+
+</article>
+
+<footer class="blog-footer">
+  <p><a href="../blog/">← More posts</a></p>
+</footer>
+</body>
+</html>
