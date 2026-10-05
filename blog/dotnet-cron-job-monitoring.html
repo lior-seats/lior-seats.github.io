@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>.NET Cron Job Monitoring: Alerts When Hangfire, Quartz.NET, or Windows Task Scheduler Jobs Stop Running</title>
+<meta name="description" content="Hangfire, Quartz.NET, and Windows Task Scheduler all fail silently. Here's how to add heartbeat monitoring to .NET scheduled tasks so you know before your users do."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dotnet-cron-job-monitoring.html"/>
+<meta name="keywords" content="dotnet cron job monitoring, hangfire job monitoring, quartz.net monitoring, windows task scheduler monitoring, .net scheduled task alert"/>
+<meta property="og:title" content=".NET Cron Job Monitoring: Alerts When Hangfire, Quartz.NET, or Windows Task Scheduler Jobs Stop Running"/>
+<meta property="og:description" content="Hangfire, Quartz.NET, and Windows Task Scheduler all fail silently. Here's how to add heartbeat monitoring to .NET scheduled tasks so you know before your users do."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dotnet-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92em; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  th { background: #f4f4f5; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>.NET Cron Job Monitoring: Alerts When Hangfire, Quartz.NET, or Windows Task Scheduler Jobs Stop Running</h1>
+
+<p class="meta">Your nightly data export to the BI platform quietly stopped last Tuesday. Hangfire's dashboard shows all jobs as "Succeeded." The export file just hasn't updated in a week. You found out when the analytics team asked why the dashboard was showing week-old data.</p>
+
+<p>.NET developers use three main approaches for recurring background work: <strong>Hangfire</strong> for persistent job queues with retries, <strong>Quartz.NET</strong> for enterprise-grade cron scheduling, and <strong>Windows Task Scheduler</strong> (or IHostedService for .NET 6+) for simpler recurring tasks. All three share the same blind spot: when a task silently stops completing successfully, nothing in .NET alerts you.</p>
+
+<p>This guide covers the specific failure modes for each approach and shows you how to add a single HTTP ping at the end of each successful run so you're alerted before your users notice.</p>
+
+<hr/>
+
+<h2>Failure modes by approach</h2>
+
+<h3>Hangfire: job succeeded but produced wrong output</h3>
+
+<p>Hangfire's job dashboard shows one of four states: <code>Enqueued</code>, <code>Processing</code>, <code>Succeeded</code>, or <code>Failed</code>. The <code>Succeeded</code> state only means the method returned without throwing an exception. It says nothing about whether the method actually did useful work.</p>
+
+<pre><code>// This job shows "Succeeded" in Hangfire dashboard
+// even if it processed 0 records due to an upstream API outage
+[Queue("default")]
+public class ExportJob
+{
+    public async Task Execute()
+    {
+        var records = await _apiClient.FetchTodayRecords(); // Returns empty list on API outage
+        if (records.Count == 0)
+        {
+            _logger.LogWarning("No records fetched — skipping export");
+            return; // Method returns normally → Hangfire marks as Succeeded
+        }
+        await _exporter.ExportAsync(records);
+    }
+}</code></pre>
+
+<p>Hangfire's retry policy compounds this: if a job throws an exception, Hangfire retries it automatically (10 retries by default with exponential backoff). A job that's been failing for 3 days may still show as <code>Processing</code> on the dashboard rather than <code>Failed</code> — it's in the retry queue. Your monitoring alert never fires.</p>
+
+<div class="callout">
+<strong>⚠️ Hangfire Pro required for recurring job monitoring</strong>
+Hangfire's built-in recurring job feature (<code>RecurringJob.AddOrUpdate</code>) doesn't provide SLA monitoring or missed-execution alerts even in Hangfire Pro. You need external heartbeat monitoring to know if a scheduled execution was missed.
+</div>
+
+<h3>Quartz.NET: misfire handling and cluster split-brain</h3>
+
+<p>Quartz.NET in clustered mode stores job state in a SQL database (QRTZ_* tables). When a node crashes mid-execution, the lock row in <code>QRTZ_LOCKS</code> remains held by the dead node. Quartz.NET's misfire recovery runs after the <code>clusterCheckinInterval</code> (default: 7.5 seconds) but the window can be longer during high database load.</p>
+
+<p>The more common silent failure: a <code>CronTrigger</code> configured with <code>MisfireInstruction.DoNothing</code> silently skips any execution that was missed while the cluster was down. A 5-minute deployment window at 2:55am means the 3:00am job never runs, and Quartz marks no error:</p>
+
+<pre><code>// appsettings.json — Quartz.NET configuration
+{
+  "Quartz": {
+    "quartz.scheduler.instanceName": "MyScheduler",
+    "quartz.jobStore.type": "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz",
+    "quartz.jobStore.misfireThreshold": "60000",
+    "quartz.scheduler.idleWaitTime": "30000"
+  }
+}
+
+// Job registration
+services.AddQuartz(q =>
+{
+    var jobKey = new JobKey("DailyExport");
+    q.AddJob&lt;DailyExportJob&gt;(opts => opts.WithIdentity(jobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(jobKey)
+        .WithIdentity("DailyExport-trigger")
+        .WithCronSchedule("0 0 2 * * ?",   // 2am daily
+            x => x.WithMisfireHandlingInstructionDoNothing()));  // ← silently skips missed runs
+});</code></pre>
+
+<h3>IHostedService / BackgroundService: process restarts reset timers</h3>
+
+<p>.NET 6+'s <code>BackgroundService</code> is a simple way to run recurring tasks without Hangfire or Quartz. The standard pattern uses <code>PeriodicTimer</code> or a <code>while</code> loop with <code>Task.Delay</code>. Both approaches reset their state on every application restart — a Kubernetes pod restart at 1:58am means the 2:00am window is missed, and the next run is 2 hours later.</p>
+
+<pre><code>// BackgroundService — timer resets on every restart
+public class DailyReportService : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            // Runs every 24 hours from service start, not at a fixed wall-clock time
+            // A restart at 1:58am means the next "daily" run is at 1:58am tomorrow
+            await GenerateDailyReport();
+        }
+    }
+}
+
+// Better: use a PeriodicTimer that calculates time-until-next-run
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    while (!stoppingToken.IsCancellationRequested)
+    {
+        var now = DateTime.UtcNow;
+        var nextRun = now.Date.AddDays(1).AddHours(2); // 2am UTC tomorrow
+        var delay = nextRun - now;
+        await Task.Delay(delay, stoppingToken);
+
+        await GenerateDailyReport();
+        // Still no external alert if this throws or produces wrong output
+    }
+}</code></pre>
+
+<h3>Windows Task Scheduler: exit code confusion</h3>
+
+<p>Windows Task Scheduler considers a task "successful" based on the process exit code. Exit code 0 = success. Anything else = failure. Most .NET console apps exit with 0 even after catching exceptions — the application framework returns 0 unless you explicitly call <code>Environment.Exit(1)</code> or set a non-zero <code>Console.Out</code> return.</p>
+
+<p>The result: a task that threw an ArgumentNullException, logged the error, and returned normally shows as "Last Run Result: 0x0 (Operation completed successfully)" in Task Scheduler. The scheduler won't retry it; no alert fires.</p>
+
+<hr/>
+
+<h2>Adding heartbeat monitoring in one line</h2>
+
+<p>The heartbeat pattern is the same regardless of your scheduler: at the end of each <em>successful</em> run, make an HTTP GET to a monitoring URL. If the ping stops arriving — job stopped running, threw before completing, or the host died — the monitor alerts you.</p>
+
+<h3>Hangfire</h3>
+
+<pre><code>public class ExportJob
+{
+    private readonly HttpClient _http;
+    private const string HeartbeatUrl = "https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN";
+
+    public async Task Execute()
+    {
+        var records = await _apiClient.FetchTodayRecords();
+        if (records.Count == 0)
+        {
+            _logger.LogWarning("No records — skipping");
+            return; // Don't ping — monitor will alert on missing heartbeat
+        }
+
+        await _exporter.ExportAsync(records);
+
+        // Only ping after successful export with actual data
+        await _http.GetAsync(HeartbeatUrl);
+    }
+}</code></pre>
+
+<h3>Quartz.NET</h3>
+
+<pre><code>public class DailyExportJob : IJob
+{
+    private static readonly HttpClient Http = new();
+    private const string HeartbeatUrl = "https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN";
+
+    public async Task Execute(IJobExecutionContext context)
+    {
+        await _exporter.ExportAsync();
+        // Ping only on clean completion — not inside a catch block
+        await Http.GetAsync(HeartbeatUrl);
+    }
+}</code></pre>
+
+<h3>BackgroundService</h3>
+
+<pre><code>public class DailyReportService : BackgroundService
+{
+    private static readonly HttpClient Http = new();
+    private const string HeartbeatUrl = "https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN";
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            var now = DateTime.UtcNow;
+            var nextRun = now.Date.AddDays(now.Hour >= 2 ? 1 : 0).AddHours(2);
+            await Task.Delay(nextRun - now, stoppingToken);
+
+            try
+            {
+                await GenerateDailyReport();
+                await Http.GetAsync(HeartbeatUrl, stoppingToken); // Only on success
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Daily report failed");
+                // No ping — monitor detects the missed heartbeat
+            }
+        }
+    }
+}</code></pre>
+
+<h3>Windows Task Scheduler (.NET console app)</h3>
+
+<pre><code>// Program.cs — .NET 6+ minimal console app
+using var http = new HttpClient();
+const string heartbeatUrl = "https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN";
+
+try
+{
+    await RunExport();
+    await http.GetAsync(heartbeatUrl); // Only reached on success
+    Environment.Exit(0);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Export failed: {ex.Message}");
+    Environment.Exit(1); // Non-zero exit code marks task as failed in Task Scheduler
+    // Also: no heartbeat ping → monitor alerts
+}</code></pre>
+
+<hr/>
+
+<h2>Validating .NET cron expressions</h2>
+
+<p>Quartz.NET uses a 7-field cron format: <code>seconds minutes hours day-of-month month day-of-week year</code>. The year field is optional but the leading seconds field is not. <code>0 0 2 * * ?</code> is "at 2:00:00 AM every day" — the <code>?</code> in day-of-week means "no specific value" (required when day-of-month is specified).</p>
+
+<p>NCronTab (used by Azure Functions and ASP.NET Core) uses a 5 or 6-field format. Before adding a cron expression to any .NET scheduler, validate it:</p>
+
+<div class="cta-box">
+<h3>🕐 Validate your .NET cron expression</h3>
+<p>Paste any cron expression to see the plain-English description and next 5 run times. Works with standard 5-field, 6-field (with seconds), and Quartz.NET 7-field formats.</p>
+<a href="https://lior-seats.github.io/cron-expression-parser/" class="btn">Try the free cron parser →</a>
+</div>
+
+<hr/>
+
+<h2>Production checklist: .NET cron job monitoring</h2>
+
+<ul>
+<li>☐ Validate all cron expressions before deploying — Quartz.NET, NCronTab, and Windows Task Scheduler use different field counts</li>
+<li>☐ Set <code>Environment.Exit(1)</code> on failure in console apps — ensures Task Scheduler marks the run as failed</li>
+<li>☐ Add heartbeat pings at the end of each successful job — not inside catch blocks</li>
+<li>☐ For Hangfire: set misfire handling explicitly rather than relying on retry defaults</li>
+<li>☐ For Quartz.NET clustered: choose a misfire policy that matches your job semantics (<code>DoNothing</code> vs <code>FireAndProceed</code>)</li>
+<li>☐ For BackgroundService: calculate next-run wall-clock time explicitly — don't rely on <code>Task.Delay(TimeSpan.FromHours(24))</code> restarting correctly after pod evictions</li>
+<li>☐ Monitor with a grace period that accounts for expected job duration + reasonable startup variance</li>
+</ul>
+
+<hr/>
+
+<h2>External monitoring for .NET scheduled tasks</h2>
+
+<p>Internal Hangfire dashboards and Quartz.NET job history tell you what <em>attempted</em> to run. They don't tell you whether it ran on schedule, completed in a healthy window, or produced correct output. External heartbeat monitoring closes this gap.</p>
+
+<div class="cta-box">
+<h3>🔔 Know immediately when your .NET scheduled tasks stop running</h3>
+<p>CronWatch is a dead-man's-switch monitor for Hangfire jobs, Quartz.NET triggers, BackgroundService tasks, and Windows Task Scheduler entries. One heartbeat URL, email alert when the ping stops, no infrastructure to maintain.</p>
+<a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+<a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron parser</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dotnet-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
