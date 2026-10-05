@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cronitor Alternative: 5 Cron Job Monitoring Tools Compared (Free to $99/mo)</title>
+  <meta name="description" content="Looking for a Cronitor alternative? Compare 5 cron job monitoring tools on price, dead man's switch, alerting, and setup complexity. Free to $99/mo.">
+  <link rel="canonical" href="https://lior-seats.github.io/blog/cronitor-alternative.html">
+  <meta property="og:title" content="Cronitor Alternative: 5 Cron Job Monitoring Tools Compared (Free to $99/mo)">
+  <meta property="og:description" content="Looking for a Cronitor alternative? Compare 5 cron job monitoring tools on price, dead man's switch, alerting, and setup complexity. Free to $99/mo.">
+  <meta property="og:url" content="https://lior-seats.github.io/blog/cronitor-alternative.html">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image"/>
+  <link rel="stylesheet" href="../style.css">
+  <script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cronitor-alternative',{mode:'no-cors'});}());</script>
+</head>
+<body>
+  <nav>
+    <a href="../">Home</a>
+    <a href="../blog/">Blog</a>
+    <a href="https://lior-seats.github.io/crawl-check/">Crawl Check</a>
+    <a href="https://lior-seats.github.io/cron-expression-parser/">Cron Parser</a>
+  </nav>
+
+  <main class="post">
+    <h1>Cronitor Alternative: 5 Cron Job Monitoring Tools Compared (Free to $99/mo)</h1>
+    <p class="post-meta">October 2026 · <span class="tag">cron monitoring</span> <span class="tag">tools</span></p>
+
+    <p>Cronitor is a solid cron job monitoring service. It handles dead man's switch pings, surfaces run history and durations, and has clean alerting via email, Slack, and PagerDuty. Pricing runs from $19/mo (Developer tier) up to $99/mo for business teams — with a limited free tier capped at 5 monitors.</p>
+
+    <p>Developers look for a Cronitor alternative for a few common reasons:</p>
+    <ul>
+      <li><strong>Cost</strong> — $19–$99/mo is a lot for a personal project or small team monitoring a handful of jobs</li>
+      <li><strong>Complexity</strong> — Cronitor's telemetry API and dashboard are powerful but more than most indie developers need</li>
+      <li><strong>Feature mismatch</strong> — Some developers just want a simple ping-or-alert setup, not a full observability platform</li>
+    </ul>
+
+    <p>Here's an honest look at five options across the full price range.</p>
+
+    <hr>
+
+    <h2>The options at a glance</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th>Price</th>
+          <th>Dead man's switch</th>
+          <th>Alerting</th>
+          <th>Setup complexity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cronitor</strong></td>
+          <td>$19–$99/mo</td>
+          <td>✅</td>
+          <td>Email, Slack, PagerDuty</td>
+          <td>Medium</td>
+        </tr>
+        <tr>
+          <td><strong>healthchecks.io</strong></td>
+          <td>$0–$20/mo</td>
+          <td>✅</td>
+          <td>Email, Slack, PagerDuty</td>
+          <td>Easy</td>
+        </tr>
+        <tr>
+          <td><strong>Dead Man's Snitch</strong></td>
+          <td>$7–$49/mo</td>
+          <td>✅</td>
+          <td>Email, Slack, PagerDuty</td>
+          <td>Easy</td>
+        </tr>
+        <tr>
+          <td><strong>Uptime Robot</strong></td>
+          <td>Free–$7/mo</td>
+          <td>Limited</td>
+          <td>Email, Slack</td>
+          <td>Easy</td>
+        </tr>
+        <tr>
+          <td><strong>CronWatch</strong></td>
+          <td>$9/mo (coming soon)</td>
+          <td>✅</td>
+          <td>Email, Slack</td>
+          <td>1 curl line</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <hr>
+
+    <h2>When to use healthchecks.io</h2>
+
+    <p><strong>Best free Cronitor alternative.</strong> healthchecks.io is open source (MIT license, self-hostable) and the hosted version is the most generous free tier in this category: 20 checks with email alerts, no credit card required.</p>
+
+    <p><strong>Pricing:</strong></p>
+    <ul>
+      <li>Free: 20 checks, email only</li>
+      <li>Hobbyist: $3/mo — Slack, PagerDuty</li>
+      <li>Business: $20/mo — 100 checks, team members, API</li>
+    </ul>
+
+    <p>The setup is exactly the same as Cronitor — create a check, get a unique URL, ping it from your cron job:</p>
+
+    <pre><code>#!/bin/bash
+# Your cron job logic here
+/usr/bin/python3 /home/deploy/backup.py
+
+# Ping healthchecks.io when the job completes successfully
+curl -s "https://hc-ping.com/your-check-uuid" > /dev/null</code></pre>
+
+    <p>The main limitations: no run-duration telemetry (only success/fail pings), the UI is functional but dated, and the free tier limits 100 pings per check per month (fine for daily jobs, a problem for minute-level cron).</p>
+
+    <p><strong>Pick this when:</strong> You have ≤20 jobs and don't need run history or duration data. The free tier covers most indie developer use cases completely.</p>
+
+    <hr>
+
+    <h2>When to use Dead Man's Snitch</h2>
+
+    <p><strong>Best for solo developers who want simplicity over features.</strong> Dead Man's Snitch has been around since 2012 — it does one thing well: alert you when a job stops checking in. No telemetry, no dashboards beyond pass/fail history, no complexity.</p>
+
+    <p><strong>Pricing:</strong></p>
+    <ul>
+      <li>Free: 1 snitch, email only</li>
+      <li>Solo: $7/mo — 5 snitches, Slack</li>
+      <li>Business: $25/mo — unlimited snitches, team</li>
+    </ul>
+
+    <p>Setup is even faster than Cronitor: define the expected interval when creating the monitor, paste one URL into your job, done. No configuration screens or telemetry setup.</p>
+
+    <p><strong>Pick this when:</strong> You want the least possible friction and don't need to analyze job performance over time. Good for background jobs where you just need "it ran / it didn't run" visibility.</p>
+
+    <hr>
+
+    <h2>When to use CronWatch</h2>
+
+    <p><strong>Best for developers who want the simplest possible dead man's switch at a flat price.</strong> CronWatch is built around a single idea: add one curl command to your cron job, and get alerted if it stops firing. No dashboards to configure, no per-monitor tiers, no pricing cliff as you add jobs.</p>
+
+    <p><strong>Pricing:</strong> $9/mo flat — monitor as many jobs as you run, no per-monitor limit.</p>
+
+    <p>Setup is one line. At the end of your cron job:</p>
+
+    <pre><code># Bash — add this at the end of your cron job
+curl -s "https://your-monitor-url/ping" > /dev/null</code></pre>
+
+    <p>Or in Python:</p>
+
+    <pre><code>import requests
+
+# At the end of your job function:
+requests.get("https://your-monitor-url/ping", timeout=5)</code></pre>
+
+    <p>CronWatch is in early access — <a href="https://lior-seats.github.io/cronwatch-waitlist/">join the waitlist</a> to get notified when it launches. At $9/mo flat it's straightforwardly cheaper than Cronitor once you're running more than 5 jobs.</p>
+
+    <p><strong>Pick this when:</strong> You want a simple, predictable dead man's switch service without Cronitor's per-tier pricing model. Especially useful if you're monitoring 10+ jobs across multiple projects.</p>
+
+    <hr>
+
+    <h2>The dead man's switch pattern explained</h2>
+
+    <p>Every tool in this comparison is built on the same underlying pattern: your job pings a URL when it completes, and the monitoring service alerts you if the ping doesn't arrive within the expected window.</p>
+
+    <pre><code>#!/bin/bash
+# Full pattern: run your job, then ping on success
+set -e
+
+# Your actual job
+/usr/bin/python3 /home/deploy/run-backup.py
+
+# Ping: only fires if the job above succeeded (set -e exits on error)
+curl -s "https://your-monitor-url/ping" > /dev/null 2>&1</code></pre>
+
+    <p>In Python with the <code>requests</code> library:</p>
+
+    <pre><code>import requests
+import subprocess
+
+def run_backup():
+    # Your job logic here
+    subprocess.run(["python3", "/home/deploy/backup.py"], check=True)
+
+    # Ping the monitor — only reached if backup succeeded
+    try:
+        requests.get("https://your-monitor-url/ping", timeout=5)
+    except requests.RequestException:
+        pass  # Don't fail the job if the ping fails</code></pre>
+
+    <p>The key detail: use <code>&amp;&amp;</code> in bash or place the ping after your job logic completes successfully, so a failed job doesn't trigger a false "all good" ping. If your job exits with a non-zero status, the ping never fires, and the monitor alerts you after the grace period.</p>
+
+    <p>Not sure how to write a cron schedule for your job? <a href="https://lior-seats.github.io/cron-expression-parser/">Use the free cron expression parser</a> to get a plain-English breakdown and see the next 5 run times in your timezone.</p>
+
+    <hr>
+
+    <h2>Which Cronitor alternative should you pick?</h2>
+
+    <p>The right choice depends almost entirely on how many jobs you're monitoring and what you need beyond a basic alert:</p>
+
+    <ul>
+      <li><strong>Free tier, up to 20 jobs:</strong> healthchecks.io — the most generous free tier in this space</li>
+      <li><strong>Minimal complexity, solo use:</strong> Dead Man's Snitch — simple, proven, no learning curve</li>
+      <li><strong>Full features, team use:</strong> Cronitor — worth the price if you need telemetry, run history, and polished UX</li>
+      <li><strong>Flat price, many jobs:</strong> CronWatch — $9/mo regardless of monitor count, one curl line to set up</li>
+      <li><strong>Basic uptime monitoring + some cron:</strong> Uptime Robot free tier if your needs are simple</li>
+    </ul>
+
+    <p>If you're currently paying $29–$99/mo for Cronitor and don't actively use the telemetry features, healthchecks.io at $3–$20/mo covers the same core use case for most workloads. The setup takes about 5 minutes to migrate.</p>
+
+    <hr>
+
+    <div class="cta-box">
+      <h3>Want the simplest $9/mo option?</h3>
+      <p>CronWatch is a dead man's switch service built for developers who want one curl line and an alert when jobs stop running — no dashboards to learn, no per-monitor pricing cliffs. Join the waitlist:</p>
+      <p><a href="https://lior-seats.github.io/cronwatch-waitlist/" class="cta-button">Join the CronWatch waitlist →</a></p>
+      <p style="margin-top:0.75rem;font-size:0.9rem;color:#666;">Also free: <a href="https://lior-seats.github.io/cron-expression-parser/">Cron expression parser</a> — paste any expression and get plain-English output + next 5 run times in your timezone.</p>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 lior-seats.github.io · <a href="../blog/">Blog</a> · <a href="https://lior-seats.github.io/crawlguard-waitlist/">CrawlGuard</a> · <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a></p>
+  </footer>
+</body>
+</html>
