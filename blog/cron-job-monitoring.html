@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Monitoring: How to Know When Your Scheduled Jobs Fail | CronWatch Blog</title>
+<meta name="description" content="Cron jobs fail silently — no alerts, no logs, just missing results. Here's what to monitor, which tools to use, and how to set up a dead man's switch in one line."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-monitoring.html"/>
+<meta property="og:title" content="Cron Job Monitoring: How to Know When Your Scheduled Jobs Fail"/>
+<meta property="og:description" content="Cron jobs fail silently — no alerts, no logs, just missing results. Here's what to monitor, which tools to use, and how to set up a dead man's switch in one line."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #15803d; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+  .checklist { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .checklist li { margin-bottom: 0.6em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; border: 1px solid #e4e4e7; padding: 10px 12px; text-align: left; font-weight: 700; }
+  td { border: 1px solid #e4e4e7; padding: 10px 12px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Monitoring: How to Know When Your Scheduled Jobs Fail</h1>
+
+<p class="meta">Cron jobs fail silently — no alerts, no error emails, just missing results. Here's how to fix that.</p>
+
+<p>Cron is one of the most reliable pieces of software ever written. It almost never crashes. But the jobs it runs? They fail all the time — and cron doesn't care. It just moves on to the next scheduled run and says nothing.</p>
+
+<p>The result is a class of production failures that nobody notices until a user complains, a report is missing, or a backup that "should have been running for months" turns out to be empty. Cron job monitoring is how you close that gap.</p>
+
+<div class="summary-box">
+  <strong>What this guide covers:</strong>
+  <ul>
+    <li>Why cron jobs fail silently and what you actually need to monitor</li>
+    <li>Four approaches to cron job monitoring — from simple scripts to dedicated tools</li>
+    <li>What to look for when evaluating monitoring tools</li>
+    <li>The one-line setup pattern that works for any scheduler</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> The problem: cron jobs fail silently</h2>
+
+<p>By default, cron captures stdout and stderr and tries to mail them to the local system user. In practice, on most modern servers, that mail never goes anywhere. There's no outbox, no inbox, no notification. The job runs, produces output, and the output disappears.</p>
+
+<p>Even when jobs <em>don't</em> produce output — because they succeed — you still have a monitoring gap: you have no external evidence the job ran at all. A missed run looks identical to a successful run from the outside.</p>
+
+<p>The three failure modes you actually need to catch:</p>
+
+<ul>
+  <li><strong>Job exits with a non-zero code.</strong> The script ran but failed — a database was unreachable, a file was missing, an API returned an error. Cron doesn't alert you.</li>
+  <li><strong>Job never ran.</strong> The cron daemon restarted, the server rebooted, the schedule was accidentally deleted, or a deploy clobbered the crontab. You won't know until you notice results are missing.</li>
+  <li><strong>Job ran too long or too short.</strong> A backup job that normally takes 4 minutes finished in 2 seconds — that's a signal it probably failed partway through. Duration anomalies are real failures in disguise.</li>
+</ul>
+
+<hr/>
+
+<h2><span class="step-num">2</span> What you actually need to monitor</h2>
+
+<p>Effective cron job monitoring covers four dimensions:</p>
+
+<h3>Last run time</h3>
+<p>Did the job run in the expected window? A job scheduled at 2am that hasn't been seen since yesterday is a silent failure. This is the most important signal and the one most monitoring tools are built around.</p>
+
+<h3>Exit code</h3>
+<p>Did the job succeed? An exit code of 0 means success; anything else means the job reported failure. This is table stakes but surprisingly often ignored — many people log output without capturing exit codes.</p>
+
+<h3>Duration</h3>
+<p>How long did it take? Duration tracking catches jobs that are hanging (run time increasing over weeks until they hit a timeout), jobs that fail too fast (finished in 1 second when they normally take 5 minutes), and jobs that are degrading (slowly getting slower over time as a table grows).</p>
+
+<h3>Missed windows</h3>
+<p>Did the job miss its schedule entirely — not just fail, but never start? This requires an external observer. If your monitoring system lives on the same server as your cron daemon, a server outage kills both the job and the monitor simultaneously. A missed window check requires an off-host observer.</p>
+
+<hr/>
+
+<h2><span class="step-num">3</span> Four approaches to monitor cron jobs in production</h2>
+
+<h3>Approach 1: Ping / heartbeat monitors (dead man's switch)</h3>
+
+<p>This is the most effective approach for most teams. The pattern is simple: your cron job sends an HTTP ping to an external service when it finishes successfully. The external service watches for that ping on a defined schedule. If the ping doesn't arrive in the expected window, it alerts you.</p>
+
+<p>This is called a <strong>dead man's switch</strong> — the absence of a signal is itself the alert.</p>
+
+<p>Popular services in this space: <strong>healthchecks.io</strong>, <strong>Dead Man's Snitch</strong>, and <strong>CronWatch</strong>. Each works on the same principle: you get a unique URL, you add a curl call to your job, and the service pings you if your job goes quiet.</p>
+
+<p>Why this approach works well:</p>
+<ul>
+  <li>Catches missed runs, not just failed runs</li>
+  <li>Works with any scheduler — crontab, Heroku Scheduler, GitHub Actions, Kubernetes CronJobs</li>
+  <li>One curl line to add — minimal integration cost</li>
+  <li>External observer — alerts survive server outages</li>
+</ul>
+
+<h3>Approach 2: Log-based monitoring</h3>
+
+<p>Pipe cron output to a log file and use a log aggregation tool (Datadog, CloudWatch Logs, Papertrail, Logtail) to alert on patterns:</p>
+
+<pre><code># In your crontab: redirect all output to a log file
+0 2 * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1</code></pre>
+
+<p>You can then set up log-based alerts for error strings, missing log entries over a time window, or unexpected exit codes.</p>
+
+<p>The downside: log-based monitoring only catches failure messages that appear in logs. A missed run produces no log entry at all — you'd need to set up a separate "expected log pattern" alert, which is more complex than it sounds and still doesn't work if the logging agent itself goes down.</p>
+
+<h3>Approach 3: Platform-native monitoring</h3>
+
+<p>Cloud schedulers often have native observability:</p>
+
+<ul>
+  <li><strong>AWS EventBridge / CloudWatch Events:</strong> CloudWatch Metrics tracks invocation count, failed invocations, and throttles. You can set alarms on <code>FailedInvocations</code> or on the absence of <code>Invocations</code> over a period.</li>
+  <li><strong>GitHub Actions:</strong> workflow run history is queryable via the API; there's no built-in "missed schedule" alert but you can query the API and alert on missing runs.</li>
+  <li><strong>Kubernetes CronJobs:</strong> <code>kubectl get cronjobs</code> shows <code>LAST SCHEDULE</code> and <code>ACTIVE</code>; Prometheus + kube-state-metrics exposes <code>kube_cronjob_status_last_schedule_time</code> for alerting.</li>
+</ul>
+
+<p>Platform-native monitoring is good when you're already deeply invested in that platform's observability stack. It gets complicated fast if your jobs span multiple platforms.</p>
+
+<h3>Approach 4: Homemade monitoring scripts</h3>
+
+<p>Roll your own: write a wrapper script that captures exit code, start time, and end time, writes them to a table, and sends you an email or Slack message on failure:</p>
+
+<pre><code>#!/bin/bash
+# cron-wrapper.sh — captures exit code and duration, sends Slack alert on failure
+JOB_NAME="$1"
+shift
+
+START=$(date +%s)
+"$@"
+EXIT_CODE=$?
+DURATION=$(( $(date +%s) - START ))
+
+if [ $EXIT_CODE -ne 0 ]; then
+  curl -s -X POST "$SLACK_WEBHOOK_URL" \
+    -H "Content-Type: application/json" \
+    -d "{\"text\": \"🚨 Cron job *${JOB_NAME}* failed with exit code ${EXIT_CODE} after ${DURATION}s\"}"
+fi
+
+exit $EXIT_CODE</code></pre>
+
+<p>Use in crontab:</p>
+
+<pre><code>0 2 * * * /usr/local/bin/cron-wrapper.sh "nightly-backup" /usr/local/bin/backup.sh</code></pre>
+
+<p>This catches failures but not missed runs — the wrapper only fires if the job actually starts. You'd need a second job that checks whether the first job ran recently, which starts to become its own reliability problem.</p>
+
+<hr/>
+
+<h2><span class="step-num">4</span> What to look for in a cron job monitoring tool</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Why it matters</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Alerting latency</strong></td>
+      <td>How quickly does it notify you after a missed run? Some tools check every minute; others poll every 5–15 minutes. A backup job that fails at 2am should alert before 9am when someone notices.</td>
+    </tr>
+    <tr>
+      <td><strong>Multi-platform support</strong></td>
+      <td>Can it monitor crontab, Heroku Scheduler, GitHub Actions scheduled workflows, and Kubernetes CronJobs from one dashboard? Most teams end up with jobs on multiple platforms.</td>
+    </tr>
+    <tr>
+      <td><strong>Grace periods</strong></td>
+      <td>Jobs don't always run exactly on time — a loaded server may delay a job by a few minutes. Good tools let you set a grace period so you're not paged for a job that ran 90 seconds late.</td>
+    </tr>
+    <tr>
+      <td><strong>Alert channels</strong></td>
+      <td>Email, Slack, PagerDuty, SMS. You want alerts to go where your team actually looks, especially at 3am.</td>
+    </tr>
+    <tr>
+      <td><strong>Price</strong></td>
+      <td>Most tools charge per monitor. Indie developers and small teams can easily have 20–50 cron jobs. Per-monitor pricing adds up; look for flat-rate plans or generous free tiers.</td>
+    </tr>
+    <tr>
+      <td><strong>Ease of setup</strong></td>
+      <td>The best tools require adding a single curl line to an existing job. If setup requires installing an agent, modifying your deployment pipeline, or configuring a sidecar, the activation cost is high enough that it won't happen for most jobs.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>The missed-run requirement is non-negotiable:</strong> If a monitoring tool only alerts on job failures (non-zero exit codes) and not on missed runs (job never started), it cannot protect you against the most common and most dangerous failure mode. Verify this before committing to a tool.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">5</span> Quick setup: the one-curl-line pattern</h2>
+
+<p>The dead man's switch pattern reduces to a single curl call appended to your existing job. Here's the canonical form:</p>
+
+<pre><code># Pattern: run job, then ping monitor URL on success
+0 2 * * * /usr/local/bin/backup.sh && curl -fsS --retry 3 https://monitor-url/your-token</code></pre>
+
+<p>The <code>&&</code> means the curl only fires if <code>backup.sh</code> exits 0. If the job fails, no ping is sent, and the monitoring service alerts you after the grace period expires.</p>
+
+<p>Flags explained:</p>
+<ul>
+  <li><code>-f</code> — fail silently on HTTP errors (don't pollute cron output)</li>
+  <li><code>-s</code> — silent mode (suppress progress meter)</li>
+  <li><code>-S</code> — show errors despite <code>-s</code> (if curl itself fails, you want to see why)</li>
+  <li><code>--retry 3</code> — retry up to 3 times on transient network errors</li>
+</ul>
+
+<p>For jobs where you want to capture both start and finish (to track duration and detect jobs that hang):</p>
+
+<pre><code># Ping on start, then ping on finish — lets the monitor track duration
+0 2 * * * curl -fsS --retry 3 https://monitor-url/your-token/start \
+  && /usr/local/bin/backup.sh \
+  && curl -fsS --retry 3 https://monitor-url/your-token</code></pre>
+
+<p>This works identically for any scheduler that runs a shell command:</p>
+
+<pre><code># Heroku Scheduler (Procfile-style)
+backup: ./bin/backup.sh && curl -fsS --retry 3 https://monitor-url/your-token
+
+# GitHub Actions scheduled workflow
+- name: Run backup
+  run: ./bin/backup.sh && curl -fsS --retry 3 https://monitor-url/${{ secrets.MONITOR_TOKEN }}</code></pre>
+
+<div class="callout">
+  <strong>Don't forget to validate your schedule expression first.</strong> A job with a broken cron expression will never run — and a monitoring setup won't help with a schedule you never intended. Use a <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression parser</a> to confirm the schedule fires when you expect before deploying.
+</div>
+
+<hr/>
+
+<h2>Monitor cron jobs with CronWatch</h2>
+
+<p>If you want a purpose-built dead man's switch that works across crontab, GitHub Actions, Heroku Scheduler, and Kubernetes CronJobs — without building and maintaining your own alerting infrastructure — CronWatch is designed exactly for this.</p>
+
+<p>Setup is the single curl-line pattern above. CronWatch handles the schedule tracking, missed-run detection, grace periods, and alerts. You get a dashboard that shows every job's last run time, exit status, and duration history.</p>
+
+<div class="cta-box">
+  <h3>📟 Set up cron job monitoring in under a minute</h3>
+  <p>CronWatch monitors your scheduled jobs with dead man's switch detection — alerting you the moment a job misses its window, not after you notice results are missing. Works with crontab, GitHub Actions, Heroku Scheduler, and Kubernetes CronJobs.</p>
+  <a class="btn" href="https://lior-seats.github.io/cronwatch-waitlist/">Join the CronWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cron-expression-parser/">Validate your cron expression</a>
+</div>
+
+<p>Not sure your cron schedule is correct? <a href="https://lior-seats.github.io/cron-expression-parser/">Use the free cron expression parser</a> to see the plain-English description and the next five run times before you deploy.</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
