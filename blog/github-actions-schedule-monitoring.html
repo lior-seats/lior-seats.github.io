@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GitHub Actions Scheduled Workflows: Why They Fail Silently and How to Monitor Them</title>
+<meta name="description" content="GitHub Actions schedule: triggers can be auto-disabled, silently skipped, or fail without alerts. Learn the dead man's switch pattern to catch every missed run."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/github-actions-schedule-monitoring.html"/>
+<meta property="og:title" content="GitHub Actions Scheduled Workflows: Why They Fail Silently and How to Monitor Them"/>
+<meta property="og:description" content="GitHub Actions schedule: triggers can be auto-disabled, silently skipped, or fail without alerts. Learn the dead man's switch pattern to catch every missed run."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/github-actions-schedule-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #15803d; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; border: 1px solid #e4e4e7; padding: 10px 12px; text-align: left; font-weight: 700; }
+  td { border: 1px solid #e4e4e7; padding: 10px 12px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>GitHub Actions Scheduled Workflows: Why They Fail Silently and How to Monitor Them</h1>
+
+<p class="meta">The <code>on: schedule:</code> trigger has several quiet failure modes that GitHub won't tell you about. Here's every one of them and how to detect them.</p>
+
+<p>GitHub Actions makes it easy to schedule workflows with a cron expression. Add <code>on: schedule:</code>, push to main, and your workflow runs on a schedule — until it doesn't. Unlike a job that fails with a red X, a missed <code>schedule:</code> run leaves no trace at all. No email, no notification, no failed run in the UI. The workflow simply doesn't appear.</p>
+
+<p>This guide covers every silent failure mode for GitHub Actions scheduled workflows, how to detect them, and how to set up monitoring so you know the moment a scheduled run is skipped or fails.</p>
+
+<div class="summary-box">
+  <strong>What this guide covers:</strong>
+  <ul>
+    <li>Why GitHub auto-disables scheduled workflows after 60 days of repo inactivity</li>
+    <li>GitHub's load shedding: when scheduled runs are silently skipped</li>
+    <li>Step failures that produce no notification by default</li>
+    <li>The dead man's switch pattern for scheduled workflows</li>
+    <li>How to configure failure notifications in GitHub Actions</li>
+    <li>CronWatch vs GitHub's built-in options</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> The core problem: <code>schedule:</code> is unreliable by design</h2>
+
+<p>GitHub's documentation contains a note that most developers miss:</p>
+
+<blockquote style="border-left:4px solid #e4e4e7;padding:10px 16px;margin:1.2em 0;color:#555;font-style:italic;">
+  "Scheduled workflows are automatically disabled when no repository activity has occurred in 60 days."
+</blockquote>
+
+<p>That means if nobody pushes a commit, opens a PR, or otherwise touches the repository for two months, GitHub quietly disables every <code>on: schedule:</code> trigger. When you come back and find your nightly data sync hasn't run in weeks, there's no alert waiting for you — just a blank run history.</p>
+
+<p>Beyond the inactivity timeout, GitHub explicitly states that scheduled workflows may be delayed or skipped during periods of high load. This is called <strong>load shedding</strong>: GitHub's infrastructure deprioritizes scheduled runs when their queues are full. A workflow set to run at midnight UTC may run at 12:34am, or not at all.</p>
+
+<div class="callout">
+  <strong>Key insight:</strong>
+  A scheduled workflow that doesn't run produces no failed run entry in the GitHub Actions UI. There is nothing to trigger a notification. You only learn about it by noticing the absence of output — a missing report, a stale database, a silent pipeline.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">2</span> Four failure modes in detail</h2>
+
+<h3>1. Repository inactivity → auto-disable</h3>
+<p>After 60 days of no repository activity, GitHub disables all scheduled workflows. The workflows still exist in your <code>.github/workflows/</code> directory; they're just not triggered. You can re-enable them manually in the GitHub Actions UI, but you have to know to look.</p>
+<p>This is especially common for maintenance repositories — things like weekly dependency update checks, periodic data exports, or monitoring scripts that live in a dedicated repo with no other commits.</p>
+
+<h3>2. Load shedding: delayed or skipped runs</h3>
+<p>GitHub's scheduler is best-effort, not guaranteed. Under load, workflows scheduled for a specific cron time may be delayed by minutes to hours, or dropped entirely. GitHub provides no SLA for <code>schedule:</code> triggers. If your workflow needs to run within a reliable window, you cannot rely on <code>on: schedule:</code> alone.</p>
+
+<h3>3. Step failures with no notification configured</h3>
+<p>A job that fails will show as a red X in the GitHub Actions UI — but only if you're watching. By default, GitHub sends failure emails only to the user who last pushed. If your scheduled workflow fails at 3am on a Saturday, the email may go to someone who's not monitoring it, or be filtered as noise. No Slack message, no PagerDuty alert, nothing except a red dot in the UI.</p>
+
+<h3>4. Missing <code>workflow_dispatch</code> and permission issues</h3>
+<p>In repositories created after mid-2023, the default GitHub Actions permissions are more restrictive. Workflows that previously had <code>write</code> access to repository contents may silently fail with a permissions error if the repository settings were changed. Similarly, if a required secret is deleted or rotated, the workflow will fail on the step that uses it — again, silently, unless notifications are configured.</p>
+
+<hr/>
+
+<h2><span class="step-num">3</span> GitHub's built-in monitoring: what it can and can't do</h2>
+
+<p>GitHub does have some built-in notification options, but they have real gaps when it comes to scheduled workflows.</p>
+
+<table>
+  <thead>
+    <tr><th>Notification type</th><th>What it catches</th><th>What it misses</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Email on failure (default)</td>
+      <td>Jobs that run and fail</td>
+      <td>Workflows that never run (load shedding, inactivity disable)</td>
+    </tr>
+    <tr>
+      <td>GitHub notification settings</td>
+      <td>Run failures visible in UI</td>
+      <td>Skipped runs, runs that produce no entry</td>
+    </tr>
+    <tr>
+      <td>Slack via GitHub app</td>
+      <td>Run completions (with configuration)</td>
+      <td>Silently skipped runs</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The fundamental gap: <strong>GitHub can only notify you about runs it knows about</strong>. A workflow that was never triggered — due to load shedding or inactivity disable — produces no run record, and therefore no notification. This is exactly what a dead man's switch is designed to handle.</p>
+
+<hr/>
+
+<h2><span class="step-num">4</span> The dead man's switch pattern for GitHub Actions</h2>
+
+<p>A dead man's switch (also called a heartbeat monitor) inverts the monitoring model. Instead of watching for a failure event, you configure your workflow to send a "success ping" at the end of every run. A monitoring service watches for that ping. If the ping stops arriving within the expected window, the service alerts you.</p>
+
+<p>This catches every failure mode listed above:</p>
+<ul>
+  <li><strong>Workflow auto-disabled:</strong> No run → no ping → alert</li>
+  <li><strong>Load shedding:</strong> Run skipped → no ping → alert</li>
+  <li><strong>Step failure:</strong> Exception before the ping line → no ping → alert</li>
+  <li><strong>Permission error:</strong> Workflow exits early → no ping → alert</li>
+</ul>
+
+<p>The implementation is a single step added as the <strong>last step</strong> in your job. It only fires when all previous steps have succeeded:</p>
+
+<pre><code>name: Nightly data sync
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2am UTC every day
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run data sync
+        run: python scripts/sync.py
+
+      - name: Run report generation
+        run: python scripts/generate_report.py
+
+      # This step only runs if all previous steps succeeded
+      - name: Ping heartbeat monitor
+        run: curl -fsS "https://cronwatch.ping/YOUR_TOKEN" > /dev/null</code></pre>
+
+<p>The <code>-fsS</code> flags for <code>curl</code> are important: <code>-f</code> treats HTTP error responses as failures, <code>-s</code> suppresses progress output, and <code>-S</code> still shows errors. The redirect to <code>/dev/null</code> keeps the step output clean.</p>
+
+<div class="callout">
+  <strong>Position matters:</strong>
+  Place the heartbeat ping as the <em>last</em> step in the job. If it's in the middle, a later step could fail and the monitor would still show the workflow as healthy. The ping should only fire when everything that matters has succeeded.
+</div>
+
+<h3>Handling step failures explicitly</h3>
+
+<p>If a step in your workflow uses <code>continue-on-error: true</code>, GitHub won't fail the job even if that step fails. In that case, capture the outcome and gate the ping manually:</p>
+
+<pre><code>jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run data sync
+        id: sync
+        run: python scripts/sync.py
+        continue-on-error: true
+
+      - name: Run secondary task
+        run: python scripts/secondary.py
+
+      # Only ping if the critical step succeeded
+      - name: Ping heartbeat monitor
+        if: steps.sync.outcome == 'success'
+        run: curl -fsS "https://cronwatch.ping/YOUR_TOKEN" > /dev/null</code></pre>
+
+<p>This pattern gives you fine-grained control: secondary tasks can fail without blocking the ping, but a failure in the critical step prevents the ping from firing.</p>
+
+<hr/>
+
+<h2><span class="step-num">5</span> Setting up failure notifications for GitHub Actions</h2>
+
+<p>For jobs that do run and fail, configure explicit notifications so you're not relying on GitHub's default email behavior.</p>
+
+<h3>Email notifications via workflow step</h3>
+
+<p>You can use a conditional failure step to send an alert when the job fails:</p>
+
+<pre><code>jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run data sync
+        run: python scripts/sync.py
+
+      # Runs only if the previous steps failed
+      - name: Notify on failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "GitHub Actions failure: ${{ github.workflow }}"
+          to: you@example.com
+          from: GitHub Actions
+          body: |
+            Workflow ${{ github.workflow }} failed.
+            Repository: ${{ github.repository }}
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}</code></pre>
+
+<p>This approach handles the "job runs and fails" case well. But it still won't catch workflows that were silently skipped or disabled — for those, you still need the dead man's switch ping.</p>
+
+<h3>Slack notifications</h3>
+
+<p>A simple <code>curl</code> to a Slack webhook works without any third-party action:</p>
+
+<pre><code>      - name: Notify Slack on failure
+        if: failure()
+        run: |
+          curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":\"⚠️ Workflow failed: ${{ github.workflow }} — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>\"}"</code></pre>
+
+<hr/>
+
+<h2><span class="step-num">6</span> CronWatch vs GitHub's built-in options</h2>
+
+<p>GitHub's notification system is designed around events: a run starts, a run completes, a run fails. It has no concept of "this workflow was supposed to run and didn't." For GitHub Actions <strong>schedule monitoring</strong> — catching the absence of a run — you need an external dead man's switch service.</p>
+
+<table>
+  <thead>
+    <tr><th>Feature</th><th>GitHub built-in</th><th>CronWatch</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Alert on step failure</td>
+      <td>✓ (email to last pusher)</td>
+      <td>✓ (email + configurable)</td>
+    </tr>
+    <tr>
+      <td>Alert on skipped run (load shedding)</td>
+      <td>✗</td>
+      <td>✓ (dead man's switch)</td>
+    </tr>
+    <tr>
+      <td>Alert on inactivity-disabled workflow</td>
+      <td>✗</td>
+      <td>✓ (ping stops → alert)</td>
+    </tr>
+    <tr>
+      <td>Configurable grace period</td>
+      <td>✗</td>
+      <td>✓ (per-job setting)</td>
+    </tr>
+    <tr>
+      <td>Setup time</td>
+      <td>Minutes (email only)</td>
+      <td>One curl step</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The grace period setting is important for GitHub Actions specifically. A workflow cron'd for midnight UTC may actually run at 12:15am when GitHub's queues are full. Without a grace period, you'll get false alerts on every delayed-but-successful run. A 20–30 minute grace period on a daily workflow prevents the noise while still catching genuine outages.</p>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>CronWatch — Dead Man's Switch Monitoring for GitHub Actions</h3>
+  <p>Add one <code>curl</code> step to your scheduled workflow. If it stops firing — whether from load shedding, inactivity disable, or a step failure — you get an alert. Configurable grace periods so you don't get paged for a 5-minute delay.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse cron expressions free</a>
+</div>
+
+<hr/>
+
+<h2>Related reading</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/github-actions-cron-monitoring.html">GitHub Actions Cron Job Monitoring: Get Alerts When Scheduled Workflows Fail</a></li>
+  <li><a href="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html">GitHub Actions Scheduled Workflow Not Running: Causes and Fixes</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why Your Cron Jobs Are Failing Silently</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-dead-mans-switch.html">Cron Job Dead Man's Switch: How to Know When Scheduled Jobs Stop Running</a></li>
+  <li><a href="https://lior-seats.github.io/blog/free-cron-job-monitoring.html">Free Cron Job Monitoring Tools (2026)</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=github-actions-schedule-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
