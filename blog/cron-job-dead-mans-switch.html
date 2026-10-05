@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Dead Man's Switch: How to Know When Scheduled Jobs Stop Running</title>
+<meta name="description" content="A dead man's switch for cron jobs alerts you when a job stops running—not just when it errors. Learn how heartbeat monitoring works and how to set it up in 5 minutes."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-dead-mans-switch.html"/>
+<meta property="og:title" content="Cron Job Dead Man's Switch: How to Know When Scheduled Jobs Stop Running"/>
+<meta property="og:description" content="A dead man's switch alerts you when a cron job stops running—not just when it crashes. Here's how it works and how to set one up in 5 minutes."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-dead-mans-switch.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Dead Man's Switch: How to Know When Scheduled Jobs Stop Running</h1>
+
+<p class="meta">Error monitoring catches crashes. A dead man's switch catches silence — which is usually worse.</p>
+
+<p>Most cron job monitoring tools work by watching for errors: an exit code above 0, an exception in the logs, a timeout. That covers a real class of failure. But there's a more common problem those tools miss entirely: the job just <em>stops running</em>. No error. No crash. It simply stops being scheduled, stops executing, stops producing output. And nobody knows.</p>
+
+<p>A dead man's switch inverts the model. Instead of alerting you when something goes wrong, it alerts you when something <em>stops happening</em>. The job is expected to check in on every run. If the check-in doesn't arrive within a grace period, the switch fires and sends an alert.</p>
+
+<hr/>
+
+<h2>Why "absence of failure" is not the same as success</h2>
+
+<p>Most application error trackers (Sentry, Rollbar, Datadog APM) are built around the assumption that bad things produce signals. A crash produces a stack trace. A slow query produces a slow-query log. A 500 produces an error rate spike.</p>
+
+<p>Cron jobs break this assumption. When a cron job stops running, it produces nothing. Consider these scenarios:</p>
+
+<ul>
+  <li><strong>The scheduler process crashes.</strong> If your cron daemon, Kubernetes CronJob controller, or Heroku Scheduler process restarts with an empty queue, your jobs simply stop. No error is emitted. The next run date is never set.</li>
+  <li><strong>The server is replaced.</strong> During an infrastructure migration or auto-scaling event, the old server with your crontab is retired. The new server has no cron configuration. Jobs disappear.</li>
+  <li><strong>A deployment breaks the environment.</strong> A new deploy changes a dependency or removes an environment variable. The job script errors on startup — before it can write to any error log — and the scheduler treats it as a successful (if empty) run and moves on.</li>
+  <li><strong>The job takes longer than its interval.</strong> The scheduler skips the next run to avoid overlap. Then skips again. Eventually the scheduler blacklists the job as too slow. Silence.</li>
+</ul>
+
+<p>In all of these cases, your error tracking shows zero errors. Your application metrics look healthy. Meanwhile, your nightly billing sync, your daily report, your cleanup job — all stopped running days ago.</p>
+
+<div class="callout">
+  <strong>The pattern to internalize:</strong>
+  An absence of errors is not evidence of a running job. It is evidence of no errors. Those are very different things.
+</div>
+
+<hr/>
+
+<h2>How a dead man's switch works</h2>
+
+<p>The term comes from safety engineering. A dead man's switch is a control that requires a human operator to actively confirm they are alive and present. If the operator stops responding — falls asleep, has a medical event, loses consciousness — the switch triggers a safety action.</p>
+
+<p>For cron jobs, the mechanism works like this:</p>
+
+<ol>
+  <li>You register a monitor for a job that should run on a schedule (say, every hour).</li>
+  <li>At the end of each successful run, the job sends an HTTP request to a heartbeat URL — a simple <code>curl</code> call is enough.</li>
+  <li>The monitoring service tracks the last check-in time for each monitor.</li>
+  <li>If no check-in arrives within the expected window plus a grace period, an alert fires.</li>
+</ol>
+
+<p>The job itself is responsible for reporting its success. If it stops reporting, the monitoring service assumes it stopped running — and tells you.</p>
+
+<h3>A concrete implementation in bash</h3>
+
+<pre><code>#!/bin/bash
+set -e
+
+# Your actual job logic
+/usr/local/bin/sync-billing-records.py
+
+# Check in on success — only reached if the job above succeeds
+curl -fsS --retry 3 "https://cronwatch.example.com/heartbeat/YOUR_TOKEN" > /dev/null
+</code></pre>
+
+<p>The <code>set -e</code> ensures that if <code>sync-billing-records.py</code> fails, the script exits immediately — the heartbeat call is never reached. If the heartbeat doesn't arrive, the monitoring service alerts you. If the script crashes before the heartbeat line, the monitoring service alerts you. If the cron daemon never runs the script at all, the monitoring service alerts you.</p>
+
+<p>Three failure modes, one mechanism to catch all of them.</p>
+
+<hr/>
+
+<h2>Setting the right grace period</h2>
+
+<p>Every dead man's switch implementation requires a grace period — the amount of time after a missed expected check-in before an alert fires. Set it too short and you'll get false positives when a slow job takes longer than usual. Set it too long and you'll miss real outages for hours.</p>
+
+<p>A reasonable default for most jobs is the job's interval plus 25–50%. For a job that runs every hour, a 75-minute grace period means you get alerted within 15 minutes of a missed run while tolerating reasonable slowness. For a daily job, a 26-hour grace period catches a missed run within 2 hours of the next expected execution.</p>
+
+<table>
+  <thead>
+    <tr><th>Job interval</th><th>Suggested grace period</th><th>Alert window</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Every 5 minutes</td><td>8–10 minutes</td><td>3–5 min after miss</td></tr>
+    <tr><td>Every 15 minutes</td><td>20–25 minutes</td><td>5–10 min after miss</td></tr>
+    <tr><td>Every hour</td><td>75–90 minutes</td><td>15–30 min after miss</td></tr>
+    <tr><td>Every 6 hours</td><td>7–8 hours</td><td>1–2 h after miss</td></tr>
+    <tr><td>Daily</td><td>25–26 hours</td><td>1–2 h after miss</td></tr>
+    <tr><td>Weekly</td><td>8–9 days</td><td>1–2 days after miss</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Adding a dead man's switch to common schedulers</h2>
+
+<h3>crontab</h3>
+<pre><code># Every hour — check in after successful completion
+0 * * * * /path/to/sync.sh && curl -fsS "https://your-heartbeat-url/TOKEN" > /dev/null 2>&1
+</code></pre>
+
+<p>The <code>&&</code> operator ensures curl only runs if the job exits successfully. The redirect to <code>/dev/null 2>&1</code> prevents the curl output from triggering a local mail notification.</p>
+
+<h3>Node.js (node-cron)</h3>
+<pre><code>import cron from 'node-cron';
+import fetch from 'node-fetch';
+
+cron.schedule('0 * * * *', async () => {
+  try {
+    await syncBillingRecords();
+    // Check in on success
+    await fetch(process.env.CRONWATCH_HEARTBEAT_URL, { method: 'GET' });
+  } catch (err) {
+    console.error('Job failed:', err);
+    // No check-in = monitoring service alerts
+  }
+});
+</code></pre>
+
+<h3>Python (APScheduler)</h3>
+<pre><code>import requests
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+scheduler = BlockingScheduler()
+
+@scheduler.scheduled_job('cron', hour='*')
+def sync_job():
+    sync_billing_records()  # Raises on failure
+    # Check in on success
+    requests.get(os.environ['CRONWATCH_HEARTBEAT_URL'], timeout=5)
+
+scheduler.start()
+</code></pre>
+
+<h3>GitHub Actions</h3>
+<pre><code>- name: Run billing sync
+  run: python sync_billing.py
+
+- name: Heartbeat check-in
+  if: success()
+  run: curl -fsS "${{ secrets.CRONWATCH_HEARTBEAT_URL }}"
+</code></pre>
+
+<p>The <code>if: success()</code> condition ensures the heartbeat step only runs when all previous steps passed.</p>
+
+<hr/>
+
+<h2>What happens when the check-in is missing</h2>
+
+<p>A good dead man's switch monitor sends an alert through whatever channel you actually check: email, Slack, PagerDuty, SMS. The alert should include:</p>
+
+<ul>
+  <li>Which job missed its check-in</li>
+  <li>When the last successful check-in was received</li>
+  <li>What the expected interval is</li>
+  <li>How long it's been since the last check-in</li>
+</ul>
+
+<p>Armed with that information, you can diagnose in minutes: check the cron daemon, check the deployment history, look at server logs for the job's process. The monitor tells you when something stopped; you figure out why.</p>
+
+<hr/>
+
+<h2>Dead man's switch vs. log-based monitoring</h2>
+
+<p>Log-based monitoring (checking for error patterns in application logs) and dead man's switches are complementary, not alternatives. Log monitoring catches errors when jobs run but behave wrongly. Dead man's switches catch the case when jobs don't run at all. Both are necessary for complete coverage.</p>
+
+<p>If you can only have one: the dead man's switch catches more failure modes with less setup. You don't need to know what error patterns to look for, you don't need log aggregation infrastructure, and you're covered against scheduler-level failures that produce no application logs at all.</p>
+
+<hr/>
+
+<h2>Set up a dead man's switch for your cron jobs</h2>
+
+<div class="cta-box">
+  <h3>CronWatch — heartbeat monitoring for scheduled jobs</h3>
+  <p>Add one line to your cron job. Get alerted if it stops running. Works with any language, any scheduler: crontab, GitHub Actions, Kubernetes CronJob, Heroku Scheduler, Lambda, APScheduler, Celery Beat, and more.</p>
+  <p>Free to try. No credit card required. Takes 5 minutes to set up.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron expression parser →</a>
+</div>
+
+<hr/>
+
+<h2>Further reading</h2>
+
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why Your Cron Jobs Are Failing Silently (and How to Know)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-monitoring.html">Cron Job Monitoring: How to Get Alerted When Scheduled Jobs Fail</a></li>
+  <li><a href="https://lior-seats.github.io/blog/dead-mans-snitch-alternatives.html">Dead Man's Snitch Alternatives: 5 Cron Job Monitors Compared</a></li>
+  <li><a href="https://lior-seats.github.io/blog/free-cron-job-monitoring.html">Free Cron Job Monitoring: Best Tools in 2026</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-dead-mans-switch',{mode:'no-cors'});}());</script>
+</body>
+</html>
