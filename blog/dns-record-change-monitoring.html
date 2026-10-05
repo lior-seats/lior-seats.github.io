@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor DNS Record Changes and Get Instant Alerts</title>
+<meta name="description" content="Monitor dns changes across A, CNAME, MX, TXT, and NS records. Detect unauthorized edits, misconfigurations, and outages before they impact your users."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-record-change-monitoring.html"/>
+<meta property="og:title" content="How to Monitor DNS Record Changes and Get Instant Alerts"/>
+<meta property="og:description" content="Monitor dns changes across A, CNAME, MX, TXT, and NS records. Detect unauthorized edits, misconfigurations, and outages before they impact your users."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-record-change-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Monitor DNS Record Changes and Get Instant Alerts</h1>
+
+<p class="meta">Your MX records changed last Thursday. Email has been silently bouncing for four days.</p>
+
+<p>DNS records are the invisible configuration layer that makes the internet work for your domain. Your A record decides which server users reach. Your MX records determine where email is delivered. Your TXT records prove your identity to mail servers and domain validators. When any of these change unexpectedly — through a provider mistake, a security breach, a misconfigured automation script, or a team member's unannounced edit — the consequences can range from intermittent errors to complete service loss.</p>
+
+<p>The problem is that DNS changes are easy to miss. This article explains why, what to monitor, and how to detect changes before they become incidents.</p>
+
+<hr/>
+
+<h2>Why DNS changes go undetected</h2>
+
+<p>DNS is a caching system by design. When a record changes, the old value persists in caches around the world until TTLs expire. From inside your network — querying your own nameserver or a resolver that just refreshed — things look correct. Meanwhile, users hitting different resolvers may be getting stale or wrong answers for hours.</p>
+
+<p>Two structural issues make this worse:</p>
+
+<h3>Nameserver TTL caching</h3>
+<p>Recursive resolvers cache DNS answers according to the TTL in each record. If an attacker or misconfiguration changes your A record, and your TTL is 3600, resolvers that cached the old answer will serve it for up to an hour. But resolvers that haven't recently queried your domain will immediately pick up the new, wrong value. The result: some users reach your real server, others reach a different destination, and the split makes the problem harder to identify.</p>
+
+<h3>Multi-provider complexity</h3>
+<p>Many companies spread DNS management across multiple providers: primary DNS on Cloudflare, secondary on Route 53 for redundancy, CDN configuration in Fastly, email routing managed through Google Workspace, and domain registration at a different registrar. When any one of these systems makes a change — through its own automation, a misconfigured sync, or a provider-side incident — the rest of the chain may not reflect the change consistently. There's no single dashboard showing you the complete current state of your DNS.</p>
+
+<div class="callout">
+  <strong>Most uptime monitors don't catch DNS changes.</strong>
+  Standard HTTP monitors check whether your server responds. If a DNS change routes traffic to a different server that also responds with 200, the monitor reports everything as healthy while your real server receives no traffic.
+</div>
+
+<hr/>
+
+<h2>What DNS records to monitor</h2>
+
+<p>Not all record types carry equal risk. Here's what matters and why:</p>
+
+<h3>A and AAAA records</h3>
+<p>Your A record maps your domain to an IPv4 address. This is the most critical record to monitor — unauthorized changes can redirect traffic to a malicious server (DNS hijacking), route users to a decommissioned IP, or break connectivity entirely. Even intentional changes need monitoring to confirm propagation completes correctly.</p>
+
+<h3>CNAME records</h3>
+<p>CNAMEs are aliases pointing subdomains to other hostnames. A changed CNAME for <code>app.example.com</code> or <code>api.example.com</code> can silently redirect API traffic or break CDN routing. Subdomain takeover attacks often exploit stale CNAMEs pointing to deprovisioned services.</p>
+
+<h3>MX records</h3>
+<p>Mail exchange records control where inbound email is delivered. Unauthorized MX record changes are a serious security incident — they allow an attacker to intercept inbound email to your domain, including password reset messages and customer correspondence. MX changes are also a common source of email delivery failures after domain migrations that affect mail routing unexpectedly.</p>
+
+<h3>TXT records (SPF, DKIM, DMARC)</h3>
+<p>TXT records serve multiple purposes, but the most critical are email authentication records: SPF (which servers are authorized to send as your domain), DKIM (signing keys for message verification), and DMARC (policy for failed authentication). A change to your SPF record can cause your outbound email to be marked as spam by recipient servers. A deleted DKIM key breaks email signing validation. These changes are silent until someone notices increased bounce rates or spam classification.</p>
+
+<h3>NS records</h3>
+<p>Nameserver records define which DNS servers are authoritative for your domain. An unauthorized NS change is a complete domain hijack — whoever controls the nameservers controls all your DNS. NS changes at the registrar level are particularly dangerous and should be monitored with high-priority alerting.</p>
+
+<hr/>
+
+<h2>Consequences of undetected DNS changes</h2>
+
+<h3>Email delivery failures</h3>
+<p>An MX record that points to a non-existent server causes all inbound email to bounce. An SPF record that excludes your sending server causes outbound email to fail authentication at recipient servers — and with a strict DMARC policy, those messages are rejected or quarantined silently. You may not notice for days.</p>
+
+<h3>Site downtime and traffic redirection</h3>
+<p>A changed A record takes your site offline for users whose resolvers pick up the new, wrong value. In a DNS hijacking attack, the change is deliberate — traffic is routed to a server the attacker controls, potentially intercepting credentials or serving malicious content while your real server appears healthy.</p>
+
+<h3>Phishing risks</h3>
+<p>Attackers who successfully change your DNS records can serve a convincing copy of your site from a different server, capturing login credentials or payment information. Users see your domain in the address bar and have no indication anything is wrong. The attack persists until someone notices the DNS change and reverts it.</p>
+
+<hr/>
+
+<h2>How to detect DNS changes</h2>
+
+<h3>Manual spot checks</h3>
+<p>The simplest approach is querying your authoritative nameservers directly and comparing the output to a known-good baseline:</p>
+
+<pre><code># Check current A record
+dig A example.com @ns1.yourdns.com +short
+
+# Check MX records
+dig MX example.com @ns1.yourdns.com +short
+
+# Check TXT records (SPF, DKIM, DMARC)
+dig TXT example.com @ns1.yourdns.com
+dig TXT _dmarc.example.com @ns1.yourdns.com
+dig TXT selector1._domainkey.example.com @ns1.yourdns.com</code></pre>
+
+<p>This tells you what your authoritative server currently returns, but doesn't tell you what's propagated globally, doesn't run automatically, and requires you to have a baseline to compare against.</p>
+
+<h3>Automated change detection</h3>
+<p>Effective DNS change monitoring requires a system that:</p>
+<ol>
+  <li>Records a baseline snapshot of your current DNS records.</li>
+  <li>Polls your domain periodically (every few minutes to hourly) from multiple resolver locations.</li>
+  <li>Compares current values to the baseline.</li>
+  <li>Alerts you immediately when any record value changes.</li>
+</ol>
+
+<p>This approach catches both intentional changes that weren't communicated (a teammate updated an MX record without notifying the team) and unauthorized changes (a compromised DNS provider account making changes overnight).</p>
+
+<div class="cta-box">
+  <h3>🌐 Check your current DNS records right now</h3>
+  <p>Our free DNS checker shows you the current values for any record type across multiple resolvers worldwide — a useful starting point for establishing your baseline.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Open the free DNS checker →</a>
+</div>
+
+<hr/>
+
+<h2>Continuous DNS monitoring with DNSWatch</h2>
+
+<p>For production domains, manual checks aren't sufficient. DNS changes can happen at any time — a provider incident at 3 AM, an automation script triggered by a deployment, an attacker who gained access over the weekend. You need monitoring that runs continuously and alerts you within minutes of a change, not hours.</p>
+
+<p>DNSWatch monitors your DNS records automatically — tracking A, CNAME, MX, TXT, and NS records, maintaining a baseline snapshot, and sending you an email alert the moment any record changes from its expected value. You configure which records to watch and what changes trigger an alert.</p>
+
+<div class="cta-box">
+  <h3>📡 Continuous DNS change monitoring with DNSWatch</h3>
+  <p>DNSWatch watches your DNS records continuously — A, CNAME, MX, TXT, NS — and alerts you by email the moment anything changes. Catch unauthorized edits, provider mistakes, and propagation issues before they become incidents.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker tool</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">DNS checker tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-record-change-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

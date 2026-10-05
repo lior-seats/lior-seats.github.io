@@ -91,4 +91,7 @@
   <url><loc>https://lior-seats.github.io/blog/free-ssl-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/dns-propagation.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/block-ai-crawlers.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/dns-propagation-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/dns-record-change-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

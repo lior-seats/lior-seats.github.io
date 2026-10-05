@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Propagation Monitoring: How to Track Record Changes Across the Globe</title>
+<meta name="description" content="Learn how dns propagation monitoring works, why it matters for deployments and migrations, and how to check propagation with free tools and automated alerts."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-propagation-monitoring.html"/>
+<meta property="og:title" content="DNS Propagation Monitoring: How to Track Record Changes Across the Globe"/>
+<meta property="og:description" content="Learn how dns propagation monitoring works, why it matters for deployments and migrations, and how to check propagation with free tools and automated alerts."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-propagation-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Propagation Monitoring: How to Track Record Changes Across the Globe</h1>
+
+<p class="meta">You updated an A record an hour ago. Users in London are seeing the new server. Users in Tokyo are still hitting the old one. Welcome to DNS propagation.</p>
+
+<p>DNS propagation is one of the least predictable parts of running infrastructure on the internet. You make a change, and then you wait — sometimes minutes, sometimes hours — while resolvers around the world cache or refresh your updated record. Understanding what's happening and how to monitor it can save you from a painful deployment, migration, or outage investigation.</p>
+
+<hr/>
+
+<h2>What is DNS propagation and why does it take time?</h2>
+
+<p>When you update a DNS record — an A record pointing to a new IP, a CNAME for a subdomain, an MX record for a new mail server — the change doesn't instantly appear to everyone on the internet. It spreads gradually, a process called propagation.</p>
+
+<p>The core reason is TTL: Time To Live. Every DNS record has a TTL value, measured in seconds, that tells resolvers how long to cache the answer before checking again. A TTL of <code>3600</code> means a resolver that already cached your old record will keep serving it for up to an hour before fetching the new one. A TTL of <code>300</code> shortens that to 5 minutes.</p>
+
+<p>The full path looks like this:</p>
+
+<ol>
+  <li>You update the record at your DNS provider (e.g. Cloudflare, Route 53).</li>
+  <li>Your authoritative nameserver immediately serves the new value.</li>
+  <li>Recursive resolvers around the world still have the old value cached until their TTL expires.</li>
+  <li>End users are answered by whichever resolver their ISP or device points to — which may have cached the old record hours ago.</li>
+</ol>
+
+<p>This is why propagation time varies so widely. A user in your city might see the change in minutes if their resolver's cache already expired. A user across the world on a resolver with an aggressive cache might not see it for hours.</p>
+
+<div class="callout">
+  <strong>Pro tip: Lower your TTL before planned changes.</strong>
+  If you know a migration is coming, reduce your TTL to 300 or 60 seconds 24–48 hours in advance. Resolvers that refreshed after your TTL reduction will pick up the new record much faster when you flip the switch.
+</div>
+
+<hr/>
+
+<h2>Why DNS propagation monitoring matters</h2>
+
+<p>DNS propagation isn't just something to wait out. Unmonitored, it creates real operational risk across several common scenarios.</p>
+
+<h3>Deployments and server migrations</h3>
+<p>Moving to a new server or IP means some users hit the new infrastructure while others still reach the old one — sometimes for hours after you've declared the migration complete. If the old server is already scaled down or decommissioned, those users get errors you might not immediately associate with DNS.</p>
+
+<h3>Domain migrations and site moves</h3>
+<p>Moving a site to a new domain or hosting provider requires pointing DNS to new infrastructure while your old setup is still live. During propagation, split traffic creates inconsistencies: analytics data gets fragmented, sessions from different origins may break, and SEO signals can get confused between the old and new destination.</p>
+
+<h3>SSL certificate issuance</h3>
+<p>Certificate authorities like Let's Encrypt verify domain ownership by querying DNS. If your CNAME or TXT record for domain validation hasn't propagated to the CA's resolver, the certificate request fails. This is a common cause of cert issuance failures that look mysterious until you check propagation status from outside your own network.</p>
+
+<h3>Outage diagnosis</h3>
+<p>When users report intermittent connectivity issues, propagation is often the first thing to rule out. If your A record was recently changed and some users can reach the new IP while others can't, you're looking at a propagation issue — not a server problem.</p>
+
+<hr/>
+
+<h2>How to check DNS propagation</h2>
+
+<h3>Command line: dig and nslookup</h3>
+<p>Both tools let you query specific nameservers directly, bypassing your local cache.</p>
+
+<pre><code># Query Google's public resolver
+dig A example.com @8.8.8.8
+
+# Query Cloudflare's resolver
+dig A example.com @1.1.1.1
+
+# Query a specific nameserver directly
+dig A example.com @ns1.yourdns.com
+
+# nslookup equivalent
+nslookup example.com 8.8.8.8</code></pre>
+
+<p>Run the same query against multiple resolvers — Google (8.8.8.8), Cloudflare (1.1.1.1), OpenDNS (208.67.222.222) — and compare the results. Disagreement between resolvers confirms incomplete propagation.</p>
+
+<h3>Online tools</h3>
+<p>Command-line queries tell you what specific resolvers see, but propagation is a global problem. Online tools query resolvers distributed across multiple continents simultaneously, giving you a geographic view of propagation status.</p>
+
+<p>Our free DNS checker tool does exactly this — paste in any domain and record type and see the current answer from resolvers across the globe in seconds.</p>
+
+<div class="cta-box">
+  <h3>🌐 Check DNS propagation right now</h3>
+  <p>Our free DNS checker queries resolvers across multiple regions and shows you the current record values globally — no login required.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Open the free DNS checker →</a>
+</div>
+
+<hr/>
+
+<h2>Automated DNS propagation monitoring</h2>
+
+<p>One-time checks tell you whether propagation has completed at a point in time. But many operational scenarios need continuous monitoring: you want to know <em>when</em> the new record reaches a specific region, or you want an alert when something unexpected changes after propagation is complete.</p>
+
+<p>Use cases for automated monitoring:</p>
+
+<ul>
+  <li><strong>Migration confirmation:</strong> get notified when all major regions have picked up the new record, so you know when it's safe to decommission the old server.</li>
+  <li><strong>Regression detection:</strong> get alerted if an A record or CNAME changes back to an old value, which can happen from misconfigured automation or provider sync errors.</li>
+  <li><strong>Multi-region consistency checks:</strong> continuously verify that all your DNS records resolve consistently from every region you care about.</li>
+</ul>
+
+<div class="cta-box">
+  <h3>📡 Automated DNS monitoring with DNSWatch</h3>
+  <p>DNSWatch monitors your DNS records continuously — tracking propagation progress, detecting unexpected changes, and alerting you by email the moment something diverges from what you expect.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker tool</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">DNS checker tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-propagation-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
