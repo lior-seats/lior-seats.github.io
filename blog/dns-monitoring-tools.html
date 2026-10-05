@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>5 DNS Monitoring Tools Compared (2026)</title>
+<meta name="description" content="Comparing the best DNS monitoring tools: DNS Made Easy, UptimeRobot, HetrixTools, Pingdom, and DNSWatch. Find the right DNS change monitor for your infrastructure."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-monitoring-tools.html"/>
+<meta property="og:title" content="5 DNS Monitoring Tools Compared (2026)"/>
+<meta property="og:description" content="Which DNS monitoring tool is right for you? We compare DNS Made Easy, UptimeRobot, HetrixTools, Pingdom, and DNSWatch on price, features, and setup."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-monitoring-tools.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .price { font-weight: 700; }
+  .best { color: #15803d; font-weight: 600; }
+  .ok { color: #555; }
+  .bad { color: #b91c1c; }
+  .tool-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin: 1.5em 0; }
+  .tool-section h3 { margin-top: 0; margin-bottom: 0.4em; }
+  .tool-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.75em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>5 DNS Monitoring Tools Compared (2026)</h1>
+
+<p class="meta">Comparing DNS Made Easy, UptimeRobot, HetrixTools, Pingdom, and DNSWatch — price, record-type coverage, alert speed, and who each tool is for.</p>
+
+<p>DNS monitoring tools fall into two categories: general uptime monitors that include DNS as a feature, and dedicated DNS monitoring services built specifically for record-change detection. Both have their place, but they solve different problems.</p>
+
+<p>General uptime monitors tell you when your domain is unreachable. Dedicated DNS monitors tell you when your DNS records change — which is often what caused the outage in the first place. This comparison covers both.</p>
+
+<hr/>
+
+<h2>Quick comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Starting price</th>
+      <th>DNS change alerts</th>
+      <th>Record types</th>
+      <th>Best for</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>DNS Made Easy</strong></td>
+      <td class="price">$29.95/mo</td>
+      <td class="best">✅ Yes</td>
+      <td class="best">All types</td>
+      <td>Enterprise DNS + monitoring</td>
+    </tr>
+    <tr>
+      <td><strong>UptimeRobot</strong></td>
+      <td class="price">Free / $7/mo</td>
+      <td class="bad">⚠️ Limited</td>
+      <td class="bad">A record only</td>
+      <td>Basic HTTP + DNS uptime</td>
+    </tr>
+    <tr>
+      <td><strong>HetrixTools</strong></td>
+      <td class="price">$10/mo</td>
+      <td class="best">✅ Yes</td>
+      <td class="ok">A, AAAA, MX, TXT</td>
+      <td>Server + infrastructure monitoring</td>
+    </tr>
+    <tr>
+      <td><strong>Pingdom</strong></td>
+      <td class="price">$15/mo</td>
+      <td class="bad">❌ No</td>
+      <td class="bad">Uptime only</td>
+      <td>Website performance + uptime</td>
+    </tr>
+    <tr>
+      <td><strong>DNSWatch</strong></td>
+      <td class="price">$9/mo (early access)</td>
+      <td class="best">✅ Yes</td>
+      <td class="best">All types</td>
+      <td>Indie devs, startups, simple setup</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Tool-by-tool breakdown</h2>
+
+<div class="tool-section">
+  <h3>1. DNS Made Easy</h3>
+  <div class="tool-meta">Starting at $29.95/month · dns.com</div>
+  <p>DNS Made Easy is primarily a managed DNS provider — you host your DNS zones there — but it includes real-time DNS monitoring as part of the package. It watches all record types across multiple anycast locations and sends alerts when a record changes or resolves incorrectly.</p>
+  <p><strong>Pros:</strong> comprehensive monitoring across all record types, enterprise-grade reliability, integrated with their DNS hosting so changes and alerts are in one place.</p>
+  <p><strong>Cons:</strong> you have to migrate your DNS hosting to use it, which is a significant commitment. Overkill for smaller sites. Minimum $29.95/month.</p>
+  <p><strong>Best for:</strong> teams that already use or plan to use DNS Made Easy for DNS hosting and want monitoring as a built-in feature.</p>
+</div>
+
+<div class="tool-section">
+  <h3>2. UptimeRobot</h3>
+  <div class="tool-meta">Free tier / $7/month (paid) · uptimerobot.com</div>
+  <p>UptimeRobot is the most widely used uptime monitor for indie developers and small teams. The free tier checks up to 50 HTTP endpoints every 5 minutes. It includes a "DNS monitor" type, but this only checks whether a domain resolves to an expected IP — it's resolution uptime, not record-change monitoring.</p>
+  <p><strong>Pros:</strong> excellent free tier for basic HTTP uptime; very simple setup; integrates with Slack, email, webhook; large community with good documentation.</p>
+  <p><strong>Cons:</strong> the DNS monitor is limited to A record resolution checks. It won't detect MX, TXT, CNAME, or NS changes. It's uptime monitoring, not change monitoring.</p>
+  <p><strong>Best for:</strong> teams that need HTTP uptime monitoring and want basic "is my domain resolving?" checks. Not suitable as a primary DNS change monitor.</p>
+</div>
+
+<div class="tool-section">
+  <h3>3. HetrixTools</h3>
+  <div class="tool-meta">$10/month for 20 monitors · hetrixtools.com</div>
+  <p>HetrixTools is a solid mid-tier infrastructure monitoring platform. Its DNS monitoring checks A, AAAA, MX, and TXT records from multiple locations and alerts on changes. It's a good middle ground between basic uptime tools and enterprise DNS platforms.</p>
+  <p><strong>Pros:</strong> covers the most important record types, reasonable pricing, good alert options including email and Slack, checks from multiple geographic locations so you catch propagation issues.</p>
+  <p><strong>Cons:</strong> the interface is dense and requires some familiarity with infrastructure monitoring concepts. NS record monitoring requires a higher tier. Not focused exclusively on DNS — it's a general infrastructure tool that includes DNS monitoring.</p>
+  <p><strong>Best for:</strong> developers who already need server monitoring and want DNS change alerts as part of the same platform. Good value if you're monitoring both servers and DNS.</p>
+</div>
+
+<div class="tool-section">
+  <h3>4. Pingdom</h3>
+  <div class="tool-meta">From $15/month · pingdom.com</div>
+  <p>Pingdom is a mature website performance and uptime monitoring platform. It's excellent at what it's designed for — page speed, uptime, and transaction monitoring. However, it doesn't include DNS record change monitoring. Its "DNS check" is a response-time measurement, not a record-change detector.</p>
+  <p><strong>Pros:</strong> best-in-class for performance monitoring; global check locations; detailed root cause analysis; integrates with most alerting platforms.</p>
+  <p><strong>Cons:</strong> DNS record change monitoring is simply not part of the product. If your MX record changes, Pingdom won't alert you. You'd need a separate tool for DNS change monitoring.</p>
+  <p><strong>Best for:</strong> teams focused on website performance and uptime who need a complementary DNS change monitoring tool alongside Pingdom.</p>
+</div>
+
+<div class="tool-section">
+  <h3>5. DNSWatch</h3>
+  <div class="tool-meta">$9/month early access — dnswatch-waitlist · in development</div>
+  <p>DNSWatch is a purpose-built DNS change monitor designed for indie developers and small teams. It monitors all record types (A, AAAA, MX, TXT, CNAME, NS) and sends email alerts the moment anything changes — including what the record changed from and to, and a timestamp. Setup is just adding a domain, no DNS migration required.</p>
+  <p><strong>Pros:</strong> lowest price point for full-record-type coverage; change history shows exactly what changed; simple focused interface with no infrastructure overhead; companion free DNS checker tool for ad-hoc lookups.</p>
+  <p><strong>Cons:</strong> still in early access — no Slack/webhook integration yet; up to 10 domains in the initial offering; newer service without years of track record.</p>
+  <p><strong>Best for:</strong> indie developers and small teams that want dedicated DNS change monitoring at a low price, without committing to a full infrastructure monitoring platform.</p>
+</div>
+
+<hr/>
+
+<h2>How to choose</h2>
+
+<p><strong>If you need comprehensive uptime + performance monitoring</strong> and want to add DNS as one signal: <strong>HetrixTools</strong> gives the best DNS coverage within a general monitoring platform at a reasonable price.</p>
+
+<p><strong>If DNS monitoring is your primary need</strong> and you have a handful of domains to watch: <strong>DNSWatch</strong> at $9/month is the lowest-friction option focused specifically on this problem.</p>
+
+<p><strong>If you're on a tight budget and mainly need HTTP uptime</strong>: <strong>UptimeRobot</strong> free tier covers the basics, but add a separate DNS change monitor alongside it — UptimeRobot won't catch MX or TXT record changes.</p>
+
+<p><strong>If you're running enterprise DNS infrastructure</strong> on DNS Made Easy: their built-in monitoring is the most integrated option and the additional cost is worth it at that scale.</p>
+
+<p><strong>If you need Pingdom for performance</strong>: you'll want a second tool for DNS change monitoring since Pingdom doesn't cover it.</p>
+
+<div class="cta-box">
+  <h3>📡 DNSWatch — DNS change monitoring for indie developers</h3>
+  <p>Monitor all your DNS records and get alerted the instant anything changes. $9/month for up to 10 domains — early access pricing locked in for founding customers.</p>
+  <a class="btn" href="https://lior-seats.github.io/dnswatch-waitlist/">Join the DNSWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/dns-checker/">Free DNS record checker</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/blog/dns-record-monitoring.html">DNS record monitoring guide</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-monitoring-tools',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Record Monitoring: Get Alerted When Your DNS Changes</title>
+<meta name="description" content="DNS changes are silent. A wrong MX record bounces your email for days before anyone notices. Here's how to monitor DNS records and get alerted the moment anything changes."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-record-monitoring.html"/>
+<meta property="og:title" content="DNS Record Monitoring: Get Alerted When Your DNS Changes"/>
+<meta property="og:description" content="DNS changes are silent. Learn how to monitor your DNS records and get alerted the moment an A record, MX record, or CNAME changes."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-record-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Record Monitoring: Get Alerted When Your DNS Changes</h1>
+
+<p class="meta">How unauthorized changes, botched deployments, and silent TTL drift break production — and the one-time setup that catches all of it.</p>
+
+<p>DNS changes are some of the most damaging failures in production infrastructure — and some of the hardest to detect. Unlike an application crash or a failed deployment, a wrong DNS record doesn't throw an error. It just quietly breaks things. Email stops delivering. Users land on the wrong server. An API integration stops working. And depending on your TTL, the problem can persist for hours or days before anyone traces it back to a DNS change.</p>
+
+<p>This post covers the three common ways DNS changes silently break production, and how to set up monitoring that catches them before users do.</p>
+
+<hr/>
+
+<h2>Why DNS changes are so dangerous</h2>
+
+<h3>Unauthorized or accidental changes</h3>
+
+<p>DNS is almost always a shared system. Multiple people have access to your registrar or DNS provider. A developer updates an A record for a staging subdomain and accidentally changes the production one. An automated deployment script updates a CNAME but targets the wrong zone. Someone testing a migration removes a TXT record that was being used for email authentication.</p>
+
+<p>None of these generate an alert. The change is made, the old record is gone, and production breaks — usually at the worst possible time.</p>
+
+<h3>MX record errors that bounce email for days</h3>
+
+<p>MX records determine where your email goes. A misconfigured MX record — wrong priority, wrong hostname, pointing to a decommissioned mail server — means incoming email gets silently discarded or bounced. The senders get a bounce message but you don't. Your team notices days later when they realize nobody has replied to that customer inquiry from Thursday.</p>
+
+<p>Email delivery failures from bad MX records are particularly costly because they're invisible from the inside. From your perspective, everything looks normal. Nobody told you about the bounces.</p>
+
+<h3>TTL drift after migrations</h3>
+
+<p>When you migrate a service to a new server or CDN, you update the A record and everything looks fine. But you had a 48-hour TTL. Some users are still hitting the old server for two more days. The old server gets decommissioned. Those users start seeing errors.</p>
+
+<p>Monitoring your TTL and being alerted when it changes unexpectedly (or when it stays high after a migration) prevents this class of problems. You catch the configuration gap before it becomes a user-facing outage.</p>
+
+<div class="callout">
+  <strong>The real problem with DNS changes</strong>
+  DNS failures are often discovered by customers before your team. By the time someone reports "I can't reach your site" or "your email is bouncing," the change has been in place long enough for DNS to propagate — meaning the blast radius is already at maximum.
+</div>
+
+<hr/>
+
+<h2>What DNS monitoring actually checks</h2>
+
+<p>DNS monitoring compares your current DNS records against a known-good baseline and alerts you when anything diverges. Specifically, it watches for:</p>
+
+<ul>
+  <li><strong>A / AAAA record changes</strong> — your domain now points to a different IP</li>
+  <li><strong>MX record changes</strong> — email routing has changed</li>
+  <li><strong>CNAME changes</strong> — a subdomain now points to a different target</li>
+  <li><strong>TXT record changes</strong> — SPF/DKIM/DMARC records modified, potentially breaking email authentication</li>
+  <li><strong>NS record changes</strong> — nameserver delegation changed (the most severe: this affects all records)</li>
+  <li><strong>TTL changes</strong> — TTL lowered before a migration, but never raised back</li>
+</ul>
+
+<p>The monitoring doesn't prevent changes — it just ensures you know about them within minutes of when they happen, rather than after users start complaining.</p>
+
+<hr/>
+
+<h2>How to check your current DNS records</h2>
+
+<p>Before setting up monitoring, you need a snapshot of what your DNS records currently look like. A few options:</p>
+
+<h3>Command line</h3>
+
+<pre><code><span class="comment"># All record types for a domain</span>
+dig github.com ANY
+
+<span class="comment"># Specific record types</span>
+dig github.com A
+dig github.com MX
+dig github.com TXT
+dig github.com NS
+
+<span class="comment"># Check from a specific nameserver</span>
+dig @8.8.8.8 github.com A</code></pre>
+
+<h3>Free browser tool</h3>
+
+<div class="cta-inline">
+  🔍 <strong>Check any domain's DNS records instantly:</strong> <a href="https://lior-seats.github.io/dns-checker/">dns-checker — look up A, AAAA, MX, TXT, CNAME, NS records in one click →</a> No signup required.
+</div>
+
+<hr/>
+
+<h2>Setting up DNS change monitoring</h2>
+
+<p>There are two approaches, depending on your scale and budget.</p>
+
+<h3>Self-monitoring with a script</h3>
+
+<p>For small setups with a handful of domains, a cron job that checks your DNS records and compares them to a stored baseline is straightforward:</p>
+
+<pre><code>#!/bin/bash
+# dns-monitor.sh — runs daily via cron
+DOMAIN="yourdomain.com"
+EXPECTED_A="203.0.113.42"
+CURRENT_A=$(dig +short $DOMAIN A | head -1)
+
+if [ "$CURRENT_A" != "$EXPECTED_A" ]; then
+  echo "ALERT: A record for $DOMAIN changed to $CURRENT_A" | \
+    mail -s "DNS Change Detected" you@company.com
+fi</code></pre>
+
+<p>Extend this for each record type you care about. The downside: you're maintaining the script, the cron job, and the baseline. And if your monitoring cron job fails silently, you're back to square one.</p>
+
+<h3>Dedicated DNS monitoring service</h3>
+
+<p>For production domains that matter, a dedicated service is more reliable. It checks from multiple locations, stores the history of changes with timestamps, and sends alerts by email, Slack, or webhook without any infrastructure on your side.</p>
+
+<p>What to look for in a DNS monitoring service:</p>
+
+<ul>
+  <li>Checks all record types (A, AAAA, MX, TXT, CNAME, NS) not just uptime</li>
+  <li>Stores change history so you can see exactly what changed and when</li>
+  <li>Configurable check frequency (at least every 5–15 minutes for production)</li>
+  <li>Email + webhook alerts (ideally Slack and PagerDuty too)</li>
+  <li>Simple setup — no agent to install, just add the domain</li>
+</ul>
+
+<div class="cta-box">
+  <h3>📡 DNSWatch — instant alerts when your DNS changes</h3>
+  <p>DNSWatch monitors your DNS records every few minutes and sends an email the moment anything changes — A, AAAA, MX, TXT, CNAME, or NS. See exactly what changed, when it changed, and from what value. $9/month for up to 10 domains.</p>
+  <a class="btn" href="https://lior-seats.github.io/dnswatch-waitlist/">Join the DNSWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/dns-checker/">Check your current DNS records free</a>
+</div>
+
+<hr/>
+
+<h2>A practical monitoring checklist</h2>
+
+<p>For any domain that has production traffic or handles email:</p>
+
+<ol>
+  <li>Take a snapshot of your current records (use <code>dig</code> or the free tool above)</li>
+  <li>Set up monitoring for A, MX, TXT (SPF/DKIM), and NS records at minimum</li>
+  <li>For customer-facing subdomains: monitor their CNAMEs too</li>
+  <li>Set check frequency to ≤15 minutes for domains handling live traffic</li>
+  <li>Alert to at least two channels (email + Slack) so a silent email failure doesn't hide a DNS alert</li>
+  <li>Review your change history quarterly — catching slow TTL drift early prevents migration headaches</li>
+</ol>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">Free DNS checker</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-record-monitoring',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>
