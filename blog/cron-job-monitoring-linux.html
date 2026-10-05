@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Monitoring on Linux: Get Alerts When Jobs Fail</title>
+<meta name="description" content="Linux cron jobs fail silently — no alerts, no emails, just missing results. How to set up real cron job monitoring on Linux with failure alerts and missed-run detection."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-monitoring-linux.html"/>
+<meta property="og:title" content="Cron Job Monitoring on Linux: Get Alerts When Jobs Fail"/>
+<meta property="og:description" content="Linux cron jobs fail silently by default. How to set up real monitoring with failure alerts, exit-code checking, and missed-run detection."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-monitoring-linux.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Monitoring on Linux: Get Alerts When Jobs Fail</h1>
+
+<p class="meta">Your cron jobs are running. Or maybe they're not. Linux won't tell you either way.</p>
+
+<p>Linux <code>cron</code> is one of the most dependable schedulers ever written — it starts on boot, runs for years without intervention, and handles millions of jobs across every Linux distribution. The problem isn't cron. The problem is what happens when the jobs cron runs fail silently, and nobody finds out until something breaks downstream.</p>
+
+<p>This guide covers the real approaches to cron job monitoring on Linux: from the basic mail-based default, through log-based approaches, to the heartbeat pattern that catches every failure mode including missed runs.</p>
+
+<hr/>
+
+<h2>Why Linux cron jobs fail silently</h2>
+
+<p>The default behavior when a cron job produces output (including errors) is to mail that output to the user running the job. On most modern Linux servers, this means the output goes to <code>/var/spool/mail/username</code> — a local mailbox that nobody reads.</p>
+
+<p>There are three reasons this doesn't work in practice:</p>
+
+<ul>
+  <li><strong>Local mail isn't monitored.</strong> System administrators check <code>/var/log</code>, not <code>/var/spool/mail</code>. Unless you've piped the mail somewhere useful, it accumulates unseen.</li>
+  <li><strong>Successful jobs produce no output.</strong> A job that runs and succeeds silently sends no mail at all. You have no evidence it ran.</li>
+  <li><strong>Suppressed output hides failures.</strong> Many crontab entries redirect stdout and stderr to <code>/dev/null</code> to stop the mail noise. This silences failures along with the noise.</li>
+</ul>
+
+<p>The result: a cron job can stop running entirely — because of a server reboot, a crontab edit, a permissions change, or a dependency failure — and you won't know until a backup is missing, a report hasn't arrived, or a user reports that something stopped working.</p>
+
+<hr/>
+
+<h2>Approach 1: Send output to a real email address</h2>
+
+<p>The simplest fix is to point the cron mail somewhere you actually read. At the top of your crontab (run <code>crontab -e</code>), add:</p>
+
+<pre><code>MAILTO="ops@yourcompany.com"</code></pre>
+
+<p>Now any job that produces output on stdout or stderr will mail it to that address — provided a working MTA is configured on the host. On Ubuntu/Debian, you can install <code>ssmtp</code> or <code>msmtp</code> as a lightweight relay; on RHEL/CentOS, <code>postfix</code> is usually present.</p>
+
+<p>This catches exit-code failures only if your script writes to stderr on failure. Most scripts don't. And it still doesn't catch missed runs.</p>
+
+<hr/>
+
+<h2>Approach 2: Redirect output to a log file</h2>
+
+<p>Logging job output to a file gives you a searchable audit trail and lets other monitoring tools (like <code>logwatch</code> or <code>fail2ban</code>) consume it:</p>
+
+<pre><code>0 3 * * * /opt/scripts/backup.sh >> /var/log/backup.log 2>&1</code></pre>
+
+<p>Combine with explicit exit-code checking in the script itself:</p>
+
+<pre><code>#!/bin/bash
+set -e  # exit on any error
+
+/usr/bin/rsync -a /data/ /backup/data/
+
+if [ $? -eq 0 ]; then
+  echo "$(date): backup OK"
+else
+  echo "$(date): backup FAILED" >&2
+  exit 1
+fi</code></pre>
+
+<p>Now the log file captures both success and failure. The downside: you still have to read the log file (or set up log monitoring separately) to know something failed. And if the job simply never ran, the log shows nothing — silence, which is indistinguishable from success.</p>
+
+<hr/>
+
+<h2>Approach 3: Wrapper scripts with email on failure</h2>
+
+<p>A step up: wrap every cron job in a shell function that captures exit code and emails on failure:</p>
+
+<pre><code>#!/bin/bash
+JOB="$1"
+shift
+"$JOB" "$@"
+EXIT_CODE=$?
+if [ "$EXIT_CODE" -ne 0 ]; then
+  echo "Cron job $JOB failed with exit code $EXIT_CODE" \
+    | mail -s "CRON FAILURE: $JOB" ops@yourcompany.com
+fi</code></pre>
+
+<p>Then in your crontab:</p>
+
+<pre><code>0 3 * * * /opt/scripts/cron-wrapper.sh /opt/scripts/backup.sh</code></pre>
+
+<p>This is more reliable for exit-code failures. It still doesn't catch the case where the job never starts — a reboot that clears a temp crontab, a deploy that overwrites <code>/etc/cron.d/</code>, or a <code>cron</code> daemon that stops running.</p>
+
+<hr/>
+
+<h2>Approach 4: The heartbeat (dead man's switch) pattern</h2>
+
+<p>The only approach that catches <em>every</em> failure mode — including missed runs — is the heartbeat pattern. Your cron job pings an external monitoring service on successful completion. The monitoring service watches for the ping on a schedule. If the ping doesn't arrive, the service alerts you.</p>
+
+<p>This is called a dead man's switch: the absence of a signal is the alert, not the presence of an error.</p>
+
+<p>Adding a heartbeat to any existing cron job takes one line. Append a <code>curl</code> call at the end of the job:</p>
+
+<pre><code># Your cron job runs, then pings when done:
+0 3 * * * /opt/scripts/backup.sh && curl -fsS --retry 3 \
+  "https://cronwatch.app/ping/YOUR-UNIQUE-ID" > /dev/null 2>&1</code></pre>
+
+<p>The <code>&&</code> operator means the ping only fires if the script exits successfully. If the script fails (non-zero exit), the ping doesn't fire. If the server never ran the job at all, the ping doesn't fire. Either way, the monitoring service detects the missing ping and sends an alert.</p>
+
+<div class="callout">
+  <strong>Why &amp;&amp; matters here</strong>
+  Using <code>&amp;&amp;</code> rather than <code>;</code> ties the ping to job success. With <code>;</code>, the ping fires even on failure — you'd lose the failure signal. With <code>&amp;&amp;</code>, a failed job looks the same as a missed job to the monitoring service: no ping, send alert.
+</div>
+
+<hr/>
+
+<h2>What to monitor beyond exit codes</h2>
+
+<p>Good Linux cron monitoring tracks more than just exit codes. Three other signals matter in production:</p>
+
+<h3>Missed run windows</h3>
+<p>Configure your monitoring service with the expected schedule and a grace period. A daily job scheduled at 3am should be seen between 3:00 and 3:10. If it isn't seen by 3:10, send an alert. A grace period prevents false alarms from minor timing variations while still catching genuine misses.</p>
+
+<h3>Run duration anomalies</h3>
+<p>A backup that normally takes 4 minutes completing in 3 seconds is almost certainly failing early. Duration tracking catches this. Record the job's start and end time, or use a monitoring service that tracks duration automatically.</p>
+
+<h3>Schedule drift</h3>
+<p>On servers with high load or DST transitions, cron jobs can drift from their scheduled window. A job that's supposed to run at midnight may run at 12:05 on a loaded server. If your monitoring uses a tight grace period, this causes false alarms. Use a grace period that accounts for real-world variation — typically 5–10 minutes for most jobs.</p>
+
+<hr/>
+
+<h2>Cron expression syntax reference</h2>
+
+<p>Getting the schedule right is the first step to monitoring it. Linux cron uses five fields:</p>
+
+<pre><code># ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 7, 0 and 7 are Sunday)
+# │ │ │ │ │
+  * * * * * command</code></pre>
+
+<p>Common schedules:</p>
+
+<pre><code>0 3 * * *     # every day at 3am
+*/15 * * * *  # every 15 minutes
+0 9 * * 1-5   # weekdays at 9am
+0 0 1 * *     # first day of every month at midnight
+@reboot       # once on startup</code></pre>
+
+<p>If you're unsure what your cron expression actually does, parse it with a visual tool before deploying it to production.</p>
+
+<div class="cta-box">
+  <h3>⏰ Parse your cron expression free</h3>
+  <p>Enter any cron expression and see the next 10 run times in plain English. Verify your schedule before you deploy it.</p>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn">Parse your cron expression →</a>
+</div>
+
+<hr/>
+
+<h2>Set up Linux cron monitoring with CronWatch</h2>
+
+<p>CronWatch implements the dead man's switch pattern for Linux cron jobs. You add one line to your crontab; CronWatch watches for the heartbeat on the schedule you specify and sends an alert if the ping doesn't arrive.</p>
+
+<p>Setup takes under 5 minutes:</p>
+
+<ol>
+  <li>Sign up and create a monitor for your job — enter the schedule and a grace period.</li>
+  <li>Copy the unique ping URL CronWatch generates.</li>
+  <li>Add <code>&amp;&amp; curl -fsS "YOUR-PING-URL"</code> to the end of your cron job command.</li>
+  <li>CronWatch starts watching. If the job misses its window or fails, you get an email.</li>
+</ol>
+
+<p>This works for any Linux cron job — system cron (<code>/etc/cron.d/</code>), user crontabs (<code>crontab -e</code>), and Anacron jobs (<code>/etc/cron.daily/</code>). No agents to install, no changes to your server configuration.</p>
+
+<div class="cta-box">
+  <h3>🟢 Stop flying blind on Linux cron jobs</h3>
+  <p>CronWatch sends alerts when your Linux cron jobs fail or miss their schedule — using the heartbeat pattern that catches every failure mode, including missed runs.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Free cron parser</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-monitoring-linux',{mode:'no-cors'});}());</script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dead Man's Switch for Cron Jobs: Know When Your Job Stops Running</title>
+<meta name="description" content="A dead man's switch alerts you when a cron job stops running — not just when it errors. How the heartbeat monitoring pattern works and how to add it to any cron job in minutes."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dead-mans-switch-cron.html"/>
+<meta property="og:title" content="Dead Man's Switch for Cron Jobs: Know When Your Job Stops Running"/>
+<meta property="og:description" content="Error monitoring won't catch a cron job that silently stopped running. A dead man's switch will. How the heartbeat pattern works and how to set it up in one line."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dead-mans-switch-cron.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Dead Man's Switch for Cron Jobs: Know When Your Job Stops Running</h1>
+
+<p class="meta">Error monitoring tells you when jobs fail. A dead man's switch tells you when they stop running entirely.</p>
+
+<p>Most cron job monitoring focuses on errors: check the exit code, capture stderr, email the output. This catches a meaningful class of failures — but it misses the most dangerous one. A cron job that stops running entirely produces no errors, no output, and no alerts. It just disappears. The dead man's switch pattern is designed specifically to catch this.</p>
+
+<hr/>
+
+<h2>What is a dead man's switch?</h2>
+
+<p>The term comes from safety engineering. A dead man's switch is a control mechanism that is triggered — or held inactive — by the active action of a human operator. If the operator becomes incapacitated, the switch activates. In railways and trains, a driver who stops holding the dead man's switch causes the brakes to engage automatically.</p>
+
+<p>Applied to cron job monitoring, the concept inverts the usual alerting model:</p>
+
+<ul>
+  <li><strong>Standard monitoring:</strong> job runs → job fails → error fires alert</li>
+  <li><strong>Dead man's switch:</strong> job runs → job succeeds → job sends "I'm alive" ping → if ping stops arriving → alert fires</li>
+</ul>
+
+<p>The monitoring service doesn't watch for errors. It watches for the expected heartbeat. The <em>absence</em> of the heartbeat is the signal. This catches every failure mode: exit-code failures, jobs that never started, servers that went down, crontabs that were accidentally cleared, and daemons that silently stopped.</p>
+
+<hr/>
+
+<h2>Why cron jobs need a dead man's switch specifically</h2>
+
+<p>Cron is different from long-running services in a way that makes traditional monitoring inadequate.</p>
+
+<p>For a long-running process (a web server, a worker daemon), uptime monitoring works well: the process either responds or it doesn't. If it crashes, you get an alert. You can poll it continuously.</p>
+
+<p>Cron jobs are different. They run for a few seconds or minutes and then exit. There's nothing to poll between runs. The only evidence a job ran is the output it produced — which usually goes nowhere — or an explicit record it wrote. If you miss a single run, the system looks identical from the outside to a system where the job ran successfully. Silence is not evidence of success.</p>
+
+<p>The three cron failure modes a dead man's switch catches that standard error monitoring misses:</p>
+
+<h3>The job never started</h3>
+<p>Server rebooted without the cron daemon restarting. A deploy clobbered <code>/etc/cron.d/</code>. An <code>@reboot</code> job didn't fire because the server was already running when it was added. A user crontab was edited on the wrong server. None of these produce any error — the job simply doesn't exist anymore from cron's perspective.</p>
+
+<h3>The cron daemon stopped</h3>
+<p>This is rare but real. <code>crond</code> gets killed during a resource crunch. A package update restarts it but the restart fails. A container's init process doesn't manage cron correctly. Again: no errors, no output, just silence.</p>
+
+<h3>The job ran but was effectively a no-op</h3>
+<p>A backup script that "runs successfully" but exits early because the target directory doesn't exist, producing an empty backup. A sync job that exits 0 but transferred 0 bytes. A job that checks for new records and silently finds none — but "none" is wrong because the data pipeline upstream broke. These jobs succeed technically but fail functionally. A heartbeat that includes a meaningful check (row count, file size, checksum) catches this where a simple exit-code check doesn't.</p>
+
+<hr/>
+
+<h2>The curl heartbeat pattern</h2>
+
+<p>Adding a dead man's switch to any cron job takes one line. After your job command, append a <code>curl</code> call to your monitoring service's ping URL:</p>
+
+<pre><code># Ping only on success (use && not ;)
+0 3 * * * /opt/scripts/backup.sh && \
+  curl -fsS --retry 3 --max-time 10 \
+  "https://cronwatch.app/ping/YOUR-UNIQUE-ID" > /dev/null 2>&1</code></pre>
+
+<p>The <code>&amp;&amp;</code> operator is important: it means the curl only runs if the script exits with code 0. A failing script produces no ping — the monitoring service sees a missed heartbeat and alerts you. The <code>-fsS</code> flags tell curl to fail silently on HTTP errors while still failing on network errors, and <code>--retry 3</code> handles transient network blips.</p>
+
+<p>For jobs where you want to ping on both success and failure (so you can distinguish "job ran and failed" from "job never ran"), send a start ping too:</p>
+
+<pre><code>0 3 * * * curl -fsS "https://cronwatch.app/ping/YOUR-ID/start" && \
+  /opt/scripts/backup.sh && \
+  curl -fsS "https://cronwatch.app/ping/YOUR-ID"</code></pre>
+
+<p>This gives you three states: job started but no finish ping (hung or crashed mid-run), finish ping without start ping (scheduling issue), and both pings (success).</p>
+
+<hr/>
+
+<h2>Grace periods: avoiding false alarms</h2>
+
+<p>The grace period is the window after the expected run time during which a late ping is still considered on-time. You need this because:</p>
+
+<ul>
+  <li>Cron has inherent timing jitter — a job scheduled at 3:00am may start at 3:00:02 and run for 90 seconds, so the ping arrives at 3:01:32.</li>
+  <li>Network latency can delay the ping by a few seconds.</li>
+  <li>The monitoring service itself needs a moment to process the ping.</li>
+  <li>On a heavily loaded server, the job may be delayed by 1–5 minutes.</li>
+</ul>
+
+<p>A reasonable default grace period for most cron jobs is 10–15 minutes. For jobs where a 10-minute delay is itself a problem (e.g. a job that's supposed to process payments every 5 minutes), use a shorter grace period and accept a higher false-alarm rate, or investigate why the job is running late.</p>
+
+<div class="callout">
+  <strong>Don't set grace period = schedule interval</strong>
+  If a job runs every 30 minutes and your grace period is 30 minutes, a missed run might not alert until the <em>next</em> run's grace period expires — potentially 60 minutes late. Use a grace period that's a fraction of the schedule interval, typically 10–25%.
+</div>
+
+<hr/>
+
+<h2>What to include in the heartbeat for backup and billing jobs</h2>
+
+<p>For critical jobs — database backups, billing runs, data syncs — consider adding contextual data to the heartbeat ping. Some monitoring services accept a payload that gets stored with the ping record:</p>
+
+<pre><code>#!/bin/bash
+set -e
+
+# Run the backup
+/usr/bin/pg_dump mydb | gzip > /backup/mydb-$(date +%Y%m%d).sql.gz
+
+# Get the backup size
+BACKUP_SIZE=$(stat -c%s "/backup/mydb-$(date +%Y%m%d).sql.gz")
+
+# Ping with size as a sanity check
+curl -fsS --max-time 10 \
+  "https://cronwatch.app/ping/YOUR-ID?bytes=$BACKUP_SIZE" > /dev/null 2>&1</code></pre>
+
+<p>This makes your monitoring logs useful for diagnosis: you can see at a glance whether the backup size is growing, stable, or suspiciously small.</p>
+
+<hr/>
+
+<h2>Set up cron heartbeat monitoring with CronWatch</h2>
+
+<p>CronWatch implements the dead man's switch pattern for cron jobs. You enter your job's schedule; CronWatch generates a unique ping URL and watches for heartbeats on that schedule. If a heartbeat is late or missing, CronWatch sends an email alert.</p>
+
+<p>If you're not sure what your cron expression actually means — when it runs, how often, in what timezone — parse it first:</p>
+
+<div class="cta-box">
+  <h3>⏰ Verify your cron schedule before monitoring it</h3>
+  <p>Enter any cron expression and see the next 10 run times in plain English. Free, no signup.</p>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn">Parse your cron expression →</a>
+</div>
+
+<p>Once you know your schedule is correct, set up the dead man's switch:</p>
+
+<div class="cta-box">
+  <h3>🟢 Dead man's switch monitoring for your cron jobs</h3>
+  <p>CronWatch watches for heartbeats from your scheduled jobs and alerts you the moment a job stops running — whether it failed, missed its schedule, or the server went down.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Free cron parser</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dead-mans-switch-cron',{mode:'no-cors'});}());</script>
+</body>
+</html>

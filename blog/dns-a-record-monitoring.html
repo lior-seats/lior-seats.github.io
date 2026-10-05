@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Monitor DNS A Record Changes: Detect Unauthorized or Unexpected Changes</title>
+<meta name="description" content="DNS A record changes happen without warning — registrar compromises, CDN misconfigurations, and TTL errors all change where your domain points. How to monitor and detect them instantly."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-a-record-monitoring.html"/>
+<meta property="og:title" content="Monitor DNS A Record Changes: Detect Unauthorized or Unexpected Changes"/>
+<meta property="og:description" content="DNS A record changes can redirect your traffic without warning. How to monitor A records, detect changes the moment they happen, and respond before users notice."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-a-record-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Monitor DNS A Record Changes: Detect Unauthorized or Unexpected Changes</h1>
+
+<p class="meta">Your A record pointed to 203.0.113.42 this morning. Does it still? You probably don't know.</p>
+
+<p>A DNS A record maps a domain name to an IPv4 address. It's how browsers find your server, how email finds your MX host, and how your infrastructure routes traffic to the right place. When an A record changes unexpectedly — whether from a registrar compromise, a CDN misconfiguration, a provider failover, or a simple operator error — the impact is immediate and often silent: traffic redirects, services break, and users see either a blank page or, in the worst case, content served from somewhere you don't control.</p>
+
+<p>DNS A record monitoring is the practice of continuously comparing your current A record values against a known-good baseline and alerting the moment a change is detected.</p>
+
+<hr/>
+
+<h2>Why DNS A record changes happen unexpectedly</h2>
+
+<p>Changes to A records don't always come from deliberate internal action. Several common causes are worth understanding before choosing a monitoring strategy:</p>
+
+<h3>Registrar account compromises</h3>
+<p>Domain registrar accounts are a frequent target for credential attacks. Once an attacker gains access to your registrar, they can change your nameservers or add/modify DNS records directly. The attacker doesn't need to touch your server — they redirect your domain at the DNS layer, intercepting traffic before it reaches you. High-profile examples of this attack pattern occur several times per year against major brands.</p>
+
+<p>The insidious part: from your server's perspective, nothing changed. Your logs show normal traffic. Only the external DNS resolution changed — pointing visitors and API clients to a different IP entirely.</p>
+
+<h3>CDN and DNS provider misconfigurations</h3>
+<p>Many teams manage DNS through a CDN (Cloudflare, Fastly, Akamai) or a managed DNS provider. When these providers have outages, failovers, or configuration changes, the A records they publish can change as part of their routing logic. Cloudflare's anycast IPs, for instance, can shift as your account configuration changes. A "proxied" record in Cloudflare doesn't expose your origin IP — until someone accidentally switches it to "DNS only," at which point your origin IP is suddenly public and your A record points somewhere different from what you intended.</p>
+
+<h3>TTL expiry and propagation errors</h3>
+<p>During a planned migration — moving infrastructure, changing cloud providers, deploying to a new region — you update your A record and lower the TTL to accelerate propagation. After the migration, the TTL should be raised again. If it isn't, your record propagates quickly across resolvers, which is fine until the old record is still cached somewhere and the new record is inconsistent. Monitoring A record values from multiple global vantage points catches propagation inconsistencies that single-source checks miss.</p>
+
+<h3>Automation and IaC drift</h3>
+<p>Infrastructure-as-code tools (Terraform, Pulumi, Ansible) manage DNS records alongside infrastructure. A mis-targeted apply, a state file conflict, or a module that manages DNS in a different stack can overwrite A records unexpectedly. The change might be intentional from the automation's perspective but entirely unexpected from the operator's perspective — especially in teams where multiple engineers have Terraform apply access.</p>
+
+<hr/>
+
+<h2>How to check your current A record</h2>
+
+<p>The two standard tools for querying DNS A records from the command line are <code>dig</code> and <code>nslookup</code>.</p>
+
+<h3>Using dig</h3>
+
+<pre><code># Query the A record for a domain
+dig A yourdomain.com +short
+
+# Query a specific nameserver (bypasses local cache)
+dig A yourdomain.com @8.8.8.8 +short
+
+# Show the full response including TTL
+dig A yourdomain.com
+
+# Check from multiple resolvers
+for NS in 8.8.8.8 1.1.1.1 9.9.9.9; do
+  echo -n "$NS: "
+  dig A yourdomain.com @$NS +short
+done</code></pre>
+
+<p>The <code>+short</code> flag returns just the IP address(es), which is useful for scripting. Querying multiple resolvers — Google (8.8.8.8), Cloudflare (1.1.1.1), Quad9 (9.9.9.9) — shows whether your record has propagated consistently worldwide or whether different resolvers are still serving different values.</p>
+
+<h3>Using nslookup</h3>
+
+<pre><code># Basic A record lookup
+nslookup yourdomain.com
+
+# Query a specific nameserver
+nslookup yourdomain.com 8.8.8.8
+
+# Query only A records
+nslookup -type=A yourdomain.com</code></pre>
+
+<p><code>nslookup</code> is available on most platforms by default, including Windows. <code>dig</code> is more scriptable and provides richer output.</p>
+
+<div class="callout">
+  <strong>Local DNS cache can mislead you</strong>
+  Your machine caches DNS responses for the record's TTL. If you recently looked up a domain, your local resolver may return a cached value even after the authoritative record changed. Use <code>dig @8.8.8.8</code> to bypass the local cache and query an authoritative public resolver directly.
+</div>
+
+<hr/>
+
+<h2>DNS A record monitoring strategies</h2>
+
+<h3>Strategy 1: Cron-based baseline comparison script</h3>
+
+<p>Store the expected IP for each domain in a file and compare it against the current value on a schedule:</p>
+
+<pre><code>#!/bin/bash
+# /opt/scripts/dns-monitor.sh
+ALERT_EMAIL="ops@yourcompany.com"
+declare -A EXPECTED_IPS=(
+  ["yourdomain.com"]="203.0.113.42"
+  ["api.yourdomain.com"]="203.0.113.43"
+  ["www.yourdomain.com"]="203.0.113.42"
+)
+
+for DOMAIN in "${!EXPECTED_IPS[@]}"; do
+  CURRENT=$(dig A "$DOMAIN" @8.8.8.8 +short | head -1)
+  EXPECTED="${EXPECTED_IPS[$DOMAIN]}"
+  if [ "$CURRENT" != "$EXPECTED" ]; then
+    echo "DNS CHANGE DETECTED: $DOMAIN
+Expected: $EXPECTED
+Current:  $CURRENT
+Time: $(date -u)" \
+    | mail -s "DNS A RECORD CHANGED: $DOMAIN" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<pre><code># Run every 15 minutes
+*/15 * * * * /opt/scripts/dns-monitor.sh >> /var/log/dns-monitor.log 2>&1</code></pre>
+
+<p>This approach works for a small number of domains but requires maintaining the expected IP list manually. When you intentionally change an A record, you must update the script or it will alert forever.</p>
+
+<h3>Strategy 2: Git-based DNS record snapshots</h3>
+
+<p>For teams already using version control for infrastructure, storing DNS snapshots in a git repository provides a natural change log:</p>
+
+<pre><code>#!/bin/bash
+# Snapshot current A records for key domains
+cd /opt/dns-snapshots
+
+for DOMAIN in yourdomain.com api.yourdomain.com www.yourdomain.com; do
+  dig A "$DOMAIN" @8.8.8.8 +short > "current/$DOMAIN.txt"
+done
+
+if git diff --quiet; then
+  echo "No DNS changes detected"
+else
+  git diff
+  git add -A
+  git commit -m "DNS change detected: $(date -u)"
+  # Send alert email with diff output
+  git show HEAD | mail -s "DNS RECORDS CHANGED" ops@yourcompany.com
+fi</code></pre>
+
+<p>The git log becomes an audit trail: you can see exactly when each A record changed, what it changed from, and what it changed to.</p>
+
+<h3>Strategy 3: External DNS monitoring service</h3>
+
+<p>For production infrastructure, an external monitoring service is more reliable than self-hosted scripts because it checks from multiple global vantage points, doesn't depend on your own server's health, and handles alerting without an MTA. DNSWatch monitors your A records continuously and sends alerts the moment a change is detected — including detecting propagation inconsistencies across global resolvers.</p>
+
+<hr/>
+
+<h2>What to do when a DNS A record change is detected</h2>
+
+<p>When an alert fires for an unexpected A record change, work through this sequence:</p>
+
+<ol>
+  <li><strong>Verify the change is real.</strong> Query the record from multiple resolvers (<code>dig @8.8.8.8</code>, <code>dig @1.1.1.1</code>, <code>dig @9.9.9.9</code>). If they all return a different IP from your baseline, the change is propagated and real.</li>
+  <li><strong>Check your DNS provider's change log.</strong> Log into your registrar or DNS provider and check the activity log or audit trail. Most providers (Cloudflare, Route 53, Namecheap) show recent record changes with timestamps and the account that made them.</li>
+  <li><strong>Check your IaC history.</strong> Review recent Terraform/Pulumi applies, GitHub Actions runs, or deployment pipeline logs that have DNS write access. A recent deploy may have changed a DNS record as a side effect.</li>
+  <li><strong>If unauthorized, act immediately.</strong> If the change appears unauthorized: revoke all API keys for your DNS provider, change your registrar password, enable 2FA if not already active, and revert the record to the known-good IP. File a support ticket with your registrar to investigate account access logs.</li>
+  <li><strong>If authorized, update your baseline.</strong> If the change was intentional (a planned migration, a CDN change), update your monitoring baseline to the new value so future alerts reflect the new expected state.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>🔍 Check your current DNS A records</h3>
+  <p>See what IP your domain resolves to right now — from multiple global resolvers. Free, no signup.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check your DNS records →</a>
+</div>
+
+<hr/>
+
+<h2>Set up continuous DNS A record monitoring with DNSWatch</h2>
+
+<p>DNSWatch monitors your DNS records from multiple global vantage points and sends alerts the moment a change is detected — without scripts to maintain or servers to manage. Enter your domains; get alerts when your A records change.</p>
+
+<div class="cta-box">
+  <h3>🌐 Know the moment your DNS A records change</h3>
+  <p>DNSWatch monitors your A records continuously and alerts you instantly when they change — whether from a registrar compromise, CDN misconfiguration, or an accidental IaC apply.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Check your DNS records free</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/">DNSWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/dns-checker/">Free DNS checker</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-a-record-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
