@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Cron Job Monitoring: How to Know When Your Scheduled Jobs Fail | CronWatch Blog</title>
-<meta name="description" content="Cron jobs fail silently — no alerts, no logs, just missing results. Here's what to monitor, which tools to use, and how to set up a dead man's switch in one line."/>
+<title>Cron Job Monitoring: How to Get Alerted When Scheduled Jobs Fail</title>
+<meta name="description" content="Learn how to monitor cron jobs using the dead man's switch pattern. Detect missed jobs, get alerted on failures, and set up heartbeat monitoring in 5 minutes."/>
 <link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-monitoring.html"/>
 <meta property="og:title" content="Cron Job Monitoring: How to Know When Your Scheduled Jobs Fail"/>
 <meta property="og:description" content="Cron jobs fail silently — no alerts, no logs, just missing results. Here's what to monitor, which tools to use, and how to set up a dead man's switch in one line."/>
@@ -238,6 +238,68 @@ exit $EXIT_CODE</code></pre>
   <li><code>--retry 3</code> — retry up to 3 times on transient network errors</li>
 </ul>
 
+<h3>Python</h3>
+
+<pre><code>import requests
+
+MONITOR_URL = "https://cronwatch.io/ping/YOUR-TOKEN"
+
+def run_job():
+    # Your actual job logic here
+    sync_database()
+    generate_report()
+
+def main():
+    try:
+        run_job()
+        # Only ping on successful completion
+        requests.get(MONITOR_URL, timeout=5)
+    except Exception as e:
+        print(f"Job failed: {e}")
+        # Don't ping — the monitor will alert when the ping is late
+        raise SystemExit(1)
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+<p>Wrap in a crontab entry:</p>
+
+<pre><code>0 2 * * * /usr/bin/python3 /opt/jobs/sync.py</code></pre>
+
+<p>The monitor URL is called only when <code>run_job()</code> completes without raising. Any unhandled exception causes a non-zero exit, no ping is sent, and the monitoring service alerts you.</p>
+
+<h3>Node.js</h3>
+
+<pre><code>const MONITOR_URL = process.env.MONITOR_URL || 'https://cronwatch.io/ping/YOUR-TOKEN';
+
+async function runJob() {
+  // Your actual job logic here
+  await syncDatabase();
+  await generateReport();
+}
+
+async function main() {
+  try {
+    await runJob();
+    // Only ping on successful completion
+    await fetch(MONITOR_URL, { signal: AbortSignal.timeout(5000) })
+      .catch(() => {}); // Don't let monitor failure break the job
+    process.exit(0);
+  } catch (err) {
+    console.error('Job failed:', err);
+    // Don't ping — the monitor alerts when ping is late
+    process.exit(1);
+  }
+}
+
+main();</code></pre>
+
+<p>For older Node.js without <code>fetch</code> built in, use <code>https.get()</code> or <code>axios</code>:</p>
+
+<pre><code>// axios alternative
+const axios = require('axios');
+await axios.get(MONITOR_URL, { timeout: 5000 }).catch(() => {});</code></pre>
+
 <p>For jobs where you want to capture both start and finish (to track duration and detect jobs that hang):</p>
 
 <pre><code># Ping on start, then ping on finish — lets the monitor track duration
@@ -274,6 +336,38 @@ backup: ./bin/backup.sh && curl -fsS --retry 3 https://monitor-url/your-token
 </div>
 
 <p>Not sure your cron schedule is correct? <a href="https://lior-seats.github.io/cron-expression-parser/">Use the free cron expression parser</a> to see the plain-English description and the next five run times before you deploy.</p>
+
+<hr/>
+
+<h2>FAQ</h2>
+
+<h3>What's the difference between monitoring and alerting for cron jobs?</h3>
+<p><strong>Monitoring</strong> is the act of collecting data about job runs — whether they ran, whether they succeeded, and how long they took. <strong>Alerting</strong> is what happens when the monitoring data shows something wrong: you receive a notification. Both are necessary. Monitoring without alerting is just data nobody looks at. Alerting without monitoring means you're guessing about what actually went wrong.</p>
+
+<h3>How do I monitor a cron job that runs on multiple servers?</h3>
+<p>Use the dead man's switch pattern with a single shared monitor URL. If any one of your servers successfully completes the job, it sends the ping. If all of them fail or none of them run in the expected window, the ping is absent and you get an alert. You don't need per-server monitors — you need a monitor per <em>job</em>, regardless of how many servers run it.</p>
+
+<h3>Can I monitor GitHub Actions scheduled workflows?</h3>
+<p>Yes. Add a final step that curls the monitor URL only on success:</p>
+<pre><code>- name: Ping monitor on success
+  if: success()
+  run: curl -fsS --retry 3 https://cronwatch.io/ping/YOUR-TOKEN</code></pre>
+<p>Important: GitHub Actions disables scheduled workflows on repositories with no recent activity (~60 days). A dead man's switch will catch this automatically — the workflow stops running, no ping arrives, you get alerted.</p>
+
+<h3>How long should the grace period be?</h3>
+<p>Set the grace period to about 1.5× the longest the job has ever taken to run. If your nightly backup normally runs in 8 minutes but occasionally takes up to 20, set the grace period to 30 minutes. This prevents false alarms from slow runs while still catching genuinely missed jobs quickly. Start conservative and tighten it once you have a few weeks of run-time data.</p>
+
+<h3>What happens if the monitoring service itself is down?</h3>
+<p>This is a real concern. The better monitoring services publish SLA uptime numbers and run redundant infrastructure. For critical jobs, consider sending pings to two different services (a few extra milliseconds, significant reliability benefit). For most jobs, a single external service with good uptime is sufficient — the alternative (no monitoring) is strictly worse.</p>
+
+<h3>Should I monitor every cron job?</h3>
+<p>No. Focus on jobs whose failure has a user-visible impact or a material cost. Good candidates: data syncs, report generation, billing runs, backup jobs, any job that feeds a customer-facing feature. Skip monitoring for jobs whose failure is immediately obvious (they produce real-time output) or truly inconsequential (e.g., a stats counter that's nice-to-have).</p>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
 
 </div>
 <script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-monitoring',{mode:'no-cors'});}());</script>
