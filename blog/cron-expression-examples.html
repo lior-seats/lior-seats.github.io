@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Cron Expression Examples: A Practical Reference Guide</title>
-<meta name="description" content="30+ cron expression examples for common schedules: every minute, every hour, daily, weekly, monthly, weekdays only, and more. Copy-paste ready with plain-English explanations."/>
+<title>Cron Expression Examples: 60+ Real-World Cron Schedules</title>
+<meta name="description" content="60+ cron expression examples for real-world schedules: backups, reports, deployments, syncs, cleanups, and more. Copy-paste ready with plain-English explanations and common gotchas."/>
 <link rel="canonical" href="https://lior-seats.github.io/blog/cron-expression-examples.html"/>
-<meta property="og:title" content="Cron Expression Examples: A Practical Reference Guide"/>
-<meta property="og:description" content="30+ cron expression examples for common schedules. Copy-paste ready with plain-English explanations."/>
+<meta property="og:title" content="Cron Expression Examples: 60+ Real-World Cron Schedules"/>
+<meta property="og:description" content="60+ cron expression examples for real-world use cases: backups, reports, deployments, syncs, cleanups. Copy-paste ready."/>
 <meta property="og:url" content="https://lior-seats.github.io/blog/cron-expression-examples.html"/>
 <meta property="og:type" content="article"/>
 <meta name="twitter:card" content="summary_large_image"/>
@@ -53,11 +53,11 @@
 
 <p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
 
-<h1>Cron Expression Examples: A Practical Reference Guide</h1>
+<h1>Cron Expression Examples: 60+ Real-World Cron Schedules</h1>
 
-<p class="meta">30+ copy-paste-ready cron expressions for common schedules, with plain-English descriptions and field breakdowns.</p>
+<p class="meta">60+ copy-paste-ready cron expressions for real-world tasks: backups, reports, deployments, cache warmups, cleanups, and more.</p>
 
-<p>Cron expressions are one of those things you reach for repeatedly but never quite commit to memory. This page is a reference for the most common scheduling patterns — organized by frequency and use case, with plain-English descriptions for each one.</p>
+<p>Cron expressions are one of those things you reach for repeatedly but never quite commit to memory. This page has two parts: real-world use cases (specific tasks with the cron expression that fits) and a complete reference organized by schedule frequency. If you know what you need to schedule but can’t remember the syntax, start with the use cases.</p>
 
 <div class="field-ref">
   <strong>The five fields (standard cron)</strong>
@@ -74,6 +74,86 @@
   <strong>Not sure about an expression?</strong>
   Paste it into <a href="https://lior-seats.github.io/cron-expression-parser/">the cron expression parser</a> to see the plain-English description, field-level validation, and next 5 run times in your local timezone.
 </div>
+
+<hr/>
+
+<h2>Real-world use cases</h2>
+
+<p>The right schedule depends on what the job does. Here are common real-world tasks with the cron expression that fits each one.</p>
+
+<h3>System maintenance</h3>
+
+<table>
+  <thead><tr><th>Task</th><th>Expression</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Nightly database backup</td><td><code>0 2 * * *</code></td><td>2am daily — low traffic, before business hours</td></tr>
+    <tr><td>Weekly full backup (off-peak)</td><td><code>0 1 * * 0</code></td><td>Sunday 1am; run shorter incrementals Mon–Sat</td></tr>
+    <tr><td>Log rotation / cleanup</td><td><code>0 0 * * *</code></td><td>Midnight daily; clears yesterday’s logs</td></tr>
+    <tr><td>Temp file purge</td><td><code>30 3 * * *</code></td><td>3:30am — after backup finishes, before day starts</td></tr>
+    <tr><td>SSL certificate renewal check</td><td><code>0 0 * * 1</code></td><td>Weekly Monday; certbot renews ~30 days before expiry</td></tr>
+    <tr><td>Disk usage alert</td><td><code>0 */6 * * *</code></td><td>Every 6 hours; alerts if disk &gt; 85%</td></tr>
+    <tr><td>Security scan</td><td><code>0 3 * * 0</code></td><td>Sunday 3am weekly; avoid running during business hours</td></tr>
+    <tr><td>Database VACUUM / ANALYZE</td><td><code>0 4 * * 0</code></td><td>Sunday 4am; Postgres autovacuum may handle this already</td></tr>
+  </tbody>
+</table>
+
+<h3>Application jobs</h3>
+
+<table>
+  <thead><tr><th>Task</th><th>Expression</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Daily email digest</td><td><code>0 8 * * *</code></td><td>8am UTC; users receive digest at the start of their day</td></tr>
+    <tr><td>Weekly summary report</td><td><code>0 9 * * 1</code></td><td>Monday 9am; lands in inboxes at start of work week</td></tr>
+    <tr><td>Monthly invoice generation</td><td><code>0 6 1 * *</code></td><td>1st of month at 6am; before customers check email</td></tr>
+    <tr><td>Subscription renewal reminders</td><td><code>0 10 * * *</code></td><td>Daily at 10am; script filters which users expire in 7 days</td></tr>
+    <tr><td>Failed payment retry</td><td><code>0 */4 * * *</code></td><td>Every 4 hours; retry with exponential backoff in code</td></tr>
+    <tr><td>Abandoned cart email</td><td><code>30 1 * * *</code></td><td>1:30am daily; catch carts abandoned &gt;24h ago</td></tr>
+    <tr><td>Review request (e-commerce)</td><td><code>0 10 * * 1-5</code></td><td>Weekday mornings; higher open rates than weekends</td></tr>
+  </tbody>
+</table>
+
+<h3>Data pipelines and syncs</h3>
+
+<table>
+  <thead><tr><th>Task</th><th>Expression</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>ETL from external API</td><td><code>0 */2 * * *</code></td><td>Every 2 hours; respect API rate limits and TTL</td></tr>
+    <tr><td>CRM / database sync</td><td><code>*/30 * * * *</code></td><td>Every 30 minutes during the day; full sync nightly</td></tr>
+    <tr><td>Search index rebuild</td><td><code>0 3 * * *</code></td><td>3am nightly; avoid during peak search traffic</td></tr>
+    <tr><td>Analytics aggregation</td><td><code>5 0 * * *</code></td><td>12:05am; after midnight boundary, aggregates yesterday’s data</td></tr>
+    <tr><td>Cache warmup (CDN/Redis)</td><td><code>50 5 * * *</code></td><td>5:50am; warms before 6am traffic spike begins</td></tr>
+    <tr><td>Sitemap regeneration</td><td><code>0 1 * * *</code></td><td>1am nightly; submit fresh sitemap to search engines</td></tr>
+    <tr><td>Exchange rate / price update</td><td><code>0 */1 * * *</code></td><td>Hourly; or <code>*/15 9-17 * * 1-5</code> during market hours only</td></tr>
+    <tr><td>Quarterly data export</td><td><code>0 6 1 */3 *</code></td><td>First day of each quarter (Jan, Apr, Jul, Oct) at 6am</td></tr>
+  </tbody>
+</table>
+
+<h3>CI/CD and deployment jobs</h3>
+
+<table>
+  <thead><tr><th>Task</th><th>Expression</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Nightly build / test suite</td><td><code>0 2 * * *</code></td><td>2am; run full suite overnight, report by 6am</td></tr>
+    <tr><td>Dependency update check</td><td><code>0 9 * * 1</code></td><td>Monday 9am; opens PRs for outdated packages weekly</td></tr>
+    <tr><td>Staging environment reset</td><td><code>0 0 * * *</code></td><td>Midnight; resets staging to prod snapshot for clean tests</td></tr>
+    <tr><td>Automated smoke test</td><td><code>*/15 * * * *</code></td><td>Every 15 minutes; quick end-to-end health check</td></tr>
+    <tr><td>Docker image cleanup</td><td><code>0 4 * * 0</code></td><td>Sunday 4am; prunes dangling images / old containers</td></tr>
+    <tr><td>Kubernetes node health check</td><td><code>*/5 * * * *</code></td><td>Every 5 minutes; escalate if node not ready &gt;10 min</td></tr>
+  </tbody>
+</table>
+
+<h3>Monitoring and alerting</h3>
+
+<table>
+  <thead><tr><th>Task</th><th>Expression</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Uptime check</td><td><code>*/5 * * * *</code></td><td>Every 5 minutes; dedicated tools (Uptime Robot) are better</td></tr>
+    <tr><td>Dead link checker</td><td><code>0 0 * * 0</code></td><td>Weekly Sunday midnight; broken link scan across the site</td></tr>
+    <tr><td>Error rate alert</td><td><code>*/10 * * * *</code></td><td>Every 10 minutes; check Sentry/Datadog error counts</td></tr>
+    <tr><td>Daily metrics email</td><td><code>0 7 * * 1-5</code></td><td>Weekday 7am; key business metrics before standup</td></tr>
+    <tr><td>API budget check</td><td><code>0 0 * * *</code></td><td>Daily midnight; alert if approaching API quota limits</td></tr>
+  </tbody>
+</table>
 
 <hr/>
 
