@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Vercel Cron Job Monitoring: Get Alerted When Scheduled Functions Fail</title>
+<meta name="description" content="Vercel cron jobs fail silently by default. Learn how to monitor Vercel scheduled functions, detect missed runs, and get instant alerts when something stops running."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/vercel-cron-monitoring.html"/>
+<meta property="og:title" content="Vercel Cron Job Monitoring: Get Alerted When Scheduled Functions Fail"/>
+<meta property="og:description" content="Vercel cron jobs fail silently by default. Here's how to detect missed runs and get alerted before they cause real problems."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/vercel-cron-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Vercel Cron Job Monitoring: Get Alerted When Scheduled Functions Fail</h1>
+
+<p class="meta">Vercel cron jobs fail quietly. Here's how to make sure yours never stops running unnoticed.</p>
+
+<p>Vercel Cron Jobs make it easy to run scheduled serverless functions — clean syntax in <code>vercel.json</code>, no server to manage, and it integrates natively with your Next.js or other Vercel-deployed app. But there's a catch that many developers only discover the hard way: <strong>Vercel cron jobs fail silently by default.</strong></p>
+
+<p>If your scheduled function throws an error, times out, or simply stops being invoked, you won't get a notification. The Vercel dashboard shows invocation logs, but only if you go looking. There's no built-in alerting for missed runs or consecutive failures. For a background job that's supposed to sync data, send emails, or process a queue — that silence can mean days of invisible breakage.</p>
+
+<p>This guide covers the specific failure modes of Vercel Cron Jobs and how to add real monitoring without adding infrastructure complexity.</p>
+
+<hr/>
+
+<h2>How Vercel Cron Jobs work (and where they break)</h2>
+
+<p>Vercel Cron Jobs are defined in your <code>vercel.json</code>:</p>
+
+<pre><code>{
+  "crons": [
+    {
+      "path": "/api/cron/daily-summary",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}</code></pre>
+
+<p>At the scheduled time, Vercel sends an HTTP GET request to that route. The function runs as a normal serverless function — same execution limits, same cold start behavior. If the function responds with 2xx, the invocation is considered successful. If it times out or returns an error status, Vercel logs it — but doesn't alert you.</p>
+
+<p>The failure modes that will catch you off guard:</p>
+
+<ul>
+  <li><strong>Silent timeout:</strong> Your function hits Vercel's execution limit (10s on Hobby, 60s on Pro, 300s on Enterprise) and is terminated. No alert.</li>
+  <li><strong>Deployment breaks the route:</strong> A bad deploy makes your cron handler return 500. The cron still "fires" from Vercel's perspective — it just always fails. No alert.</li>
+  <li><strong>Vercel outage or scheduling hiccup:</strong> Rare, but a scheduled invocation can be missed entirely during platform incidents.</li>
+  <li><strong>Environment variable removed:</strong> The function depends on a secret that was rotated or deleted. Every invocation silently fails.</li>
+  <li><strong>The function logic changed:</strong> A refactor broke the business logic without throwing an error. Technically "successful" invocations, meaningless results.</li>
+</ul>
+
+<p>The last one is particularly insidious. Vercel will tell you the cron ran. It won't tell you whether it actually did anything useful.</p>
+
+<hr/>
+
+<h2>Option 1: Heartbeat monitoring (most reliable)</h2>
+
+<p>The most robust approach is a dead man's switch: your cron function pings an external endpoint on every successful run. If the ping doesn't arrive within a defined window, the monitoring service sends an alert.</p>
+
+<p>Add a heartbeat ping at the end of your cron function, after all meaningful work is done:</p>
+
+<pre><code>// app/api/cron/daily-summary/route.ts (Next.js App Router)
+export async function GET(request: Request) {
+  // Verify the request came from Vercel's cron scheduler
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  // Your actual cron logic here
+  await runDailySummary();
+
+  // Heartbeat — only fires if the above succeeded
+  await fetch(process.env.CRONWATCH_HEARTBEAT_URL!, { method: 'GET' });
+
+  return Response.json({ ok: true });
+}</code></pre>
+
+<p>The key detail: the heartbeat fires <em>after</em> <code>runDailySummary()</code>. If that function throws or hangs, the ping never happens, and the monitor alerts. If your cron job is silently skipped entirely, the ping never happens either.</p>
+
+<div class="callout">
+  <strong>Don't ping before your logic runs.</strong>
+  Some developers put the heartbeat first "to make sure the monitoring knows the job started." That defeats the purpose — you want to know the job <em>completed</em>, not started. Put the heartbeat at the end.
+</div>
+
+<h2>Option 2: Vercel Log Drains</h2>
+
+<p>Vercel Pro and Enterprise plans support Log Drains — you can stream all function logs to a destination like Datadog, Logtail, or a custom endpoint. This gives you a complete record of every cron invocation and lets you set alerts on error patterns.</p>
+
+<p>The setup: in your Vercel project settings, under Integrations, add a Log Drain pointed at your logging service. Then configure an alert for patterns like <code>Error</code> or a missing log line from your cron handler.</p>
+
+<p>Downsides: this requires a Vercel Pro plan ($20+/month), a log aggregation service, and some configuration effort. For a single cron job, it's significant overhead. For a production application with many functions, it's worth it anyway.</p>
+
+<h2>Option 3: Vercel's native invocation logs (manual)</h2>
+
+<p>In your Vercel project dashboard under Functions, you can view recent invocations for each route. You'll see status codes, duration, and logs for each run. This is useful for debugging but not for alerting — it requires you to check manually.</p>
+
+<p>If your cron job is low-stakes and you check your dashboard regularly, this might be enough. For anything business-critical, you want automated alerts.</p>
+
+<hr/>
+
+<h2>Setting up a Vercel cron monitor with CronWatch</h2>
+
+<p>CronWatch is a dead man's switch service for scheduled jobs. You add one line to your cron function; if the heartbeat stops arriving, CronWatch emails you.</p>
+
+<p>Here's the complete setup for a Vercel Cron Job:</p>
+
+<h3>Step 1: Get your heartbeat URL</h3>
+
+<p>Sign up for CronWatch at <a href="https://lior-seats.github.io/cronwatch-waitlist/">cronwatch-waitlist</a>. You'll receive a unique heartbeat URL that looks like:</p>
+
+<pre><code>https://agent-control-plane-w3m9.onrender.com/api/cronwatch/heartbeat/abc123xyz</code></pre>
+
+<h3>Step 2: Add the heartbeat to your function</h3>
+
+<pre><code>// app/api/cron/[handler]/route.ts
+export async function GET(request: Request) {
+  try {
+    // your cron logic
+    await yourCronWork();
+
+    // ping on success
+    fetch(process.env.CRONWATCH_URL!, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000), // don't block response
+    }).catch(() => {}); // fire-and-forget, don't fail the job
+  } catch (err) {
+    console.error('Cron failed:', err);
+    throw err; // let Vercel log the error
+  }
+
+  return Response.json({ ok: true });
+}</code></pre>
+
+<h3>Step 3: Add the env variable</h3>
+
+<p>In Vercel Dashboard → Settings → Environment Variables, add:</p>
+
+<pre><code>CRONWATCH_URL = https://agent-control-plane-w3m9.onrender.com/api/cronwatch/heartbeat/abc123xyz</code></pre>
+
+<h3>Step 4: Set the grace period</h3>
+
+<p>In CronWatch, configure the expected interval and grace period. For a daily job (<code>0 9 * * *</code>), set the expected interval to 24 hours and the grace period to 60 minutes. You'll get alerted if the job doesn't check in within 25 hours.</p>
+
+<hr/>
+
+<h2>Handling multiple Vercel cron jobs</h2>
+
+<p>If you have several cron routes, give each one its own heartbeat URL. This way you get specific alerts ("the weekly report cron failed") rather than generic ones. CronWatch lets you create multiple monitors, each with a separate heartbeat endpoint, name, and alert threshold.</p>
+
+<p>A useful pattern for teams: name each monitor after the route path. <code>/api/cron/daily-summary</code> → monitor named "daily-summary". Makes it obvious which job triggered an alert without digging through logs.</p>
+
+<hr/>
+
+<h2>What to monitor beyond just "did it run"</h2>
+
+<p>Heartbeat monitoring answers the most basic question: did the job complete? But for production cron jobs, you often want to know more:</p>
+
+<ul>
+  <li><strong>Did it do meaningful work?</strong> Add structured logging: <code>console.log(JSON.stringify({ records_processed: n, errors: 0 }))</code>. If you're draining logs to a service, you can alert on <code>records_processed: 0</code> as an anomaly.</li>
+  <li><strong>How long did it take?</strong> Track duration with <code>Date.now()</code> before and after your logic. Log it or include it in the heartbeat payload. Sudden spikes indicate upstream slowdowns.</li>
+  <li><strong>Did the function time out?</strong> Vercel logs a timeout event. If you're using log drains, add an alert for "Function execution timed out".</li>
+</ul>
+
+<p>For most indie developers running 1-3 Vercel cron jobs, heartbeat monitoring covers 95% of the failure surface. A cron job that silently stops running is the single most common failure mode, and it's the one that's hardest to catch without a dead man's switch.</p>
+
+<hr/>
+
+<h2>Debugging a failed Vercel cron job</h2>
+
+<p>When CronWatch fires an alert (or you notice missed runs), start with Vercel's invocation logs:</p>
+
+<ol>
+  <li>Go to your project → Functions tab → find the cron route</li>
+  <li>Filter by date range — look for the missed invocation window</li>
+  <li>Check the status code and logs for that invocation</li>
+</ol>
+
+<p>Common fixes:</p>
+
+<ul>
+  <li><strong>401 Unauthorized:</strong> Check that <code>CRON_SECRET</code> in your env matches <code>vercel.json</code>'s <code>crons</code> auth setup</li>
+  <li><strong>504 Timeout:</strong> Your function exceeded execution limits — optimize the bottleneck or switch to background jobs</li>
+  <li><strong>500 Internal Server Error:</strong> Check the function logs for the actual exception</li>
+  <li><strong>No invocations at all:</strong> Verify the cron expression in <code>vercel.json</code> is valid and the deployment succeeded</li>
+</ul>
+
+<div class="callout">
+  <strong>Tip: validate your cron expression before deploying.</strong>
+  Vercel uses standard Unix cron syntax. Paste your expression into a free parser to confirm it fires when you expect. <a href="https://lior-seats.github.io/cron-expression-parser/">Try the free cron expression parser →</a>
+</div>
+
+<hr/>
+
+<h2>Quick comparison: Vercel cron monitoring options</h2>
+
+<table>
+  <tr>
+    <th>Option</th>
+    <th>Alerts on missed runs?</th>
+    <th>Cost</th>
+    <th>Setup effort</th>
+  </tr>
+  <tr>
+    <td>Manual log checks</td>
+    <td>No — manual only</td>
+    <td>Free</td>
+    <td>None (but no alerting)</td>
+  </tr>
+  <tr>
+    <td>Vercel Log Drains + alerting service</td>
+    <td>Yes (with config)</td>
+    <td>Pro plan + log service</td>
+    <td>High</td>
+  </tr>
+  <tr>
+    <td>Heartbeat monitor (CronWatch)</td>
+    <td>Yes — automatic</td>
+    <td>$9/mo</td>
+    <td>One line of code</td>
+  </tr>
+</table>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🟢 Monitor your Vercel cron jobs with CronWatch</h3>
+  <p>Add one line to your cron function. CronWatch alerts you by email if the job stops running — whether it crashes, times out, or simply stops being scheduled. Supports any cron job: Vercel, AWS Lambda, GitHub Actions, plain crontab.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join CronWatch Waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free Cron Expression Parser</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=vercel-cron-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

@@ -74,4 +74,5 @@
   <url><loc>https://lior-seats.github.io/blog/aws-route53-dns-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/gcp-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/azure-dns-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/vercel-cron-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
