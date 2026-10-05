@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Go Cron Job Monitoring: Alerts When robfig/cron or gocron Jobs Stop Running</title>
+<meta name="description" content="robfig/cron and gocron have no built-in alerting when jobs stop running. Here's how to add heartbeat monitoring to Go scheduled jobs in under 10 lines."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/go-cron-job-monitoring.html"/>
+<meta name="keywords" content="go cron job monitoring, robfig cron monitoring, gocron monitoring, golang scheduled job alert, go cron heartbeat"/>
+<meta property="og:title" content="Go Cron Job Monitoring: Alerts When robfig/cron or gocron Jobs Stop Running"/>
+<meta property="og:description" content="robfig/cron and gocron have no built-in alerting when jobs stop running. Here's how to add heartbeat monitoring to Go scheduled jobs in under 10 lines."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/go-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92em; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  th { background: #f4f4f5; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Go Cron Job Monitoring: Alerts When robfig/cron or gocron Jobs Stop Running</h1>
+
+<p class="meta">Your nightly cache warm-up job stopped running when you upgraded the Go binary. The old binary was still in the PATH on the server, running the old scheduler with the old configuration. No errors, no alerts, just a cache that was quietly stale for two weeks.</p>
+
+<p>Go schedulers like <code>robfig/cron</code> and <code>gocron</code> are elegant and reliable. They're also completely silent when something goes wrong. Panic recovery, goroutine death, binary swap, context cancellation — none of these produce an alert. The job just stops.</p>
+
+<p>This guide covers the specific failure patterns for Go schedulers and how to add heartbeat monitoring in under 10 lines of code.</p>
+
+<hr/>
+
+<h2>Go-specific scheduler failure modes</h2>
+
+<h3>Goroutine panic recovery hides errors</h3>
+
+<p>Both <code>robfig/cron</code> and <code>gocron</code> run each job in its own goroutine and recover from panics by default. This is the right behavior — one bad job shouldn't crash the scheduler. But it means a panicking job logs an error and then silently stops running until the next scheduled tick, which may never come if the panic was caused by a persistent condition (nil pointer, database down, invalid config).</p>
+
+<pre><code>c := cron.New()
+c.AddFunc("@daily", func() {
+    result := processNightlyBatch() // panics when DB connection pool is exhausted
+    cache.Warm(result)
+    // robfig/cron recovers the panic, logs it, and schedules the next run
+    // But if the DB stays down, every run panics silently forever
+})
+c.Start()</code></pre>
+
+<h3>Context cancellation silently stops jobs</h3>
+
+<p><code>gocron v2</code> and newer versions of <code>robfig/cron</code> accept a context. When the context is cancelled — graceful shutdown, k8s SIGTERM, a parent context timeout — the scheduler stops. If the shutdown is unclean, jobs scheduled to run during the shutdown window are silently skipped. The process exits 0 (clean shutdown), and nobody knows the 3am job didn't run.</p>
+
+<pre><code>ctx, cancel := context.WithCancel(context.Background())
+s, _ := gocron.NewScheduler()
+s.NewJob(
+    gocron.CronJob("0 3 * * *", false),
+    gocron.NewTask(func() {
+        runNightlyCleanup()
+    }),
+)
+s.Start()
+
+// Signal handling — clean shutdown
+<-sigChan
+cancel() // scheduler stops; if it's 2:59am, the 3am job is silently skipped
+s.Shutdown()</code></pre>
+
+<h3>Binary deployment races</h3>
+
+<p>When you deploy a new binary, there's a window where the old scheduler is stopping and the new one is starting. Any job scheduled to run in that window is silently skipped. For low-frequency jobs (daily, weekly), a single bad deploy can mean missing a run entirely, with no indication in any log.</p>
+
+<hr/>
+
+<h2>Adding heartbeat monitoring</h2>
+
+<p>The dead man's switch pattern is well-suited to Go: ping a URL on successful completion, get an alert if the URL doesn't receive a ping within the expected window.</p>
+
+<h3>Simple helper function</h3>
+
+<pre><code>package main
+
+import (
+    "log"
+    "net/http"
+    "time"
+)
+
+// heartbeat pings CronWatch on successful job completion.
+// It never returns an error — a monitoring outage must never break the job.
+func heartbeat(token string) {
+    client := &http.Client{Timeout: 5 * time.Second}
+    resp, err := client.Get("https://cronwatch.lior-seats.io/ping/" + token)
+    if err != nil {
+        log.Printf("cronwatch heartbeat failed: %v", err)
+        return
+    }
+    resp.Body.Close()
+}</code></pre>
+
+<h3>robfig/cron</h3>
+
+<pre><code>c := cron.New()
+
+c.AddFunc("@daily", func() {
+    if err := processNightlyBatch(); err != nil {
+        log.Printf("nightly batch failed: %v", err)
+        return // don't ping — missed heartbeat triggers the alert
+    }
+    heartbeat(os.Getenv("CRONWATCH_NIGHTLY_TOKEN"))
+})
+
+c.Start()</code></pre>
+
+<h3>gocron v2</h3>
+
+<pre><code>s, _ := gocron.NewScheduler()
+
+s.NewJob(
+    gocron.CronJob("0 3 * * *", false),
+    gocron.NewTask(func() {
+        if err := runNightlyCleanup(); err != nil {
+            log.Printf("cleanup failed: %v", err)
+            return
+        }
+        heartbeat(os.Getenv("CRONWATCH_CLEANUP_TOKEN"))
+    }),
+)
+
+s.Start()</code></pre>
+
+<div class="callout">
+<strong>Return early on error — don't ping</strong>
+The heartbeat only fires when the job completes successfully. If the job errors and you return before calling <code>heartbeat()</code>, CronWatch detects the missed ping and alerts you. This is the correct behavior — you want to know the job didn't succeed, not just that it started.
+</div>
+
+<hr/>
+
+<h2>Handling panic recovery explicitly</h2>
+
+<p>Both major schedulers recover panics internally, but if you want to capture them for your own logging or alerting, wrap the job in your own recover:</p>
+
+<pre><code>func withPanicAlert(token string, fn func() error) func() {
+    return func() {
+        defer func() {
+            if r := recover(); r != nil {
+                log.Printf("job panicked: %v", r)
+                // Don't call heartbeat — missed ping will trigger the alert
+            }
+        }()
+
+        if err := fn(); err != nil {
+            log.Printf("job failed: %v", err)
+            return
+        }
+
+        heartbeat(token)
+    }
+}
+
+// Usage:
+c.AddFunc("@daily", withPanicAlert(
+    os.Getenv("CRONWATCH_TOKEN"),
+    func() error {
+        return processNightlyBatch()
+    },
+))</code></pre>
+
+<hr/>
+
+<h2>Using robfig/cron's built-in error handling</h2>
+
+<p><code>robfig/cron v3</code> has a <code>Chain</code> mechanism for middleware-style job wrapping. You can build a heartbeat chain that applies to all jobs:</p>
+
+<pre><code">package main
+
+import (
+    "github.com/robfig/cron/v3"
+    "log"
+    "net/http"
+    "time"
+)
+
+// HeartbeatChain wraps a cron.Job and pings a URL on successful completion.
+type HeartbeatChain struct {
+    token string
+}
+
+func (h HeartbeatChain) Wrap(j cron.Job) cron.Job {
+    return cron.FuncJob(func() {
+        // Run the wrapped job; recover panics
+        func() {
+            defer func() {
+                if r := recover(); r != nil {
+                    log.Printf("job panicked: %v", r)
+                }
+            }()
+            j.Run()
+        }()
+        // Ping after successful completion (panic skips this)
+        client := &http.Client{Timeout: 5 * time.Second}
+        resp, err := client.Get("https://cronwatch.lior-seats.io/ping/" + h.token)
+        if err == nil {
+            resp.Body.Close()
+        }
+    })
+}
+
+// Usage: apply per-job
+c := cron.New(cron.WithChain(
+    HeartbeatChain{token: os.Getenv("CRONWATCH_TOKEN")},
+))</code></pre>
+
+<p>Note: with this approach, all jobs added to this cron instance share the same token. For separate alerts per job, create separate cron instances or use the per-job wrapper pattern above.</p>
+
+<hr/>
+
+<h2>Kubernetes CronJob — no code changes needed</h2>
+
+<p>For Go binaries running as Kubernetes CronJobs, you can add the heartbeat ping as a postfix shell command without modifying the Go code:</p>
+
+<pre><code>apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-batch
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: job
+            image: myapp:latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                /app/nightly-batch && \
+                wget -qO- https://cronwatch.lior-seats.io/ping/$CRONWATCH_TOKEN
+          env:
+          - name: CRONWATCH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: cronwatch-secrets
+                key: nightly-batch-token
+          restartPolicy: Never</code></pre>
+
+<hr/>
+
+<h2>Testing your heartbeat locally</h2>
+
+<p>Before deploying, verify the heartbeat call works and that a missing ping would trigger an alert:</p>
+
+<pre><code># Test that the ping succeeds
+curl -i https://cronwatch.lior-seats.io/ping/YOUR_TOKEN
+# Expected: HTTP 200
+
+# Simulate a missed run: don't ping for longer than the grace period
+# CronWatch should send you an alert</code></pre>
+
+<hr/>
+
+<h2>Comparison of Go scheduler options</h2>
+
+<table>
+  <thead>
+    <tr><th>Scheduler</th><th>Panic recovery</th><th>Context support</th><th>Job retry</th><th>Heartbeat location</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>robfig/cron v3</td><td>Built-in</td><td>Yes</td><td>No</td><td>After successful fn()</td></tr>
+    <tr><td>gocron v2</td><td>Built-in</td><td>Yes</td><td>Yes (configurable)</td><td>After successful task</td></tr>
+    <tr><td>time.Ticker loop</td><td>Manual</td><td>Via select</td><td>Manual</td><td>After successful tick</td></tr>
+    <tr><td>K8s CronJob</td><td>Process exit code</td><td>SIGTERM</td><td>backoffLimit</td><td>Postfix <code>&amp;&amp; wget</code></td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🕐 Know instantly when a Go job stops running</h3>
+  <p>CronWatch monitors your scheduled jobs with a dead man's switch. Add a single <code>heartbeat(token)</code> call after your job logic — get an alert if it doesn't fire on schedule. Works with robfig/cron, gocron, time.Ticker loops, and Kubernetes CronJobs.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron expression parser</a>
+</div>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<ul>
+  <li>Both robfig/cron and gocron recover panics silently — a panicking job logs once and then keeps running (or silently stops if the panic is persistent)</li>
+  <li>Context cancellation during shutdown can silently skip jobs scheduled in the shutdown window</li>
+  <li>Binary deployment races cause missed runs for low-frequency jobs — heartbeat monitoring catches these</li>
+  <li>The dead man's switch pattern works in Go with a simple 8-line helper function</li>
+  <li>Return early on error (before the heartbeat call) so a failed job triggers a CronWatch alert</li>
+  <li>For Kubernetes CronJobs, the postfix <code>&amp;&amp; wget</code> pattern adds monitoring without any Go code changes</li>
+</ul>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=go-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

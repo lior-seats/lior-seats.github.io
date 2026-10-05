@@ -106,4 +106,7 @@
   <url><loc>https://lior-seats.github.io/blog/dns-record-change-detection.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/ssl-certificate-expiry-alert-email.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/laravel-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/django-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/ruby-rails-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/go-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

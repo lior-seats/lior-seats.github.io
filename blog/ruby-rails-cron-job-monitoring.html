@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Ruby on Rails Cron Job Monitoring: Alerts When Whenever, Sidekiq-Cron, or Delayed::Job Stops Running</title>
+<meta name="description" content="Whenever, Sidekiq-Cron, and Delayed::Job all share the same blind spot: silent failures. Here's how to add heartbeat monitoring to Rails scheduled tasks."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ruby-rails-cron-job-monitoring.html"/>
+<meta name="keywords" content="ruby on rails cron job monitoring, whenever gem monitoring, sidekiq-cron monitoring, delayed job monitoring, rails scheduled task alert"/>
+<meta property="og:title" content="Ruby on Rails Cron Job Monitoring: Alerts When Whenever, Sidekiq-Cron, or Delayed::Job Stops Running"/>
+<meta property="og:description" content="Whenever, Sidekiq-Cron, and Delayed::Job all share the same blind spot: silent failures. Here's how to add heartbeat monitoring to Rails scheduled tasks."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ruby-rails-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92em; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  th { background: #f4f4f5; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Ruby on Rails Cron Job Monitoring: Alerts When Whenever, Sidekiq-Cron, or Delayed::Job Stops Running</h1>
+
+<p class="meta">The monthly invoice generation job stopped running in January. Sidekiq-Cron was healthy, Redis was up, no exceptions in Rollbar. A customer mentioned in March that they'd never received an invoice. Three months of silent billing failure, invisible to the entire engineering team.</p>
+
+<p>Rails developers reach for one of three patterns for scheduled tasks: the <strong>whenever gem</strong> to write cron expressions in Ruby DSL, <strong>Sidekiq-Cron</strong> for Redis-backed scheduled jobs, or <strong>Delayed::Job</strong> with recurring scheduling. All three are excellent at getting tasks scheduled. None of them tell you when a task <em>silently stops running</em>.</p>
+
+<p>This guide covers the failure modes specific to each approach and how to add heartbeat monitoring in a single method call.</p>
+
+<hr/>
+
+<h2>Why Rails scheduled job failures are especially quiet</h2>
+
+<p>Rails' exception handling is one of its greatest strengths in web requests — and one of its biggest liabilities in background jobs. ActiveRecord swallows many errors gracefully. ActionMailer silently returns without sending if the SMTP server is down. A job that processes zero records because of a bad scope exits cleanly with no indication it did nothing.</p>
+
+<pre><code># This job silently does nothing when the SMTP server is misconfigured
+class WeeklyReportJob < ApplicationJob
+  def perform
+    User.where(weekly_report: true).each do |user|
+      UserMailer.weekly_report(user).deliver_now
+      # ActionMailer raises SMTPError, but if you have rescue_from in ApplicationJob
+      # it logs and swallows the exception — job exits 0, no alert fires
+    end
+  end
+end</code></pre>
+
+<h3>Whenever gem: the crontab entry silently disappears</h3>
+
+<p>Whenever generates a crontab entry on deploy via <code>whenever --update-crontab</code>. If your deploy pipeline skips this step — a partial deploy, a Capistrano hook that fails silently, a Docker build that doesn't run the cron container — the old crontab entry runs the old version of the task, or no crontab entry exists at all. The job "works" from the application's perspective but never fires.</p>
+
+<pre><code># schedule.rb — you see this in development
+every 1.day, at: '2:30 am' do
+  runner "ReportService.generate_all"
+end
+
+# On the production server, the crontab entry may point to an old release
+# or may not exist at all if --update-crontab wasn't run during deploy</code></pre>
+
+<h3>Sidekiq-Cron: Redis key expiry and worker restarts</h3>
+
+<p>Sidekiq-Cron stores job schedules as Redis keys. If Redis is flushed (accidental <code>FLUSHALL</code>, a Redis provider incident, a Redis migration), all scheduled jobs vanish. They need to be re-loaded from initializer on next server start — but if your deployment process doesn't restart all Sidekiq workers, the stale workers never reload the schedule.</p>
+
+<pre><code># config/initializers/sidekiq.rb
+Sidekiq::Cron::Job.load_from_hash({
+  'monthly_invoices' => {
+    'cron' => '0 9 1 * *',
+    'class' => 'MonthlyInvoiceJob'
+  }
+})
+# If Redis is flushed and Sidekiq workers aren't restarted, this never re-runs</code></pre>
+
+<h3>Delayed::Job recurring: no built-in recurrence</h3>
+
+<p>Delayed::Job has no native recurring schedule. Teams typically re-enqueue the job at the end of its own <code>perform</code> method. When a perform raises an exception, the job is retried up to <code>max_attempts</code> times — then it's marked failed and <strong>the recurring chain is broken forever</strong>. No more runs, no alert.</p>
+
+<pre><code>class WeeklyDigestJob < Struct.new(:user_id)
+  def perform
+    user = User.find(user_id)
+    DigestMailer.weekly(user).deliver_now
+    # Re-enqueue for next week — but if this line raises, the chain stops
+    WeeklyDigestJob.new(user_id).delay(run_at: 1.week.from_now).perform
+  end
+end</code></pre>
+
+<hr/>
+
+<h2>Adding heartbeat monitoring in one line</h2>
+
+<p>The dead man's switch pattern solves all three problems: ping a URL on successful completion. If the URL doesn't receive a ping within the expected interval, you get an alert.</p>
+
+<h3>ActiveJob (works with Sidekiq, Delayed::Job, or any adapter)</h3>
+
+<pre><code>class MonthlyInvoiceJob < ApplicationJob
+  def perform
+    # ... your existing logic ...
+    Invoice.generate_for_current_month
+
+    # Heartbeat — fires only after successful completion
+    heartbeat("YOUR_HEARTBEAT_TOKEN")
+  end
+
+  private
+
+  def heartbeat(token)
+    require 'net/http'
+    uri = URI("https://cronwatch.lior-seats.io/ping/#{token}")
+    Net::HTTP.get(uri)
+  rescue StandardError
+    nil  # monitoring outage never breaks the job
+  end
+end</code></pre>
+
+<h3>Whenever runner task</h3>
+
+<pre><code># schedule.rb
+every 1.day, at: '2:30 am' do
+  runner "ReportService.generate_all && ReportService.ping_heartbeat"
+end
+
+# app/services/report_service.rb
+class ReportService
+  def self.generate_all
+    # ... your logic ...
+  end
+
+  def self.ping_heartbeat
+    require 'net/http'
+    Net::HTTP.get(URI("https://cronwatch.lior-seats.io/ping/YOUR_TOKEN"))
+  rescue StandardError
+    nil
+  end
+end</code></pre>
+
+<p>Or as a shell command in the Whenever schedule:</p>
+
+<pre><code>every 1.day, at: '2:30 am' do
+  command "cd /app && bundle exec rake reports:generate && curl -s https://cronwatch.lior-seats.io/ping/YOUR_TOKEN"
+end</code></pre>
+
+<p>The <code>&&</code> means the heartbeat ping only fires if the rake task exits 0. A failure skips the ping, CronWatch sees a missed heartbeat, and you get an alert.</p>
+
+<h3>Sidekiq-Cron</h3>
+
+<pre><code>class SidekiqCronJob
+  include Sidekiq::Worker
+
+  def perform
+    # ... your logic ...
+    process_queued_emails
+
+    # Heartbeat
+    heartbeat
+  end
+
+  private
+
+  def heartbeat
+    require 'net/http'
+    Net::HTTP.get(URI("https://cronwatch.lior-seats.io/ping/YOUR_TOKEN"))
+  rescue StandardError
+    nil
+  end
+end</code></pre>
+
+<div class="callout">
+<strong>Where to put the ping call</strong>
+Always at the end, after all meaningful work completes. A ping at the top tells you the job <em>started</em>, not that it <em>succeeded</em>. A billing job that starts but fails halfway through looks healthy from the outside — until month end.
+</div>
+
+<hr/>
+
+<h2>Shared module for all your jobs</h2>
+
+<p>If you have multiple scheduled jobs, extract the heartbeat logic into a module:</p>
+
+<pre><code># lib/cronwatch_heartbeat.rb
+module CronwatchHeartbeat
+  def heartbeat(token)
+    require 'net/http'
+    Net::HTTP.get(URI("https://cronwatch.lior-seats.io/ping/#{token}"))
+  rescue StandardError
+    Rails.logger.warn("CronWatch heartbeat failed for #{token}: #{$!}")
+    nil
+  end
+end
+
+# In any job:
+class WeeklyReportJob < ApplicationJob
+  include CronwatchHeartbeat
+
+  def perform
+    ReportService.generate_all
+    heartbeat(ENV['CRONWATCH_WEEKLY_REPORT_TOKEN'])
+  end
+end</code></pre>
+
+<p>Store each job's token in environment variables so you can create separate monitors per job in the CronWatch dashboard.</p>
+
+<hr/>
+
+<h2>Catching Sidekiq-Cron failures with middleware</h2>
+
+<p>The heartbeat tells you when a job doesn't run at all. For Sidekiq jobs that fail mid-execution, add server middleware to catch and alert on exceptions:</p>
+
+<pre><code># config/initializers/sidekiq.rb
+class SidekiqAlertMiddleware
+  def call(worker, job, queue)
+    yield
+  rescue StandardError => e
+    # Alert on failure — Slack, PagerDuty, email, etc.
+    Rails.logger.error("Sidekiq job #{job['class']} failed: #{e.message}")
+    raise  # re-raise so Sidekiq handles retry/dead queue
+  end
+end
+
+Sidekiq.configure_server do |config|
+  config.server_middleware do |chain|
+    chain.add SidekiqAlertMiddleware
+  end
+end</code></pre>
+
+<hr/>
+
+<h2>Heroku Scheduler edge cases</h2>
+
+<p>If you use Heroku Scheduler instead of whenever, note that Heroku Scheduler has a known reliability problem: it runs tasks on a best-effort basis and <strong>occasionally skips runs without notice</strong>. This is documented in Heroku's own FAQ. For any business-critical task — billing, reports, data cleanup — don't rely on Heroku Scheduler alone. Always add a heartbeat monitor so you know when a scheduled run didn't happen.</p>
+
+<pre><code># In your Heroku-scheduled rake task:
+task send_weekly_digests: :environment do
+  DigestService.send_all
+  # Heartbeat — fires after DigestService.send_all completes without exception
+  require 'net/http'
+  Net::HTTP.get(URI("https://cronwatch.lior-seats.io/ping/#{ENV['CRONWATCH_DIGEST_TOKEN']}"))
+rescue => e
+  Rails.logger.error("send_weekly_digests failed: #{e.message}")
+  raise  # non-zero exit so Heroku logs the failure
+end</code></pre>
+
+<hr/>
+
+<h2>Quick-reference comparison</h2>
+
+<table>
+  <thead>
+    <tr><th>Tool</th><th>Schedule stored</th><th>Main silent failure</th><th>Heartbeat location</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>whenever</td><td>System crontab</td><td>--update-crontab not run on deploy</td><td>End of runner/command</td></tr>
+    <tr><td>Sidekiq-Cron</td><td>Redis keys</td><td>Redis flush loses all jobs</td><td>End of perform</td></tr>
+    <tr><td>Delayed::Job recurring</td><td>DB row</td><td>Exception breaks re-enqueue chain</td><td>Before re-enqueue</td></tr>
+    <tr><td>Heroku Scheduler</td><td>Heroku dashboard</td><td>Best-effort, occasionally skips</td><td>End of rake task</td></tr>
+    <tr><td>GoodJob</td><td>PostgreSQL</td><td>Worker process restart drops in-flight</td><td>End of perform</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🕐 Get alerted when a Rails job stops running</h3>
+  <p>CronWatch monitors your scheduled tasks with a dead man's switch. Add one line to your job's <code>perform</code> method — get an alert if it doesn't fire on schedule. Works with Sidekiq-Cron, whenever, Delayed::Job, GoodJob, and bare crontab.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron expression parser</a>
+</div>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<ul>
+  <li>whenever silently breaks when <code>--update-crontab</code> isn't run on deploy — always verify the crontab after each deployment</li>
+  <li>Sidekiq-Cron schedules live in Redis — a flush or restart can silently remove all schedules until the initializer re-runs</li>
+  <li>Delayed::Job's manual re-enqueue pattern breaks permanently when a perform raises — the chain stops and nothing tells you</li>
+  <li>Heroku Scheduler skips runs on a best-effort basis — never use it alone for business-critical tasks</li>
+  <li>The dead man's switch pattern (heartbeat ping at successful completion) catches all of these with a single method call</li>
+  <li>Extract heartbeat logic into a module so you can add monitoring to any job in two lines</li>
+</ul>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ruby-rails-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

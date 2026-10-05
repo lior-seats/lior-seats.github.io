@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Django Cron Job Monitoring: Alerts When Celery Beat or Management Commands Stop Running</title>
+<meta name="description" content="Celery Beat, APScheduler, and Django management commands all share the same blind spot: silent failures. Here's how to add heartbeat monitoring so you know before your users do."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/django-cron-job-monitoring.html"/>
+<meta name="keywords" content="django cron job monitoring, celery beat monitoring, django management command monitoring, APScheduler django, django scheduled task alert"/>
+<meta property="og:title" content="Django Cron Job Monitoring: Alerts When Celery Beat or Management Commands Stop Running"/>
+<meta property="og:description" content="Celery Beat, APScheduler, and Django management commands all share the same blind spot: silent failures. Here's how to add heartbeat monitoring so you know before your users do."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/django-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92em; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  th { background: #f4f4f5; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Django Cron Job Monitoring: Alerts When Celery Beat or Management Commands Stop Running</h1>
+
+<p class="meta">Your weekly report email stopped going out three weeks ago. Celery Beat is running — the process is healthy, no exceptions in Sentry. You discovered it when a client asked why the data was stale.</p>
+
+<p>Django doesn't have a native cron scheduler. Most teams use one of three approaches: Celery Beat for distributed task scheduling, APScheduler for lightweight in-process scheduling, or Django management commands triggered by system cron. All three share the same blind spot: <strong>when a task silently stops running, nothing tells you.</strong></p>
+
+<p>This guide covers the specific failure modes for each approach and how to add a single line of heartbeat monitoring so you get alerted before your users notice.</p>
+
+<hr/>
+
+<h2>Failure modes by scheduler</h2>
+
+<h3>Celery Beat: the broker disappears quietly</h3>
+
+<p>Celery Beat's most common silent failure isn't a task exception — it's a <strong>broken broker connection</strong>. Beat schedules tasks by pushing messages onto a Redis or RabbitMQ queue. If the broker goes down and comes back, Beat may reconnect but the task workers never drain the backlog. Or Beat itself crashes, the systemd unit restarts it, but the Redis <code>celerybeat-schedule</code> lock file is stale — Beat starts but skips all pending tasks until the next tick.</p>
+
+<p>Task exceptions are even more invisible. A Celery worker catches all task exceptions, marks the task as <code>FAILED</code> in the result backend (if configured), and moves on. If you don't have a result backend, or nobody queries it, failures vanish.</p>
+
+<pre><code># tasks.py — this failure is completely silent without error monitoring
+@app.task
+def send_weekly_report():
+    users = User.objects.filter(weekly_report=True)
+    for user in users:
+        data = fetch_analytics(user)  # throws ConnectionError on third-party API outage
+        send_email(user.email, data)  # never reached for this user
+    # Celery marks the task FAILED; no alert fires unless you explicitly check</code></pre>
+
+<h3>APScheduler: process restarts reset the clock</h3>
+
+<p>APScheduler's <code>BackgroundScheduler</code> stores job state in memory by default. A Django process restart — gunicorn worker recycle, Heroku dyno restart, Kubernetes pod eviction — silently resets all job next-run times to "now" or "at startup + interval". This means jobs that should run at 3am might run at deploy time, or skip the 3am window entirely if the process was down during it.</p>
+
+<pre><code># settings.py / apps.py — the scheduler reinitializes on every process start
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    cleanup_old_sessions,
+    'cron',
+    hour=3, minute=0,
+    id='nightly_cleanup'
+)
+scheduler.start()
+# If gunicorn spawns 4 workers, this job runs 4x per cycle
+# If the dyno was restarted at 3:05am, the 3am job was silently skipped</code></pre>
+
+<h3>Management commands via system cron: the crontab entry disappears</h3>
+
+<p>When you run Django management commands from a system crontab or Kubernetes CronJob, you get an entirely different failure category: the scheduler runs the command, the command exits 0, but the underlying logic did nothing because of a Django misconfiguration (wrong <code>DJANGO_SETTINGS_MODULE</code>, missing <code>DATABASE_URL</code>, silent ORM error). The system cron sees a zero exit code and marks it successful.</p>
+
+<pre><code># crontab — runs every night at 2am
+0 2 * * * /app/venv/bin/python manage.py send_digests --settings=myapp.settings.production
+
+# manage.py send_digests exits 0 even if:
+# - DATABASE_URL points to a read replica that went down
+# - SENDGRID_API_KEY is unset (emails silently skipped)
+# - ORM query returns 0 rows due to a bad filter (no-op, no error)</code></pre>
+
+<hr/>
+
+<h2>Adding heartbeat monitoring in one line</h2>
+
+<p>The most reliable way to monitor any scheduled task is the dead man's switch pattern: the task pings a URL on every successful completion. If the URL doesn't receive a ping within the expected window, you get an alert.</p>
+
+<p>This works for all three Django scheduler types with minimal changes:</p>
+
+<h3>Celery Beat task</h3>
+
+<pre><code>import requests
+
+@app.task
+def send_weekly_report():
+    # ... your existing task logic ...
+    users = User.objects.filter(weekly_report=True)
+    for user in users:
+        data = fetch_analytics(user)
+        send_email(user.email, data)
+
+    # Heartbeat — only fires on successful completion
+    requests.get(
+        "https://cronwatch.lior-seats.io/ping/YOUR_HEARTBEAT_TOKEN",
+        timeout=5
+    )
+</code></pre>
+
+<h3>APScheduler job</h3>
+
+<pre><code>import urllib.request
+
+def cleanup_old_sessions():
+    # ... your existing logic ...
+    Session.objects.filter(expire_date__lt=timezone.now()).delete()
+
+    # Heartbeat
+    urllib.request.urlopen(
+        "https://cronwatch.lior-seats.io/ping/YOUR_HEARTBEAT_TOKEN",
+        timeout=5
+    )
+
+scheduler.add_job(cleanup_old_sessions, 'cron', hour=3, minute=0)</code></pre>
+
+<h3>Management command</h3>
+
+<pre><code># management/commands/send_digests.py
+import urllib.request
+from django.core.management.base import BaseCommand
+
+class Command(BaseCommand):
+    def handle(self, *args, **kwargs):
+        # ... your existing logic ...
+        sent = digest_service.send_all()
+        self.stdout.write(f"Sent {sent} digests")
+
+        # Heartbeat — only fires after successful handle() completion
+        urllib.request.urlopen(
+            "https://cronwatch.lior-seats.io/ping/YOUR_HEARTBEAT_TOKEN",
+            timeout=5
+        )
+</code></pre>
+
+<div class="callout">
+<strong>Placement matters</strong>
+Put the heartbeat call at the end of the task, after all meaningful work is done. If you put it at the top, you'll get a ping even when the task silently fails halfway through.
+</div>
+
+<hr/>
+
+<h2>Handling the ping failure gracefully</h2>
+
+<p>Your monitoring ping should never cause a task failure. Wrap it to be completely silent if the monitoring service is unreachable:</p>
+
+<pre><code>def heartbeat(token: str) -> None:
+    """Fire-and-forget heartbeat ping. Never raises."""
+    try:
+        import urllib.request
+        urllib.request.urlopen(
+            f"https://cronwatch.lior-seats.io/ping/{token}",
+            timeout=5
+        )
+    except Exception:
+        pass  # monitoring outage never breaks the task
+
+# In your task:
+heartbeat("YOUR_HEARTBEAT_TOKEN")
+</code></pre>
+
+<p>Or use <code>requests</code> with a similar pattern:</p>
+
+<pre><code>import requests
+
+def heartbeat(token: str) -> None:
+    try:
+        requests.get(
+            f"https://cronwatch.lior-seats.io/ping/{token}",
+            timeout=5
+        )
+    except requests.RequestException:
+        pass
+</code></pre>
+
+<hr/>
+
+<h2>Celery Beat — catching task failures too</h2>
+
+<p>The heartbeat pattern tells you when a task doesn't run at all. But Celery Beat tasks can also fail halfway through. Use Celery's failure signals to send an alert:</p>
+
+<pre><code">from celery import signals
+
+@signals.task_failure.connect
+def on_task_failure(sender, task_id, exception, traceback, **kwargs):
+    # Send to Sentry, Slack, email — whatever your team uses
+    logger.error(
+        f"Celery task {sender.name} failed: {exception}",
+        exc_info=(type(exception), exception, traceback)
+    )
+    # Optionally: skip the heartbeat ping so CronWatch also alerts
+</code></pre>
+
+<p>You can also use <code>@app.task(bind=True)</code> with a custom <code>on_failure</code> method on specific tasks that need individual alerting.</p>
+
+<hr/>
+
+<h2>Celery Beat with database scheduler</h2>
+
+<p>If you use <code>django-celery-beat</code> to manage schedules in the database, add a health check query to your monitoring stack — the Beat process and the database both need to be healthy for tasks to fire:</p>
+
+<pre><code"># In your health check endpoint or a separate heartbeat task:
+from django_celery_beat.models import PeriodicTask
+
+def check_beat_health():
+    """Verify celery-beat's last run times are recent."""
+    stale = PeriodicTask.objects.filter(
+        enabled=True,
+        last_run_at__lt=timezone.now() - timedelta(hours=2)
+    ).values_list('name', flat=True)
+
+    if stale:
+        alert_team(f"Celery Beat tasks not running: {list(stale)}")
+</code></pre>
+
+<hr/>
+
+<h2>Kubernetes CronJob — add a post-execution ping</h2>
+
+<p>For management commands running as Kubernetes CronJobs, you can add the heartbeat ping as a post-exec step without modifying the Django code at all:</p>
+
+<pre><code>apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: send-digests
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: job
+            image: myapp:latest
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                python manage.py send_digests && \
+                wget -qO- https://cronwatch.lior-seats.io/ping/YOUR_TOKEN
+          restartPolicy: Never
+</code></pre>
+
+<p>The <code>&&</code> means the heartbeat ping only fires if <code>manage.py send_digests</code> exits 0. A non-zero exit skips the ping, CronWatch sees a missed heartbeat, and you get an alert.</p>
+
+<hr/>
+
+<h2>Comparison of Django scheduling options</h2>
+
+<table>
+  <thead>
+    <tr><th>Approach</th><th>Good for</th><th>Silent failure risk</th><th>Heartbeat pattern</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Celery Beat</td><td>Distributed tasks, retries, rate limits</td><td>Broker outage, worker crash</td><td>End of task function</td></tr>
+    <tr><td>APScheduler</td><td>Simple in-process scheduling</td><td>Process restart resets schedule</td><td>End of job function</td></tr>
+    <tr><td>Management command + crontab</td><td>Simple, no dependencies</td><td>Exit 0 despite logic failure</td><td>End of handle()</td></tr>
+    <tr><td>K8s CronJob</td><td>Containerised, isolated runs</td><td>Pod scheduling failures</td><td>Postfix <code>&& wget</code></td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🕐 Know the moment a Django job stops running</h3>
+  <p>CronWatch monitors your scheduled tasks with a dead man's switch. Add one line to your Celery task or management command — get an alert if it doesn't fire on schedule.</p>
+  <p>Works with Celery Beat, APScheduler, management commands, and Kubernetes CronJobs. No infrastructure to run.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron expression parser</a>
+</div>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<ul>
+  <li>Celery Beat's most common silent failures are broken broker connections and unhandled task exceptions — not Celery crashes</li>
+  <li>APScheduler resets all job state on process restart — don't assume in-memory state survives a deploy</li>
+  <li>Management commands returning exit 0 doesn't mean the task did meaningful work — wrap logic in try/except and set a non-zero exit code on failure</li>
+  <li>The heartbeat pattern (ping a URL on successful completion) works across all three and adds monitoring in one line</li>
+  <li>Put the heartbeat call at the very end of the task, after all meaningful work completes</li>
+  <li>Wrap the ping in a try/except so a monitoring outage never breaks the task</li>
+</ul>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=django-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
