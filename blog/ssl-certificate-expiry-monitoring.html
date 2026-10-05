@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SSL Certificate Expiry Monitoring: How to Get Alerts Before It Expires</title>
+<meta name="description" content="How to monitor SSL certificate expiry and get alerts before your site goes down. Free and paid options for developers, from cron jobs to dedicated monitoring tools."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-expiry-monitoring.html"/>
+<meta property="og:title" content="SSL Certificate Expiry Monitoring: How to Get Alerts Before It Expires"/>
+<meta property="og:description" content="How to monitor SSL certificate expiry and get alerts before your site goes down. Free and paid options for developers, from cron jobs to dedicated monitoring tools."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-expiry-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a5f; }
+  .btn { display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1d4ed8; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.9rem; overflow-x: auto; display: block; }
+  th { background: #1a1a1a; color: #fff; padding: 8px 12px; text-align: left; white-space: nowrap; }
+  td { padding: 7px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .tag { display: inline-block; background: #f4f4f5; border: 1px solid #e4e4e7; padding: 1px 7px; border-radius: 4px; font-size: 0.76rem; font-weight: 600; color: #555; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">&#8592; Blog</a> &nbsp;&middot;&nbsp; October 2026</p>
+
+<h1>SSL Certificate Expiry Monitoring: How to Get Alerts Before It Expires</h1>
+
+<p class="meta">Free and paid approaches for developers who can&#8217;t afford an unexpected outage.</p>
+
+<div class="warning">
+  <strong>The cost of missing an expiry:</strong> An expired SSL certificate shows a browser warning that most users won&#8217;t click past. Search engines de-index HTTPS pages that return errors. Payment processors refuse to connect. A single missed renewal can take down a production service for hours.
+</div>
+
+<p>SSL certificate expiry is one of those problems that looks trivial until it bites you. Let&#8217;s Encrypt renewals are automatic &mdash; until something breaks in the automation and nobody notices for 30 days. Manually managed certificates expire when your calendar reminder gets ignored or the person who set the reminder left the company.</p>
+
+<p>This guide covers every meaningful approach to SSL certificate expiry monitoring, from a free five-minute cron job to paid alerting services, so you can pick the right level of coverage for each environment.</p>
+
+<hr/>
+
+<h2>Check a Certificate&#8217;s Expiry Right Now</h2>
+
+<p>Before setting up automated monitoring, it&#8217;s useful to know where you stand. You can check any domain&#8217;s certificate expiry in your browser&#8217;s address bar, or use the command line:</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 -servername yourdomain.com 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<p>This returns the <code>notBefore</code> and <code>notAfter</code> dates directly. For a human-readable days-remaining count:</p>
+
+<pre><code>echo | openssl s_client -connect yourdomain.com:443 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | awk -F= '{print $2}' \
+  | xargs -I{} date -d "{}" +%s \
+  | xargs -I{} sh -c 'echo $(( ({} - $(date +%s)) / 86400 )) days remaining'</code></pre>
+
+<p>Or use the free <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker</a> tool to get a visual result instantly without touching the command line.</p>
+
+<hr/>
+
+<h2>Option 1: A Simple Cron Job (Free, 10 Minutes to Set Up)</h2>
+
+<p>The most straightforward DIY approach is a cron job that checks certificate expiry and sends an email when the deadline gets close. Here&#8217;s a working shell script:</p>
+
+<pre><code>#!/bin/bash
+# ssl-check.sh — checks a domain's cert and alerts if expiry < 30 days
+
+DOMAIN="yourdomain.com"
+ALERT_DAYS=30
+ALERT_EMAIL="you@example.com"
+
+EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 -servername "$DOMAIN" 2>/dev/null \
+  | openssl x509 -noout -enddate 2>/dev/null \
+  | cut -d= -f2)
+
+if [ -z "$EXPIRY" ]; then
+  echo "SSL check failed for $DOMAIN — could not retrieve certificate" \
+    | mail -s "SSL check error: $DOMAIN" "$ALERT_EMAIL"
+  exit 1
+fi
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+if [ "$DAYS_LEFT" -le "$ALERT_DAYS" ]; then
+  echo "SSL certificate for $DOMAIN expires in $DAYS_LEFT days ($EXPIRY)" \
+    | mail -s "⚠️ SSL expiry warning: $DOMAIN ($DAYS_LEFT days)" "$ALERT_EMAIL"
+fi</code></pre>
+
+<p>Schedule it to run daily at 9am:</p>
+
+<pre><code>0 9 * * * /path/to/ssl-check.sh</code></pre>
+
+<p>This works reliably if your server has <code>openssl</code> and <code>mail</code> configured. The limitations show up quickly in practice:</p>
+
+<ul>
+  <li>Requires a working outbound mail setup on the server (often broken or spam-filtered)</li>
+  <li>Only checks one domain per script invocation &mdash; monitoring 20 domains means 20 cron jobs or a loop with no shared alerting</li>
+  <li>No dashboard &mdash; you have to SSH in and run the script manually to see the current state of all certs</li>
+  <li>Silent failures &mdash; if the cron job itself fails (wrong openssl version, connectivity issue, cron daemon down), you get no alert</li>
+  <li>No alerting to Slack, PagerDuty, or other channels</li>
+</ul>
+
+<p>For a single personal domain, this is fine. For production services or multiple domains, you need something more robust.</p>
+
+<hr/>
+
+<h2>Option 2: curl + openssl in a Cron Job with Webhook Alerting</h2>
+
+<p>A slightly more robust approach replaces the <code>mail</code> dependency with a webhook POST to Slack or a generic HTTP endpoint:</p>
+
+<pre><code>#!/bin/bash
+DOMAIN="yourdomain.com"
+SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+ALERT_DAYS=30
+
+EXPIRY=$(echo | openssl s_client -connect "$DOMAIN":443 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+DAYS_LEFT=$(( ( $(date -d "$EXPIRY" +%s) - $(date +%s) ) / 86400 ))
+
+if [ "$DAYS_LEFT" -le "$ALERT_DAYS" ]; then
+  curl -s -X POST "$SLACK_WEBHOOK" \
+    -H "Content-Type: application/json" \
+    -d "{\"text\": \"⚠️ SSL expiry: $DOMAIN expires in $DAYS_LEFT days\"}"
+fi</code></pre>
+
+<p>This removes the dependency on a local mail server, which is usually the point of failure in the first version. The cron job reliability problem remains: if the job silently stops running, your next alert about the cert is the browser warning your users see.</p>
+
+<hr/>
+
+<h2>Option 3: Let&#8217;s Encrypt with Certbot Auto-Renewal</h2>
+
+<p>If you&#8217;re using Let&#8217;s Encrypt, the right answer is usually to make sure <code>certbot renew</code> is running correctly rather than monitoring expiry dates manually. A working auto-renewal setup makes the problem go away.</p>
+
+<p>Check the status of your renewal timer:</p>
+
+<pre><code># systemd (most modern Linux):
+systemctl status certbot.timer
+
+# or for snap-installed certbot:
+systemctl status snap.certbot.renew.timer
+
+# verify the renewal would succeed (dry run):
+certbot renew --dry-run</code></pre>
+
+<p>The catch is that <code>certbot renew</code> can silently fail. Common failure modes:</p>
+
+<ul>
+  <li>Port 80 blocked by a firewall rule that was added after initial setup</li>
+  <li>DNS change that broke the ACME challenge</li>
+  <li>nginx/Apache config change that stopped serving the <code>/.well-known/acme-challenge/</code> path</li>
+  <li>System clock drift that breaks TLS validation of the ACME endpoint</li>
+  <li>certbot version incompatibility after an OS upgrade</li>
+</ul>
+
+<p>Running <code>--dry-run</code> manually every few months catches most of these, but it doesn&#8217;t give you proactive alerting when something breaks between manual checks.</p>
+
+<div class="callout">
+  <strong>Best practice for Let&#8217;s Encrypt:</strong> Run <code>certbot renew --dry-run</code> in a cron job and alert on failure. This tests the renewal path without actually renewing, so it fails early rather than 30 days before expiry.
+</div>
+
+<hr/>
+
+<h2>Option 4: Cloud Provider Built-In Monitoring</h2>
+
+<p>If your certificates are managed through AWS Certificate Manager (ACM), Google Cloud Certificate Manager, or Cloudflare, those platforms have built-in expiry notifications:</p>
+
+<ul>
+  <li><strong>AWS ACM</strong> &mdash; sends EventBridge events 45, 30, 15, and 1 days before expiry. Route them to SNS for email/SMS, or to Lambda for custom handling. ACM-managed certs auto-renew; the alerts are a safety net for certs you imported manually.</li>
+  <li><strong>Cloudflare</strong> &mdash; sends email alerts when certificates are 30 days from expiry. No setup required if you&#8217;re using Cloudflare SSL.</li>
+  <li><strong>Google Cloud</strong> &mdash; Certificate Manager sends Cloud Monitoring alerts. Requires setting up a metric alert policy.</li>
+</ul>
+
+<p>If you&#8217;re already on one of these platforms and using their certificate management, turn on their notifications. They&#8217;re free and require almost no setup.</p>
+
+<hr/>
+
+<h2>Option 5: Free External Monitoring Services</h2>
+
+<p>Several services will check your certificate from outside your infrastructure and email you before it expires. The notable free options:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Free tier</th>
+      <th>Alert advance</th>
+      <th>Channels</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>UptimeRobot</strong></td>
+      <td>50 monitors, 5-min interval</td>
+      <td>30 days</td>
+      <td>Email, Slack, webhook</td>
+    </tr>
+    <tr>
+      <td><strong>StatusCake</strong></td>
+      <td>10 SSL monitors</td>
+      <td>30 days</td>
+      <td>Email, webhook</td>
+    </tr>
+    <tr>
+      <td><strong>Better Uptime</strong></td>
+      <td>10 monitors</td>
+      <td>Configurable</td>
+      <td>Email, SMS, Slack</td>
+    </tr>
+    <tr>
+      <td><strong>Oh Dear</strong></td>
+      <td>14-day trial only</td>
+      <td>Configurable</td>
+      <td>Email, Slack, webhook</td>
+    </tr>
+    <tr>
+      <td><strong>SSLWatch</strong></td>
+      <td>Free tool, $9/mo for alerts</td>
+      <td>60/30/7 days</td>
+      <td>Email alerts</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>UptimeRobot&#8217;s free tier is the most commonly used option for indie developers: 50 monitors with 5-minute ping intervals and basic SSL expiry alerts. The SSL monitoring is a secondary feature rather than the primary focus, but it works reliably for most use cases.</p>
+
+<hr/>
+
+<h2>Option 6: Dedicated SSL Certificate Monitoring</h2>
+
+<p>For production environments where an expired certificate means real revenue impact, dedicated SSL monitoring tools offer more thorough coverage:</p>
+
+<ul>
+  <li><strong>Multiple alert windows</strong> &mdash; get notified 60 days out, 30 days out, 7 days out, and 1 day out, so you have multiple opportunities to act before it&#8217;s urgent</li>
+  <li><strong>Certificate chain validation</strong> &mdash; catches intermediate certificate issues that end-to-end checks miss, because they check not just the leaf cert but the full chain</li>
+  <li><strong>Multiple domains from one dashboard</strong> &mdash; managing 20+ certs across multiple projects becomes tractable</li>
+  <li><strong>Alert on any change</strong> &mdash; get notified when a certificate is replaced, even if it&#8217;s not close to expiry (catches unexpected replacements or compromised certs)</li>
+  <li><strong>Monitoring from multiple locations</strong> &mdash; catches CDN certificate inconsistencies where different PoPs are serving different certs</li>
+</ul>
+
+<div class="cta-box">
+  <h3>SSLWatch &mdash; Automated SSL Certificate Expiry Alerts</h3>
+  <p>Get email alerts 60, 30, and 7 days before any certificate expires. Never manually track renewal dates again. Add any domain in seconds.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the waitlist</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free checker tool</a>
+</div>
+
+<hr/>
+
+<h2>What Approach Should You Use?</h2>
+
+<p>The right answer depends on your infrastructure:</p>
+
+<ul>
+  <li><strong>Let&#8217;s Encrypt with certbot</strong> &mdash; make sure <code>certbot renew --dry-run</code> is in a cron job that alerts on failure. This is the lowest-overhead setup for auto-renewed certs.</li>
+  <li><strong>AWS ACM or Cloudflare SSL</strong> &mdash; turn on their built-in expiry notifications. Already covered if you&#8217;re on those platforms.</li>
+  <li><strong>1&ndash;3 manually managed domains</strong> &mdash; UptimeRobot free tier is fast to set up and sufficient for basic coverage.</li>
+  <li><strong>10+ domains or production revenue</strong> &mdash; dedicated SSL monitoring with multi-window alerts and a dashboard saves the mental overhead of tracking each cert separately.</li>
+</ul>
+
+<hr/>
+
+<h2>The Monitoring Gap Most Teams Miss</h2>
+
+<p>There&#8217;s a common misconception that Let&#8217;s Encrypt auto-renewal makes SSL monitoring unnecessary. Let&#8217;s Encrypt renews certificates automatically &mdash; when the automation is working. The automation can break silently, and by the time you notice, you have 30 days left instead of 90.</p>
+
+<p>The pattern that catches this: monitor the certificate expiry date externally, independent of whether you think auto-renewal is working. If the cert&#8217;s expiry date stops advancing (i.e., it&#8217;s no longer renewing), you&#8217;ll know 60 days before the expiry rather than on the day it fails.</p>
+
+<p>This is why external monitoring is worth adding even if you have certbot configured: it validates that the automation is actually doing its job, not just that the job is scheduled to run.</p>
+
+<hr/>
+
+<h2>Checking Certificate Expiry in CI</h2>
+
+<p>One underused approach: add an SSL check to your deployment pipeline. After deploying, verify the certificate is valid and not within 30 days of expiry:</p>
+
+<pre><code>#!/bin/bash
+# Add to your post-deploy CI step
+DOMAIN="yourdomain.com"
+DAYS_LEFT=$(echo | openssl s_client -connect "$DOMAIN":443 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | cut -d= -f2 \
+  | xargs -I{} date -d "{}" +%s \
+  | xargs -I{} sh -c 'echo $(( ({} - $(date +%s)) / 86400 ))')
+
+if [ "$DAYS_LEFT" -lt 30 ]; then
+  echo "::warning::SSL certificate expires in $DAYS_LEFT days"
+fi</code></pre>
+
+<p>This surfaces certificate issues in your deploy logs where developers are already looking, without requiring any external tooling. It complements rather than replaces dedicated monitoring &mdash; CI runs on deploy, not daily, so it won&#8217;t catch a cert that expires between deploys.</p>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<p>SSL certificate expiry is preventable with minimal investment. The key points:</p>
+
+<ol>
+  <li><strong>If you use Let&#8217;s Encrypt</strong>, run <code>certbot renew --dry-run</code> in a cron job that alerts on failure &mdash; this catches renewal breakage early rather than 30 days before expiry.</li>
+  <li><strong>If you use a cloud provider&#8217;s certificate management</strong> (ACM, Cloudflare), turn on their built-in expiry notifications today.</li>
+  <li><strong>For any production domain</strong>, add an external monitoring check that alerts at multiple advance windows (60, 30, 7 days). External monitoring validates that your automation is working, not just that it&#8217;s scheduled.</li>
+  <li><strong>Check your current certs</strong> using the <a href="https://lior-seats.github.io/ssl-cert-checker/">free SSL Certificate Checker</a> to see where you stand before setting up monitoring.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>Never track SSL renewal dates manually again</h3>
+  <p>SSLWatch monitors your certificates and sends automated email alerts at 60, 30, and 7 days before expiry. Simple setup, $9/month.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Get early access</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check your cert free</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-expiry-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
