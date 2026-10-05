@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Heroku Scheduler Monitoring: Get Alerted When Jobs Fail Silently</title>
+<meta name="description" content="Heroku Scheduler gives no alerts when jobs fail or don't run. Learn the dead man's switch pattern to get notified when your scheduled Heroku jobs stop firing."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/heroku-scheduler-monitoring.html"/>
+<meta property="og:title" content="Heroku Scheduler Monitoring: Get Alerted When Jobs Fail Silently"/>
+<meta property="og:description" content="Heroku Scheduler gives no alerts when jobs fail or don't run. Learn the dead man's switch pattern to get notified when your scheduled Heroku jobs stop firing."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/heroku-scheduler-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #15803d; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; border: 1px solid #e4e4e7; padding: 10px 12px; text-align: left; font-weight: 700; }
+  td { border: 1px solid #e4e4e7; padding: 10px 12px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Heroku Scheduler Monitoring: Get Alerted When Jobs Fail Silently</h1>
+
+<p class="meta">Heroku Scheduler has no built-in failure alerts. Here's how to know when your jobs stop running.</p>
+
+<p>Heroku Scheduler is deceptively simple to set up. Add a command, pick a frequency, done. But there's a critical gap: if your job fails, throws an exception, or simply stops running, Heroku Scheduler says nothing. No alert, no email, no dashboard warning. You find out from a user complaint or a missing report.</p>
+
+<p>This is the same problem shared by every fire-and-forget scheduler. The solution is the same too: the <strong>dead man's switch pattern</strong>.</p>
+
+<div class="summary-box">
+  <strong>What this guide covers:</strong>
+  <ul>
+    <li>Why Heroku Scheduler doesn't alert you when jobs fail</li>
+    <li>The dead man's switch pattern — the right way to monitor scheduled jobs</li>
+    <li>Setup in Ruby, Python, and Node.js — one line per language</li>
+    <li>What to look for in a Heroku Scheduler monitoring tool</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> The Heroku Scheduler monitoring gap</h2>
+
+<p>Heroku Scheduler runs your command on a dyno, captures its output, and moves on. There are three failure scenarios it does not alert on:</p>
+
+<ul>
+  <li><strong>Job exits non-zero:</strong> The dyno records the exit code in Heroku Logs, but nobody is watching. No email is sent.</li>
+  <li><strong>Job throws an exception:</strong> Same result — logs, no alert.</li>
+  <li><strong>Job never runs:</strong> If the scheduler itself has an issue, or if you accidentally disabled a job, silence.</li>
+</ul>
+
+<p>Heroku does provide <a href="https://devcenter.heroku.com/articles/log-drains">log drains</a> and you can pipe logs to Papertrail or Datadog. But that still requires you to write a log parser rule for every job — and it won't catch the case where a job simply doesn't fire.</p>
+
+<div class="callout">
+  <strong>The core issue:</strong>
+  Monitoring logs only catches jobs that <em>ran and failed</em>. It does nothing for jobs that <em>didn't run at all</em>. You need a different pattern for that.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">2</span> The dead man's switch pattern</h2>
+
+<p>A dead man's switch works in reverse. Instead of your monitoring tool watching for an error, your <em>job</em> sends a "I'm alive" ping to a monitoring service at the end of every successful run. If the ping stops arriving, the monitoring service alerts you.</p>
+
+<p>This catches every failure mode:</p>
+<ul>
+  <li>Job throws an exception before the ping line → no ping → alert</li>
+  <li>Job exits mid-way → no ping → alert</li>
+  <li>Scheduler fails to trigger the job → no ping → alert</li>
+  <li>Heroku dyno has no memory and restarts → no ping → alert</li>
+</ul>
+
+<p>The implementation is one line added to the end of your job. If the ping line is reached, the job succeeded.</p>
+
+<hr/>
+
+<h2><span class="step-num">3</span> Adding a heartbeat ping to your Heroku Scheduler job</h2>
+
+<h3>Ruby</h3>
+
+<pre><code># lib/tasks/daily_report.rake
+task :daily_report do
+  # ... your job logic here ...
+  generate_report
+  send_emails
+
+  # Heartbeat ping — fires only on successful completion
+  require 'net/http'
+  Net::HTTP.get(URI('https://cronwatch.ping/YOUR_TOKEN'))
+end</code></pre>
+
+<p>Or with the <code>Faraday</code> or <code>HTTParty</code> gem if you already have one in your Gemfile:</p>
+
+<pre><code>HTTParty.get('https://cronwatch.ping/YOUR_TOKEN') rescue nil</code></pre>
+
+<p>The <code>rescue nil</code> ensures a network hiccup doesn't fail your job — the ping is best-effort.</p>
+
+<h3>Python</h3>
+
+<pre><code>import requests
+
+def daily_report():
+    # ... your job logic here ...
+    generate_report()
+    send_emails()
+
+    # Heartbeat ping — fires only on successful completion
+    try:
+        requests.get('https://cronwatch.ping/YOUR_TOKEN', timeout=10)
+    except Exception:
+        pass  # Don't let a network issue fail the job
+
+if __name__ == '__main__':
+    daily_report()</code></pre>
+
+<h3>Node.js</h3>
+
+<pre><code>const https = require('https');
+
+async function dailyReport() {
+  // ... your job logic here ...
+  await generateReport();
+  await sendEmails();
+
+  // Heartbeat ping — fires only on successful completion
+  https.get('https://cronwatch.ping/YOUR_TOKEN').on('error', () => {});
+}
+
+dailyReport();</code></pre>
+
+<h3>Shell / Bash</h3>
+
+<p>For Heroku Scheduler tasks that run a shell command directly:</p>
+
+<pre><code>ruby lib/tasks/daily_report.rb && curl -s https://cronwatch.ping/YOUR_TOKEN</code></pre>
+
+<p>The <code>&amp;&amp;</code> ensures the curl only runs if the previous command exited 0. If the Ruby script fails, no ping is sent.</p>
+
+<hr/>
+
+<h2><span class="step-num">4</span> Grace periods: preventing false alerts</h2>
+
+<p>Heroku Scheduler has timing jitter. A job scheduled to run every hour may run at :00, :02, :01, depending on dyno availability. Your monitoring tool needs to account for this with a configurable grace period — typically 10–20 minutes for hourly jobs, and 2–3 hours for daily ones.</p>
+
+<p>Without a grace period, you'll get false alerts every time Heroku is a few minutes slow. With too long a grace period, you'll miss real failures.</p>
+
+<table>
+  <thead>
+    <tr><th>Job frequency</th><th>Recommended grace period</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Every 10 minutes</td><td>5 minutes</td></tr>
+    <tr><td>Every hour</td><td>15 minutes</td></tr>
+    <tr><td>Every day</td><td>2 hours</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2><span class="step-num">5</span> What to look for in a Heroku Scheduler monitor</h2>
+
+<p>Not all monitoring tools are built for Heroku's fire-and-forget model. Here's what matters:</p>
+
+<ul>
+  <li><strong>Dead man's switch endpoints:</strong> A unique URL per job that you ping on success. This is the pattern Heroku Scheduler requires — log-based monitors won't catch missed runs.</li>
+  <li><strong>Configurable grace periods:</strong> Heroku has scheduling jitter. You need to set a grace period per job so you're not paged at 12:02am for a job that runs daily at midnight.</li>
+  <li><strong>Simple integration:</strong> One line of code. No SDK installation, no complicated setup. Just a GET request.</li>
+  <li><strong>Email alerts:</strong> Immediate notification when a job misses its window. Slack or PagerDuty integration is a plus.</li>
+  <li><strong>Low cost for indie projects:</strong> Many monitors charge $30–$50/month. For a side project with 3–5 Heroku jobs, that's not justified.</li>
+</ul>
+
+<div class="callout">
+  <strong>Tip:</strong> Set up monitoring for your most critical Heroku jobs first — billing runs, report generators, data sync jobs. These are the ones where a missed execution has immediate business impact.
+</div>
+
+<hr/>
+
+<h2>Common Heroku Scheduler failure causes</h2>
+
+<p>Once you have monitoring in place, you'll start seeing which jobs actually fail. Common causes for Heroku Scheduler jobs:</p>
+
+<ul>
+  <li><strong>Memory quota exceeded:</strong> Heroku free-tier dynos have a 512MB memory limit. A job that processes large datasets can hit this and be killed without warning.</li>
+  <li><strong>Timeout:</strong> Heroku Scheduler jobs run on one-off dynos. There's no timeout limit by default, but network calls and database queries can hang indefinitely.</li>
+  <li><strong>Missing environment variables:</strong> One-off dynos inherit your app's config vars, but if a var was recently deleted or renamed, the job fails silently.</li>
+  <li><strong>Database connection pool exhaustion:</strong> If your web dynos are holding all connections, a scheduler job that tries to connect will time out.</li>
+  <li><strong>Accidentally disabled:</strong> It's easy to accidentally toggle a Heroku Scheduler job to disabled in the dashboard. Without monitoring, you won't notice for days.</li>
+</ul>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>CronWatch — Dead Man's Switch Monitoring for Heroku Scheduler</h3>
+  <p>CronWatch monitors your Heroku Scheduler jobs with the dead man's switch pattern. Add one line to your job. If it stops firing, you get an alert. Configurable grace periods, email alerts, simple setup.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse cron expressions free</a>
+</div>
+
+<hr/>
+
+<h2>Related reading</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why Your Cron Jobs Are Failing Silently</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-monitoring.html">Cron Job Monitoring: How to Get Alerted When Scheduled Jobs Fail</a></li>
+  <li><a href="https://lior-seats.github.io/blog/free-cron-job-monitoring.html">Free Cron Job Monitoring Tools (2026)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/heroku-scheduler-alternative.html">Heroku Scheduler Alternatives in 2026</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=heroku-scheduler-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
