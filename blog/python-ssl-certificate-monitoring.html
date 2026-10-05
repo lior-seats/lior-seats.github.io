@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SSL Certificate Monitoring with Python: Check Expiry and Get Alerts</title>
+<meta name="description" content="Check SSL certificate expiry dates with Python using the ssl and socket modules. Automate monitoring across multiple domains and get alerts before they expire."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/python-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="SSL Certificate Monitoring with Python: Check Expiry and Get Alerts"/>
+<meta property="og:description" content="Check SSL certificate expiry dates with Python using the ssl and socket modules. Automate monitoring across multiple domains and get alerts before they expire."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/python-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #1e3a8a; }
+  .btn { display: inline-block; background: #1d4ed8; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #1e40af; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #1d4ed8; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; border: 1px solid #e4e4e7; padding: 10px 12px; text-align: left; font-weight: 700; }
+  td { border: 1px solid #e4e4e7; padding: 10px 12px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>SSL Certificate Monitoring with Python: Check Expiry and Get Alerts</h1>
+
+<p class="meta">How to programmatically check SSL certificate expiry across multiple domains and automate alerts using only Python's standard library.</p>
+
+<p>SSL certificate expiry is one of the most avoidable causes of production outages. The certificate is usually set to expire a year or more out, and then somebody forgets to renew it. Browser warnings, API call failures, and angry users follow. The fix is straightforward: automated monitoring.</p>
+
+<p>Python's standard library includes everything you need to check SSL certificate expiry without installing any third-party packages. Here's how to do it, from a single domain check to a full monitoring script with email alerts.</p>
+
+<div class="summary-box">
+  <strong>What this guide covers:</strong>
+  <ul>
+    <li>How to check SSL certificate expiry with Python's <code>ssl</code> module (no dependencies)</li>
+    <li>Checking multiple domains in a loop</li>
+    <li>Parsing the expiry date and calculating days remaining</li>
+    <li>Sending email alerts when a cert is within 30 days of expiry</li>
+    <li>Running as a cron job for automated monitoring</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> Check a single SSL certificate with Python</h2>
+
+<p>Python's <code>ssl</code> and <code>socket</code> modules let you connect to any HTTPS host and inspect its certificate. No third-party libraries required:</p>
+
+<pre><code>import ssl
+import socket
+from datetime import datetime
+
+def get_ssl_expiry(hostname: str, port: int = 443) -> dict:
+    """Get SSL certificate expiry info for a hostname."""
+    context = ssl.create_default_context()
+    
+    try:
+        with socket.create_connection((hostname, port), timeout=10) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert = ssock.getpeercert()
+    except ssl.SSLCertVerificationError as e:
+        return {"hostname": hostname, "error": str(e), "valid": False}
+    except (socket.timeout, ConnectionRefusedError) as e:
+        return {"hostname": hostname, "error": str(e), "valid": False}
+    
+    # cert['notAfter'] looks like: 'Dec 25 23:59:59 2025 GMT'
+    expiry_str = cert['notAfter']
+    expiry_date = datetime.strptime(expiry_str, '%b %d %H:%M:%S %Y %Z')
+    days_remaining = (expiry_date - datetime.utcnow()).days
+    
+    return {
+        "hostname": hostname,
+        "expires_at": expiry_date.isoformat(),
+        "days_remaining": days_remaining,
+        "issuer": dict(x[0] for x in cert['issuer']).get('organizationName', 'Unknown'),
+        "valid": days_remaining > 0,
+    }
+
+# Example usage
+result = get_ssl_expiry("example.com")
+print(f"{result['hostname']}: {result['days_remaining']} days remaining")
+# → example.com: 82 days remaining</code></pre>
+
+<p>This works for any publicly reachable HTTPS host. It respects the certificate chain, verifies against system CA roots, and raises a proper error if the certificate is already invalid.</p>
+
+<hr/>
+
+<h2><span class="step-num">2</span> Check multiple domains</h2>
+
+<p>For most real-world use cases, you need to check more than one domain. Here's a script that checks a list and prints a summary:</p>
+
+<pre><code>import ssl
+import socket
+from datetime import datetime
+
+DOMAINS = [
+    "example.com",
+    "api.yourapp.com",
+    "staging.yourapp.com",
+    "mail.yourapp.com",
+]
+
+WARN_THRESHOLD_DAYS = 30
+CRITICAL_THRESHOLD_DAYS = 7
+
+def get_ssl_expiry(hostname: str, port: int = 443) -> dict:
+    context = ssl.create_default_context()
+    try:
+        with socket.create_connection((hostname, port), timeout=10) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert = ssock.getpeercert()
+        expiry_date = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+        days_remaining = (expiry_date - datetime.utcnow()).days
+        return {"hostname": hostname, "days_remaining": days_remaining, 
+                "expires_at": expiry_date.isoformat(), "error": None}
+    except Exception as e:
+        return {"hostname": hostname, "days_remaining": -1, 
+                "expires_at": None, "error": str(e)}
+
+def main():
+    results = [get_ssl_expiry(domain) for domain in DOMAINS]
+    
+    for r in results:
+        if r["error"]:
+            print(f"❌ {r['hostname']}: ERROR — {r['error']}")
+        elif r["days_remaining"] <= CRITICAL_THRESHOLD_DAYS:
+            print(f"🔴 {r['hostname']}: CRITICAL — {r['days_remaining']} days")
+        elif r["days_remaining"] <= WARN_THRESHOLD_DAYS:
+            print(f"🟡 {r['hostname']}: WARNING — {r['days_remaining']} days")
+        else:
+            print(f"✅ {r['hostname']}: OK — {r['days_remaining']} days")
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+<p>Sample output:</p>
+<pre><code>✅ example.com: OK — 82 days
+🟡 api.yourapp.com: WARNING — 18 days
+🔴 staging.yourapp.com: CRITICAL — 3 days
+❌ mail.yourapp.com: ERROR — [Errno 111] Connection refused</code></pre>
+
+<hr/>
+
+<h2><span class="step-num">3</span> Add email alerts with smtplib</h2>
+
+<p>For automated monitoring, you need the script to actually alert you. Python's <code>smtplib</code> can send email using Gmail, SendGrid, or any SMTP provider:</p>
+
+<pre><code>import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_alert_email(results: list, smtp_host: str, smtp_port: int,
+                     username: str, password: str, 
+                     to_email: str, from_email: str):
+    """Send an alert email for domains with expiry warnings."""
+    warnings = [r for r in results if r.get("days_remaining", 999) <= 30 or r.get("error")]
+    
+    if not warnings:
+        return  # Nothing to alert on
+    
+    subject = f"SSL Certificate Alert: {len(warnings)} domain(s) need attention"
+    
+    body_lines = ["The following SSL certificates need attention:\n"]
+    for r in warnings:
+        if r["error"]:
+            body_lines.append(f"❌ {r['hostname']}: Connection error — {r['error']}")
+        else:
+            body_lines.append(f"⚠️  {r['hostname']}: Expires in {r['days_remaining']} days ({r['expires_at'][:10]})")
+    
+    body = "\n".join(body_lines)
+    
+    msg = MIMEMultipart()
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+    
+    with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+        server.login(username, password)
+        server.sendmail(from_email, to_email, msg.as_string())
+    
+    print(f"Alert sent to {to_email} for {len(warnings)} domain(s)")</code></pre>
+
+<hr/>
+
+<h2><span class="step-num">4</span> Run as a cron job</h2>
+
+<p>Once your script works interactively, schedule it to run daily. On Linux/macOS:</p>
+
+<pre><code># Run SSL check every day at 9am
+0 9 * * * /usr/bin/python3 /home/user/ssl_monitor.py >> /var/log/ssl_monitor.log 2>&1</code></pre>
+
+<p>On Heroku Scheduler:</p>
+<pre><code>python ssl_monitor.py</code></pre>
+
+<p>Or as a GitHub Actions scheduled workflow:</p>
+<pre><code>name: SSL Certificate Check
+on:
+  schedule:
+    - cron: '0 9 * * *'  # Daily at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  check-ssl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run SSL check
+        run: python ssl_monitor.py
+        env:
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}</code></pre>
+
+<div class="callout">
+  <strong>Important:</strong> If you're running this on a cron job, make sure to handle the case where the script itself fails — a Python exception or network timeout means you get no output and no alert. Consider adding a dead man's switch ping at the end of the script so you know it ran.
+</div>
+
+<hr/>
+
+<h2><span class="step-num">5</span> Handling edge cases</h2>
+
+<h3>Wildcard certificates</h3>
+<p>Checking <code>*.example.com</code> directly will fail. Instead, check a specific subdomain that uses the wildcard cert (e.g., <code>www.example.com</code> or <code>api.example.com</code>). The expiry date on the wildcard cert is the same regardless of which subdomain you check.</p>
+
+<h3>Self-signed certificates</h3>
+<p>By default, Python's SSL context rejects self-signed certificates. To check one without verifying the chain:</p>
+<pre><code>context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE  # Only for self-signed/internal certs</code></pre>
+
+<p>This returns the certificate data without raising a verification error. Use with caution — <code>CERT_NONE</code> disables all validation.</p>
+
+<h3>Non-443 ports</h3>
+<p>For HTTPS services on non-standard ports (e.g., 8443), pass the port explicitly:</p>
+<pre><code>get_ssl_expiry("internal-api.company.com", port=8443)</code></pre>
+
+<h3>Connection timeouts</h3>
+<p>The 10-second timeout in the examples covers most cases, but if you're checking many domains from a slow network, consider using <code>concurrent.futures.ThreadPoolExecutor</code> for parallel checks:</p>
+<pre><code>from concurrent.futures import ThreadPoolExecutor, as_completed
+
+with ThreadPoolExecutor(max_workers=10) as executor:
+    futures = {executor.submit(get_ssl_expiry, domain): domain for domain in DOMAINS}
+    results = [future.result() for future in as_completed(futures)]</code></pre>
+
+<hr/>
+
+<h2>Limitations of a DIY approach</h2>
+
+<p>A custom Python script handles basic monitoring, but there are gaps when you're managing more than a handful of domains:</p>
+
+<ul>
+  <li><strong>No alerting if the script itself fails:</strong> If the cron job stops running, your monitoring is silent. You won't know until a cert expires.</li>
+  <li><strong>Email deliverability:</strong> Sending email from a server or scheduler is often unreliable (spam filters, authentication issues, rate limits).</li>
+  <li><strong>No history:</strong> You can't see trends in how close domains are to expiry over time.</li>
+  <li><strong>Multi-domain management:</strong> Adding, removing, and organizing domains requires editing a Python file and redeploying.</li>
+</ul>
+
+<p>For a few domains, the DIY approach is fine. For production infrastructure with many domains, a dedicated monitoring service handles the failure modes, retries, and alerting that a script can't.</p>
+
+<div class="cta-box">
+  <h3>SSLWatch — Automated SSL Certificate Monitoring</h3>
+  <p>SSLWatch monitors your SSL certificates and sends alerts at 30, 14, 7, and 1 day before expiry. No script to maintain, no cron job to monitor. Add your domains and get notified before anything expires.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check a cert now (free)</a>
+</div>
+
+<hr/>
+
+<h2>Related reading</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/ssl-certificate-expiry-monitoring.html">SSL Certificate Expiry Monitoring: How to Get Alerts</a></li>
+  <li><a href="https://lior-seats.github.io/blog/ssl-certificate-checker.html">How to Check SSL Certificate Expiry (Command Line)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/ssl-certificate-expiry-multiple-domains.html">How to Monitor SSL Expiry Across Multiple Domains</a></li>
+  <li><a href="https://lior-seats.github.io/blog/ssl-monitoring-tools.html">Best SSL Certificate Monitoring Tools (2026)</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=python-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
