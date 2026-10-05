@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>WordPress Cron Job Not Running? How to Monitor WP-Cron</title>
+<meta name="description" content="WP-Cron only fires when someone visits your site. Learn why WordPress scheduled events silently stop running and how to monitor them reliably."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/wordpress-cron-job-monitoring.html"/>
+<meta property="og:title" content="WordPress Cron Job Not Running? How to Monitor WP-Cron"/>
+<meta property="og:description" content="WP-Cron only fires when someone visits your site. Learn why WordPress scheduled events silently stop running and how to monitor them reliably."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/wordpress-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.93em; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; font-weight: 600; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>WordPress Cron Job Not Running? How to Monitor WP-Cron</h1>
+
+<p class="meta">WP-Cron doesn't run on a real schedule — it runs when someone visits your site. Here's why that matters and what to do about it.</p>
+
+<p>If you've ever noticed that a WordPress scheduled event — a plugin's cleanup task, a scheduled post, an automated backup — stopped running without any error or warning, you've hit one of WordPress's least-understood quirks: WP-Cron.</p>
+
+<p>Unlike a real cron job running on the server, WP-Cron is triggered by HTTP requests to your site. No visitors = no scheduled jobs. Low-traffic sites can miss hours of scheduled work. High-traffic sites can see the same job triggered multiple times simultaneously. Neither is what you want.</p>
+
+<hr/>
+
+<h2>How WP-Cron actually works</h2>
+
+<p>Every time a page loads on a WordPress site, WordPress checks a list of pending scheduled events. If an event is overdue, it fires it — in the same HTTP request, before the page renders. The code lives in <code>wp-includes/cron.php</code> and is triggered by the <code>wp_loaded</code> action on every front-end and admin request.</p>
+
+<p>This design has some obvious failure modes:</p>
+
+<ul>
+  <li><strong>No traffic = no cron.</strong> If your site has no visitors for 3 hours, no scheduled events run in that window. A post scheduled for 2am on a low-traffic site may not publish until 8am when the first visitor arrives.</li>
+  <li><strong>High traffic = duplicate runs.</strong> If 50 requests arrive simultaneously and a job is due, all 50 may attempt to spawn the same job. WordPress uses a locking mechanism to prevent this, but it's not bulletproof.</li>
+  <li><strong>Slow cron blocks page loads.</strong> The job runs synchronously in the HTTP request by default. A slow backup task can add 30 seconds to a user's page load time.</li>
+  <li><strong>Hosting environments break it.</strong> Some managed WordPress hosts disable WP-Cron entirely and replace it with a real cron. Others use object caching that interferes with the lock mechanism. Shared hosts sometimes block the loopback request that WP-Cron makes to itself.</li>
+</ul>
+
+<div class="callout">
+  <strong>The worst part:</strong> When WP-Cron stops working, nothing tells you. Plugins that rely on it — email marketing, membership renewals, cache clearing, backups, scheduled posts — silently stop doing their jobs.
+</div>
+
+<hr/>
+
+<h2>Diagnosing WP-Cron problems</h2>
+
+<h3>Check the scheduled events directly</h3>
+
+<p>The easiest way to see what's in your cron queue is the <strong>WP Crontrol</strong> plugin (free on WordPress.org). It shows all scheduled events, their next run time, and whether they're overdue. An event that's listed as "overdue by 4 hours" on a healthy site indicates a problem.</p>
+
+<p>From the command line with WP-CLI:</p>
+<pre><code>wp cron event list</code></pre>
+
+<p>To manually trigger all overdue events:</p>
+<pre><code>wp cron event run --due-now</code></pre>
+
+<h3>Test whether WP-Cron can reach itself</h3>
+
+<p>WP-Cron spawns a loopback HTTP request to <code>yoursite.com/wp-cron.php</code>. If your server can't reach itself (common in some hosting environments, behind certain firewalls, or with misconfigured SSL), scheduled events will queue up indefinitely.</p>
+
+<p>Test the loopback with WP-CLI:</p>
+<pre><code>wp eval 'echo wp_remote_get(site_url("wp-cron.php"))["response"]["code"];'</code></pre>
+
+<p>If the response is not 200, you have a loopback problem.</p>
+
+<h3>Check if WP-Cron is disabled in wp-config.php</h3>
+
+<p>Some performance guides and managed hosting providers recommend adding this to <code>wp-config.php</code>:</p>
+<pre><code>define('DISABLE_WP_CRON', true);</code></pre>
+
+<p>This disables the built-in WP-Cron trigger. If it's set and you haven't configured a real server cron to call <code>wp-cron.php</code>, all your scheduled events will stop running permanently — and nothing will warn you.</p>
+
+<hr/>
+
+<h2>The recommended fix: replace WP-Cron with a real cron job</h2>
+
+<p>For any site that matters, the right fix is to disable WP-Cron's default behavior and replace it with a real server-side cron job:</p>
+
+<h3>Step 1: Disable the default WP-Cron trigger</h3>
+
+<p>Add this to <code>wp-config.php</code>:</p>
+<pre><code>define('DISABLE_WP_CRON', true);</code></pre>
+
+<h3>Step 2: Set up a real cron job</h3>
+
+<p>Add this to your server's crontab (run <code>crontab -e</code>):</p>
+<pre><code># Run WordPress cron every 5 minutes
+*/5 * * * * wget -q -O - https://yoursite.com/wp-cron.php?doing_wp_cron > /dev/null 2>&1</code></pre>
+
+<p>Or with curl:</p>
+<pre><code>*/5 * * * * curl -s https://yoursite.com/wp-cron.php?doing_wp_cron > /dev/null 2>&1</code></pre>
+
+<p>Or with WP-CLI (more reliable, handles WordPress-internal locking correctly):</p>
+<pre><code>*/5 * * * * cd /path/to/wordpress && wp cron event run --due-now --quiet</code></pre>
+
+<p>On managed hosts like WP Engine, Kinsta, or Flywheel, check their documentation — they typically provide a built-in cron replacement and may require you to use their UI rather than direct crontab access.</p>
+
+<h3>Step 3: Verify it's running</h3>
+
+<p>After setting up the real cron, confirm it runs every 5 minutes. Create a temporary scheduled event in WordPress and watch with WP Crontrol to verify it fires on time. Or watch cron logs:</p>
+<pre><code>grep CRON /var/log/syslog | tail -20</code></pre>
+
+<hr/>
+
+<h2>Monitoring: how to know if WP-Cron stops running</h2>
+
+<p>Even after the fix, your server cron can silently fail. The <code>/5 * * * *</code> entry in crontab can break if:</p>
+<ul>
+  <li>The server restarts and crontab isn't persisted (common in containers)</li>
+  <li>Your hosting migration doesn't carry the crontab over</li>
+  <li>WP-CLI updates and the path changes</li>
+  <li>Your site's SSL certificate expires and <code>curl</code> starts failing silently</li>
+  <li>Disk full prevents the process from spawning</li>
+</ul>
+
+<p>The pattern you want is a <strong>dead man's switch</strong>: your cron job actively checks in on a schedule, and you get alerted if check-ins stop.</p>
+
+<h3>Option 1: Add a heartbeat to your wp-cron.php call</h3>
+
+<p>Add a ping to a monitoring service after your WordPress cron runs successfully. For example, with a service like CronWatch:</p>
+<pre><code>*/5 * * * * curl -s https://yoursite.com/wp-cron.php?doing_wp_cron > /dev/null 2>&1 \
+  && curl -s https://your-monitor.example.com/heartbeat/your-token > /dev/null 2>&1</code></pre>
+
+<p>If the heartbeat stops arriving for more than your grace period, you get alerted immediately — not when a user notices that scheduled posts stopped publishing or a plugin stopped sending emails.</p>
+
+<h3>Option 2: Use a WordPress plugin</h3>
+
+<table>
+  <thead>
+    <tr><th>Plugin</th><th>What it does</th><th>Cost</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>WP Crontrol</td><td>Inspect + manually run events</td><td>Free</td></tr>
+    <tr><td>Action Scheduler</td><td>Reliable async job queue (used by WooCommerce)</td><td>Free</td></tr>
+    <tr><td>WP Cron Status Checker</td><td>Alerts when cron hasn't run recently</td><td>Free</td></tr>
+    <tr><td>Cron Job Monitoring (generic)</td><td>Dead man's switch monitoring with alerts</td><td>Varies</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Common WordPress scheduled events that silently fail</h2>
+
+<p>These are the scheduled events that site owners most commonly discover have been silently broken for days or weeks:</p>
+
+<ul>
+  <li><strong>Scheduled posts not publishing</strong> — <code>publish_future_post</code> never fires on low-traffic or misconfigured sites</li>
+  <li><strong>WooCommerce order cleanup</strong> — <code>woocommerce_cleanup_orders</code> leaves failed/pending orders accumulating</li>
+  <li><strong>Email marketing automations</strong> — MailPoet, Mailchimp for WP, FluentCRM all rely on WP-Cron to trigger email sequences</li>
+  <li><strong>Backup plugins</strong> — UpdraftPlus, BackupBuddy, Duplicator scheduled backups never run</li>
+  <li><strong>Cache clearing</strong> — WP Rocket, W3 Total Cache, LiteSpeed Cache fail to purge stale content</li>
+  <li><strong>Membership renewals</strong> — MemberPress, Restrict Content Pro fail to process renewals or send reminder emails</li>
+  <li><strong>Jetpack stats</strong> — site stats stop syncing</li>
+  <li><strong>Auto-updates</strong> — WordPress core, theme, and plugin auto-updates miss their window</li>
+</ul>
+
+<div class="callout">
+  <strong>Pattern:</strong> These failures typically go unnoticed for 2–14 days. The first sign is usually a user report — "My subscription wasn't renewed" or "The scheduled post from last week never published."
+</div>
+
+<hr/>
+
+<h2>Quick checklist: is your WP-Cron healthy?</h2>
+
+<ol>
+  <li>Install WP Crontrol and check for overdue events</li>
+  <li>Run <code>wp eval 'echo wp_remote_get(site_url("wp-cron.php"))["response"]["code"];'</code> — expect <code>200</code></li>
+  <li>Confirm <code>DISABLE_WP_CRON</code> status in <code>wp-config.php</code></li>
+  <li>If <code>DISABLE_WP_CRON = true</code>, verify the replacement server cron is running</li>
+  <li>Add a monitoring heartbeat to the cron command so you know when it stops</li>
+</ol>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>Get alerted when your cron job stops running</h3>
+  <p>CronWatch is a dead man's switch monitor for cron jobs. Add one line to your cron command, and we alert you if a job is late or stopped checking in — before your users notice something is wrong.</p>
+  <p>Works with WordPress cron, standard crontab, GitHub Actions, AWS EventBridge, Kubernetes CronJobs, and any scheduled process.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Get early access →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron parser</a>
+</div>
+
+<hr/>
+
+<h2>Related</h2>
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why Cron Jobs Fail Silently (and How to Detect It)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/free-cron-job-monitoring.html">Free Cron Job Monitoring Tools</a></li>
+  <li><a href="https://lior-seats.github.io/blog/dead-mans-snitch-alternatives.html">Dead Man's Snitch Alternatives</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-not-running-debug.html">Cron Job Not Running? A Debugging Checklist</a></li>
+</ul>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=wordpress-cron-job-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
