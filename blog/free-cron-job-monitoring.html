@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Free Cron Job Monitoring: Best Tools in 2026 (Including Free Tiers)</title>
+<meta name="description" content="Compare the best free cron job monitoring tools in 2026. See healthchecks.io, cronitor, and DIY options — plus when it's worth upgrading to a paid monitor."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/free-cron-job-monitoring.html"/>
+<meta property="og:title" content="Free Cron Job Monitoring: Best Tools in 2026 (Including Free Tiers)"/>
+<meta property="og:description" content="Compare the best free cron job monitoring tools in 2026. See healthchecks.io, cronitor, and DIY options — plus when it's worth upgrading to a paid monitor."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/free-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: #15803d; color: #fff; border-radius: 50%; font-size: 0.85rem; font-weight: 700; margin-right: 8px; vertical-align: middle; flex-shrink: 0; }
+  .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 1.5em 0; }
+  .summary-box ul { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92rem; }
+  th { background: #f4f4f5; border: 1px solid #e4e4e7; padding: 10px 12px; text-align: left; font-weight: 700; }
+  td { border: 1px solid #e4e4e7; padding: 10px 12px; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Free Cron Job Monitoring: Tools That Alert You When Jobs Fail</h1>
+
+<p class="meta">A cron job that fails silently costs you more than a paid monitor. Here's what's actually free — and what isn't.</p>
+
+<p>When a cron job fails, nothing happens. No email, no Slack message, no red badge in a dashboard. The job just doesn't do what it was supposed to do, and you find out weeks later when someone notices a report hasn't updated or a backup turns out to be empty.</p>
+
+<p>Free cron job monitoring tools exist specifically to close this gap — adding a dead man's switch that alerts you when a job misses its window. But "free" means different things across different tools, and the limitations matter. This guide breaks down what's actually available at no cost, what the tradeoffs are, and when it makes sense to pay.</p>
+
+<div class="summary-box">
+  <strong>What this guide covers:</strong>
+  <ul>
+    <li>Why cron monitoring matters and what it actually costs when you skip it</li>
+    <li>Honest comparison of free cron job monitoring options in 2026</li>
+    <li>Where free tiers fall short</li>
+    <li>CronWatch as an affordable paid alternative for developers who've outgrown free</li>
+    <li>How to get started monitoring your cron jobs today</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">1</span> Why you need cron job monitoring</h2>
+
+<p>Cron is intentionally minimal. It runs commands on a schedule and captures output into a local mail queue that, on most modern servers, nobody ever reads. When a job fails — or never runs at all — there is no default notification mechanism.</p>
+
+<p>The real-world cost of this silence is higher than it looks:</p>
+
+<ul>
+  <li><strong>Missed backups.</strong> A backup job that stopped running three months ago means your last restore point is three months old. You find out during an outage.</li>
+  <li><strong>Billing and sync failures.</strong> Scheduled tasks that process invoices, sync data between systems, or update subscription status create compounding errors when they silently stop. The longer the outage, the harder the cleanup.</li>
+  <li><strong>Report staleness.</strong> Dashboards and reports fed by cron jobs show data that stops updating. Users quietly lose trust in the numbers before anyone reports a bug.</li>
+  <li><strong>Security gaps.</strong> Certificate renewal jobs (certbot, acme.sh), security scanning jobs, and log rotation jobs fail silently until something breaks in a visible way.</li>
+</ul>
+
+<p>The fix is straightforward: a monitoring service that expects a signal from your job on a schedule and alerts you when the signal doesn't arrive. This is called a <strong>dead man's switch</strong> or heartbeat monitor. Many tools offer this for free, with limitations.</p>
+
+<p>For a deeper look at the monitoring approaches available, see <a href="cron-job-monitoring.html">Cron Job Monitoring: How to Know When Your Scheduled Jobs Fail</a>.</p>
+
+<hr/>
+
+<h2><span class="step-num">2</span> Free cron job monitoring options — honest comparison</h2>
+
+<p>Here's what the free tier actually gives you across the main options in 2026:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Tool</th>
+      <th>Free tier</th>
+      <th>Limitations</th>
+      <th>Verdict</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>healthchecks.io</strong></td>
+      <td>Up to 20 monitors, 1 month log retention</td>
+      <td>Email alerts only on free; no Slack/PagerDuty without paid plan; 1-month history limit</td>
+      <td>✅ Best free option for most developers</td>
+    </tr>
+    <tr>
+      <td><strong>Cronitor</strong></td>
+      <td>Up to 5 monitors</td>
+      <td>Very limited monitor count; most useful alert channels require paid</td>
+      <td>⚠️ OK for tiny setups, quickly outgrown</td>
+    </tr>
+    <tr>
+      <td><strong>Dead Man's Snitch</strong></td>
+      <td>No real free tier (trial only)</td>
+      <td>Paid-only product; free trial expires; per-snitch pricing adds up quickly</td>
+      <td>❌ Not truly free</td>
+    </tr>
+    <tr>
+      <td><strong>DIY shell script + email</strong></td>
+      <td>Free (you build it)</td>
+      <td>Only catches failures, not missed runs; requires working mail server; breaks often</td>
+      <td>⚠️ Common mistake — doesn't solve the core problem</td>
+    </tr>
+    <tr>
+      <td><strong>GitHub Actions notifications</strong></td>
+      <td>Free (built into GitHub)</td>
+      <td>Only works for GitHub Actions workflows; no dead man's switch; no missed-run detection for crontab jobs</td>
+      <td>❌ Not monitoring — just workflow notifications</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>healthchecks.io — most popular free option</h3>
+
+<p>healthchecks.io is the de-facto standard for free cron job monitoring. The free tier gives you up to 20 monitors and 1 month of log retention. Setup is the classic dead man's switch pattern: you get a unique URL, you append a curl call to your cron job, and healthchecks.io alerts you if the ping doesn't arrive in the expected window.</p>
+
+<pre><code># Add this to the end of your cron job
+0 2 * * * /usr/local/bin/backup.sh && curl -fsS --retry 3 https://hc-ping.com/your-uuid</code></pre>
+
+<p>The main limitation of the free tier is alerting channels: email alerts are included, but Slack, PagerDuty, SMS, and webhook integrations require a paid plan. For a solo developer who checks email, the free tier is genuinely useful.</p>
+
+<h3>Cronitor — limited free tier</h3>
+
+<p>Cronitor offers monitoring with a polished UI and decent documentation. The free tier caps you at 5 monitors, which is enough to get started but is quickly exhausted on any real project. Most of the useful alert integrations (Slack, PagerDuty, OpsGenie) are paid features. Fine for evaluating the product; not a durable free solution. See our <a href="cron-job-monitoring-tools.html">full cron job monitoring tools comparison</a> for more detail.</p>
+
+<h3>Dead Man's Snitch — not truly free</h3>
+
+<p>Dead Man's Snitch is a paid product with a trial period. It does not have a persistent free tier. Per-snitch pricing means costs scale with the number of jobs you monitor, which can add up quickly for teams with many cron jobs. If you're evaluating alternatives to Dead Man's Snitch, see our <a href="dead-mans-snitch-alternatives.html">Dead Man's Snitch alternatives guide</a>.</p>
+
+<h3>DIY shell script + email — free but brittle</h3>
+
+<p>Writing a wrapper script that captures exit codes and sends an email on failure is a common first attempt at cron monitoring. It's genuinely free and catches job failures — but it has two fundamental problems:</p>
+
+<ul>
+  <li><strong>It doesn't catch missed runs.</strong> If your job never starts — because the server rebooted, the crontab was clobbered, or the daemon stopped — your wrapper script never fires. The most dangerous failure mode goes undetected.</li>
+  <li><strong>It requires a working mail server.</strong> Most servers don't have a functional outbound mail configuration. Setting one up is a non-trivial project, and keeping it working (deliverability, spam filters, TLS) is ongoing maintenance.</li>
+</ul>
+
+<p>A DIY alerting script is better than nothing, but it is not a substitute for a proper dead man's switch monitor.</p>
+
+<h3>GitHub Actions notifications — a workaround, not monitoring</h3>
+
+<p>GitHub sends email notifications when scheduled workflow runs fail. This is useful if all your jobs run as GitHub Actions scheduled workflows — but it's not cron job monitoring in the meaningful sense. It doesn't cover crontab jobs, Heroku Scheduler jobs, Kubernetes CronJobs, or any other scheduler. And it still doesn't give you missed-run detection for GitHub's own scheduled workflows, which are <a href="https://lior-seats.github.io/blog/github-actions-scheduled-workflow-not-running.html">notoriously unreliable during periods of low activity</a>.</p>
+
+<hr/>
+
+<h2><span class="step-num">3</span> When free tools hit their limits</h2>
+
+<p>The free tiers described above work well for small setups — a handful of jobs, one developer, email alerts are fine. They start to strain at predictable pressure points:</p>
+
+<ul>
+  <li><strong>Monitor count.</strong> healthchecks.io's 20-monitor limit covers a small project. A typical production application has 20–50 scheduled jobs once you include backups, sync tasks, cleanup jobs, billing jobs, report generation, certificate renewal, and health checks.</li>
+  <li><strong>Alert channels.</strong> Email-only alerting means you get notified during business hours when you happen to read email. Slack, PagerDuty, and SMS integrations are on paid plans at every major provider. For on-call production jobs, email is often not enough.</li>
+  <li><strong>Retention.</strong> One month of log retention makes it hard to spot long-running degradation patterns — jobs that are getting slower over weeks, jobs that fail inconsistently once every few weeks, or duration anomalies that indicate data growth problems.</li>
+  <li><strong>Team access.</strong> Free tiers are typically single-user. As soon as two engineers need visibility into cron job status, you need a paid plan.</li>
+  <li><strong>SSL and uptime.</strong> Free-hosted services sometimes have worse availability SLAs or maintenance windows that conflict with the jobs they're supposed to be monitoring.</li>
+</ul>
+
+<div class="callout">
+  <strong>The right question isn't "is free good enough?" — it's "what does a missed job actually cost?"</strong> For a backup job that protects weeks of user data, the cost of a missed alert vastly outweighs the cost of even the most expensive monitoring plan. Free tiers make sense for low-stakes jobs; for anything business-critical, price the monitoring against the cost of the failure.
+</div>
+
+<p>For a broader look at how these tools compare including paid options, see our <a href="healthchecks-io-alternatives.html">healthchecks.io alternatives guide</a>.</p>
+
+<hr/>
+
+<h2><span class="step-num">4</span> CronWatch — lightweight paid alternative at $9/month</h2>
+
+<p>Once you've outgrown the free tier limits — more than 20 monitors, need Slack alerts, want longer retention, or just want something that won't be capped on a rainy day — the question is what's worth paying for.</p>
+
+<p>CronWatch is built for exactly this transition: developers who've been making free tiers work but are tired of the limitations. At $9/month flat (not per monitor), you get:</p>
+
+<ul>
+  <li>Unlimited cron job monitors</li>
+  <li>Dead man's switch detection for crontab, GitHub Actions, Heroku Scheduler, Kubernetes CronJobs, and any scheduler that runs shell commands</li>
+  <li>Slack, email, and webhook alerts</li>
+  <li>Duration tracking and anomaly detection</li>
+  <li>Longer retention for spotting gradual degradation</li>
+  <li>The same one-curl-line setup that healthchecks.io uses</li>
+</ul>
+
+<p>The flat pricing model is the key difference from per-monitor tools like Dead Man's Snitch. If you have 40 cron jobs to monitor, you pay $9/month regardless — not $9 per snitch per month.</p>
+
+<div class="cta-box">
+  <h3>📟 Start monitoring your cron jobs for free</h3>
+  <p>CronWatch is the affordable "just works" option for developers who need more than a free tier. Join the waitlist now — $9/month flat when live, no per-monitor pricing.</p>
+  <a class="btn" href="https://lior-seats.github.io/cronwatch-waitlist/">Join the CronWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cron-expression-parser/">Validate your cron expression</a>
+</div>
+
+<hr/>
+
+<h2><span class="step-num">5</span> How to get started with cron job monitoring</h2>
+
+<p>Regardless of which tool you use, the setup pattern is the same. Here's how to go from zero monitoring to active dead man's switch detection in under five minutes:</p>
+
+<ol>
+  <li>
+    <strong>Pick a tool.</strong> For free, start with healthchecks.io. If you need more monitors or Slack alerts, join the CronWatch waitlist.
+  </li>
+  <li>
+    <strong>Create a check.</strong> In your monitoring tool, create a new check. Set the schedule (or period), the grace period (how late a job can be before it's considered missed), and your alert channels.
+  </li>
+  <li>
+    <strong>Validate your cron expression first.</strong> Before wiring up monitoring, make sure your schedule expression actually fires when you expect. Use the <a href="https://lior-seats.github.io/cron-expression-parser/">cron expression parser</a> to see the plain-English description and next run times.
+  </li>
+  <li>
+    <strong>Add the ping to your job.</strong> Append a curl call to the end of your cron command using <code>&&</code> so it only fires on success:
+    <pre><code>0 2 * * * /usr/local/bin/backup.sh && curl -fsS --retry 3 https://monitor-url/your-token</code></pre>
+  </li>
+  <li>
+    <strong>Verify the first ping arrives.</strong> Run the job manually or wait for the next scheduled run. Confirm the check flips to "up" in your monitoring dashboard before relying on it.
+  </li>
+  <li>
+    <strong>Test the alert.</strong> Temporarily set the period shorter than your job's normal run interval, or disable the job, and confirm you receive an alert when the ping doesn't arrive. An untested alert is not a reliable alert.
+  </li>
+</ol>
+
+<p>Once the first job is instrumented, the pattern takes less than a minute per job to replicate. The investment compounds quickly as you add monitoring to backup jobs, sync jobs, and billing tasks that have been running silently for months.</p>
+
+<hr/>
+
+<p>For more on choosing between monitoring tools, see the <a href="cron-job-monitoring-tools.html">Best Cron Job Monitoring Tools for Indie Developers</a> guide and our <a href="healthchecks-io-alternatives.html">healthchecks.io alternatives comparison</a>.</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=free-cron-job-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
