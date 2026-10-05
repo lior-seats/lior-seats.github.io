@@ -68,4 +68,5 @@
   <url><loc>https://lior-seats.github.io/blog/cron-job-health-check.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/aws-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/apache-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/cron-job-failure-alert-email.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

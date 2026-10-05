@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Get Email Alerts When a Cron Job Fails (Without Writing a Script)</title>
+<meta name="description" content="Cron jobs fail silently by default. Here's how to get an email alert when a cron job fails — from quick wrapper scripts to the dead man's switch pattern that catches missed runs too."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-failure-alert-email.html"/>
+<meta property="og:title" content="How to Get Email Alerts When a Cron Job Fails (Without Writing a Script)"/>
+<meta property="og:description" content="Cron jobs fail silently by default. Here's how to get an email alert when a cron job fails — from quick wrapper scripts to the dead man's switch pattern that catches missed runs too."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-failure-alert-email.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Get Email Alerts When a Cron Job Fails (Without Writing a Script)</h1>
+
+<p class="meta">The data pipeline ran Tuesday. You found out Friday — from a customer asking why their report was blank.</p>
+
+<p>Cron jobs have no built-in failure notification. If a job exits with an error, nothing happens. No email, no Slack message, no red badge in a dashboard. The scheduler just schedules the next run. Your data pipeline breaks quietly, your cleanup job stops cleaning, your backup never backs up — and you find out days later from a user.</p>
+
+<p>This guide covers every realistic option for getting a <strong>cron job failure alert email</strong>: from the quick one-liner hacks that developers reach for first, to the OS-level tools that actually work, to the monitoring approach that catches failures <em>and</em> missed runs.</p>
+
+<hr/>
+
+<h2>Why standard cron email notifications are unreliable</h2>
+
+<p>Cron does have a built-in email mechanism. If a job produces output on stdout or stderr, cron will try to mail it to the local system user. In theory, set <code>MAILTO=you@example.com</code> at the top of your crontab and you're done.</p>
+
+<p>In practice, this fails on most modern servers for several reasons:</p>
+
+<ul>
+  <li><strong>SMTP is not configured.</strong> Most cloud VMs ship with no mail transfer agent installed. <code>sendmail</code> either doesn't exist or exits silently without delivering anything.</li>
+  <li><strong>System mail goes nowhere.</strong> Even when sendmail is present, mail delivered to the local mailbox (<code>/var/mail/root</code>) is read by almost no one. It's a graveyard.</li>
+  <li><strong>Containers have no mail stack.</strong> Docker containers, Lambda functions, Cloud Run services, and Kubernetes jobs run in stripped-down environments. There is no mail system. <code>MAILTO</code> does nothing.</li>
+  <li><strong>Only output triggers email.</strong> If your script exits with code 1 but produces no stdout/stderr output, cron sends no email at all — even when SMTP is correctly configured.</li>
+</ul>
+
+<div class="callout">
+  <strong>The real problem</strong>
+  Most developers assume "if the job fails, I'll get notified." Most servers don't support that assumption out of the box. The gap between what you expect and what actually happens is where incidents live.
+</div>
+
+<hr/>
+
+<h2>3 ways to add failure alert emails to cron jobs</h2>
+
+<h3>1. The mail wrapper pattern</h3>
+
+<p>The oldest trick: wrap your command in a shell one-liner that sends an email on failure. The pattern uses exit-code checking:</p>
+
+<pre><code># Send email on failure using mail/sendmail
+0 3 * * * /opt/jobs/sync.py || echo "sync.py failed on $(hostname) at $(date)" | mail -s "Cron job failed: sync.py" you@example.com</code></pre>
+
+<p>This works if — and only if — <code>mail</code> is installed and configured to actually deliver messages. On a stock Ubuntu 22 server with <code>mailutils</code> and a configured relay, this is a reasonable 30-second solution. On a container, a Lambda, or a cloud VM without a relay, it delivers nothing.</p>
+
+<p>A slightly more portable version uses <code>curl</code> to hit an email API like SendGrid or Mailgun directly:</p>
+
+<pre><code>0 3 * * * /opt/jobs/sync.py || curl -s -X POST https://api.sendgrid.com/v3/mail/send \
+  -H "Authorization: Bearer $SENDGRID_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"personalizations":[{"to":[{"email":"you@example.com"}]}],"from":{"email":"alerts@yourapp.com"},"subject":"Cron job failed","content":[{"type":"text/plain","value":"sync.py failed"}]}'</code></pre>
+
+<p>This works anywhere curl is available, but now you're managing an API key in crontab, maintaining an inline JSON payload, and handling the secret securely. It gets messy fast.</p>
+
+<h3>2. systemd OnFailure (Linux only)</h3>
+
+<p>If your server runs systemd, you can convert your cron job into a systemd timer and use the <code>OnFailure</code> directive to trigger a notification unit when the job fails:</p>
+
+<pre><code># /etc/systemd/system/sync.service
+[Unit]
+Description=Nightly sync job
+OnFailure=notify-failure@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/jobs/sync.py</code></pre>
+
+<pre><code># /etc/systemd/system/notify-failure@.service
+[Unit]
+Description=Send failure email for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash -c 'echo "Service %i failed" | mail -s "Cron job failed: %i" you@example.com'</code></pre>
+
+<p>This is the most robust OS-level solution for traditional Linux servers. It handles exit codes, crash signals, and timeouts. The downside: it requires root access, doesn't work in containers or serverless environments, and still depends on a working mail stack for the final delivery step.</p>
+
+<h3>3. External monitoring service</h3>
+
+<p>The most reliable approach, and the only one that works consistently across crontab, Lambda, GitHub Actions, Kubernetes, and Docker, is to use an external monitoring service. Your job pings a URL on success; if the ping doesn't arrive, the service sends you an alert.</p>
+
+<p>This is covered in detail in the next section.</p>
+
+<hr/>
+
+<h2>The dead man's switch approach — more reliable than failure detection alone</h2>
+
+<p>Alerting on failures is necessary but not sufficient. Consider these scenarios that failure-only alerting misses:</p>
+
+<ul>
+  <li>The cron expression is wrong and the job never runs at all.</li>
+  <li>The server reboots and cron doesn't restart cleanly.</li>
+  <li>A deployment accidentally removes the crontab entry.</li>
+  <li>The job is killed by a timeout or OOM signal before it can send a failure alert.</li>
+  <li>The job "succeeds" (exits 0) but produces incorrect output silently.</li>
+</ul>
+
+<p>A <strong>dead man's switch</strong> (also called a heartbeat monitor) flips the detection model: instead of alerting when something goes wrong, you alert when an expected signal <em>stops arriving</em>. Your job sends one HTTP ping at the end of each successful run. If the monitoring service doesn't receive that ping within the expected window, it fires an alert.</p>
+
+<pre><code># crontab — ping a monitoring service on success
+0 3 * * * /opt/jobs/sync.py && curl -sf https://cron.watch/ping/your-job-id
+
+# GitHub Actions — only ping if the job step succeeds
+- name: Run sync
+  run: python sync.py
+- name: Notify CronWatch
+  if: success()
+  run: curl -sf https://cron.watch/ping/your-job-id</code></pre>
+
+<p>The <code>&&</code> operator ensures the ping only fires when the job exits with code 0. A failed job, a killed job, or a job that never runs — all three result in a missing ping, and all three trigger the same alert within minutes of the expected window.</p>
+
+<div class="callout">
+  <strong>Why this is stronger than email-on-failure</strong>
+  A failure-based alert tells you "something went wrong." A dead man's switch tells you "the expected evidence of success never arrived." The second catches a strictly larger set of problems — including the ones that are hardest to detect.
+</div>
+
+<hr/>
+
+<h2>CronWatch: add one curl line, get alerted when the job is late or silent</h2>
+
+<p>CronWatch is built around the dead man's switch pattern. You add one line to your cron job — a <code>curl</code> ping to your CronWatch endpoint. CronWatch tracks the expected schedule and sends you an email alert within minutes if a run is late, silent, or failed.</p>
+
+<p>No agent to install. No SMTP server to configure. No wrapper scripts to maintain. Works across every environment that has <code>curl</code>: bare metal crontab, GitHub Actions, Lambda, Kubernetes CronJob, Heroku Scheduler, Cloud Run, Render.</p>
+
+<pre><code># Before (no monitoring)
+0 3 * * * /opt/jobs/nightly-sync.py
+
+# After (CronWatch monitoring — one extra token)
+0 3 * * * /opt/jobs/nightly-sync.py && curl -sf https://cron.watch/ping/abc123</code></pre>
+
+<p>You define the schedule and the grace period. If CronWatch doesn't see a ping within that window — whether because the job failed, was killed, or never started — you get an email. You can also configure alerts for when a job starts running but never completes, catching jobs that hang indefinitely.</p>
+
+<p>The result: you stop checking whether your cron jobs are running. You know they're running because CronWatch would have emailed you if they weren't.</p>
+
+<div class="cta-box">
+  <h3>📟 Get alerted when your cron jobs fail or go missing</h3>
+  <p>CronWatch monitors your scheduled jobs across every platform — crontab, GitHub Actions, Lambda, Kubernetes, Heroku, Render. One curl line. Email alerts within minutes of a missed or failed run.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse a cron expression free</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cron-expression-parser/">Cron parser tool</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-failure-alert-email',{mode:'no-cors'});}());</script>
+</body>
+</html>
