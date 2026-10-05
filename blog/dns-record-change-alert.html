@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DNS Record Change Alert: Get Notified When Your DNS Records Change Unexpectedly</title>
+<meta name="description" content="Get instant alerts when your DNS records change unexpectedly. Free DNS record checker + automated DNS change monitoring for developers."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/dns-record-change-alert.html"/>
+<meta property="og:title" content="DNS Record Change Alert: Get Notified When Your DNS Records Change Unexpectedly"/>
+<meta property="og:description" content="Get instant alerts when your DNS records change unexpectedly. Free DNS record checker + automated DNS change monitoring for developers."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/dns-record-change-alert.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; font-weight: 600; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>DNS Record Change Alert: Get Notified When Your DNS Records Change Unexpectedly</h1>
+
+<p class="meta">Most organizations discover unexpected DNS changes the hard way — after email stops delivering, after traffic routes to the wrong server, or after a security researcher reports a subdomain takeover. A DNS record change alert catches the change the moment it happens.</p>
+
+<p>DNS is the address book of the internet. Change an A record and you redirect all traffic for a domain. Change an MX record and you silently reroute all incoming email. Change a NS record and you hand control of the entire zone to a different nameserver. These changes take effect within minutes, can affect millions of users, and — unless you have a DNS record change alert in place — are completely invisible until the damage is visible.</p>
+
+<hr/>
+
+<h2>Why unexpected DNS changes happen</h2>
+
+<p>Not every DNS change is malicious, but every unexpected DNS change is a risk. Understanding the common causes helps you design a monitoring strategy that covers all of them.</p>
+
+<h3>Unauthorized access and hijacking</h3>
+<p>DNS registrars and hosting providers are high-value targets for attackers. Credential stuffing, phishing, and SIM-swapping attacks against registrar accounts allow attackers to modify DNS records directly. Once an attacker controls your A record, they can redirect your site to a phishing page, intercept traffic, or issue fraudulent TLS certificates via DNS-01 challenges. Because DNS propagates globally within minutes, the window for damage is short and the damage can be severe.</p>
+
+<h3>Configuration drift from CDN and infrastructure changes</h3>
+<p>Modern infrastructure involves multiple layers: CDN providers, load balancers, origin servers, and DDoS protection services. Each migration or configuration change touches DNS. A Cloudflare migration might change CNAME targets. A load balancer replacement might require new A records. When these changes happen without coordination, or when a rollback is applied inconsistently, DNS records can end up pointing to the wrong destination — not through malice, but through operational complexity.</p>
+
+<h3>Accidental deletion or misconfiguration</h3>
+<p>Terraform and other infrastructure-as-code tools manage DNS records alongside compute resources. A <code>terraform destroy</code> on a decommissioned environment can cascade to DNS records that other services still depend on. Manual edits to DNS zones — particularly in providers that lack change tracking — can overwrite records without an audit trail. A TXT record for email authentication can be silently removed during a zone import.</p>
+
+<h3>Subdomain takeover</h3>
+<p>A CNAME pointing to a cloud service that has since been deprovisioned is a subdomain takeover waiting to happen. An attacker who provisions the same cloud resource (an S3 bucket, a Heroku app, an Azure endpoint) can serve content from your subdomain. This is one of the most common ways that apparently legitimate-looking phishing pages end up on company-owned subdomains — and a DNS record change alert catches the CNAME target becoming claimable before an attacker acts.</p>
+
+<hr/>
+
+<h2>Which DNS record types to monitor</h2>
+
+<p>Not all DNS records carry the same risk profile. Here is what to watch and why:</p>
+
+<table>
+  <tr>
+    <th>Record Type</th>
+    <th>What it controls</th>
+    <th>Risk if changed</th>
+  </tr>
+  <tr>
+    <td><code>A</code> / <code>AAAA</code></td>
+    <td>IP address for the domain</td>
+    <td>Traffic redirection, phishing, interception</td>
+  </tr>
+  <tr>
+    <td><code>CNAME</code></td>
+    <td>Alias to another hostname</td>
+    <td>Traffic redirection, subdomain takeover</td>
+  </tr>
+  <tr>
+    <td><code>MX</code></td>
+    <td>Mail server routing</td>
+    <td>Email interception, delivery failure</td>
+  </tr>
+  <tr>
+    <td><code>NS</code></td>
+    <td>Authoritative nameservers for the zone</td>
+    <td>Full zone takeover, all records affected</td>
+  </tr>
+  <tr>
+    <td><code>TXT</code></td>
+    <td>SPF, DKIM, DMARC, domain verification</td>
+    <td>Email spoofing, authentication bypass</td>
+  </tr>
+  <tr>
+    <td><code>SOA</code></td>
+    <td>Zone authority and serial number</td>
+    <td>Signals zone changes; serial increments on any update</td>
+  </tr>
+</table>
+
+<p>NS record changes carry the highest risk because they affect the entire zone — changing your nameservers hands control of all records to a different provider. MX changes are the most operationally damaging after security incidents because email disruption is immediate and often hard to diagnose.</p>
+
+<hr/>
+
+<h2>How to check your current DNS records</h2>
+
+<p>Before setting up monitoring, establish a baseline. The standard command-line tool for DNS lookups is <code>dig</code>:</p>
+
+<pre><code># Check A record
+dig A example.com +short
+
+# Check MX records
+dig MX example.com +short
+
+# Check NS records
+dig NS example.com +short
+
+# Check all records (may not return everything, but useful for a quick scan)
+dig ANY example.com +short</code></pre>
+
+<p>To see what a specific nameserver returns (useful for spotting propagation inconsistencies), specify the server directly:</p>
+
+<pre><code># Query against a specific nameserver
+dig A example.com @8.8.8.8 +short
+dig A example.com @1.1.1.1 +short</code></pre>
+
+<p>If you want to check without installing anything locally, the <a href="https://lior-seats.github.io/dns-checker/">free DNSWatch checker tool</a> lets you look up all record types for any domain instantly from your browser, including NS, MX, TXT, and CNAME records in one view.</p>
+
+<div class="callout">
+<strong>Baseline before you monitor.</strong>
+Before enabling DNS change alerts, record your current DNS state as the known-good baseline. Any alert system is only as useful as its reference point. A change alert without a baseline produces noise; a change alert with a clear baseline produces signal.
+</div>
+
+<hr/>
+
+<h2>Manual polling vs. automated DNS change monitoring</h2>
+
+<p>Developers who want to detect DNS changes often start with a manual polling script — a cron job that runs <code>dig</code>, stores the output, and diffs it against the previous run. This works at small scale and provides a useful mental model for what monitoring tools do:</p>
+
+<pre><code>#!/bin/bash
+DOMAIN="example.com"
+CURRENT=$(dig A "$DOMAIN" +short | sort)
+STORED=$(cat /tmp/dns-baseline-"$DOMAIN" 2>/dev/null)
+
+if [[ "$CURRENT" != "$STORED" ]]; then
+  echo "DNS CHANGE DETECTED for $DOMAIN:"
+  diff <(echo "$STORED") <(echo "$CURRENT")
+  echo "$CURRENT" > /tmp/dns-baseline-"$DOMAIN"
+fi</code></pre>
+
+<p>The limitations of this approach emerge quickly when you have more than a handful of domains:</p>
+
+<ul>
+  <li>Each domain and record type requires its own polling logic</li>
+  <li>The polling interval is limited by your cron granularity (minimum 1 minute, typically 5–15)</li>
+  <li>The script runs from a single vantage point and misses changes that are only visible from certain resolvers</li>
+  <li>Alert routing — email, Slack, PagerDuty — requires additional infrastructure</li>
+  <li>The monitoring script itself is a cron job that can fail silently</li>
+  <li>There is no history or audit trail for past changes</li>
+</ul>
+
+<p>Purpose-built DNS record change monitoring tools poll from multiple geographic vantage points, cover all record types simultaneously, maintain a change history with diffs, and route alerts to your existing notification channels. They turn DNS change detection from a side project into a solved problem.</p>
+
+<hr/>
+
+<h2>Real-world scenarios where DNS change alerts prevent incidents</h2>
+
+<p>The value of a DNS record change alert is clearest in concrete cases:</p>
+
+<p><strong>Scenario 1 — Registrar account compromise:</strong> An attacker phishes credentials for your domain registrar and changes your A record to point to a cloned phishing site at 3am. Without monitoring, you find out when your users start reporting the phishing page — typically hours later. With a DNS change alert, you receive a notification within minutes of the record changing and can begin incident response immediately.</p>
+
+<p><strong>Scenario 2 — Terraform destroy in staging:</strong> An engineer runs <code>terraform destroy</code> on a staging environment and the Terraform state includes a DNS record shared with production. The production CNAME is deleted. Without monitoring, traffic starts failing and the cause is unclear. With a DNS change alert, the deletion is captured and attributed to the specific change.</p>
+
+<p><strong>Scenario 3 — CDN migration creates a dangling CNAME:</strong> A CDN provider is decommissioned but a CNAME pointing to the old CDN endpoint remains in DNS. A competitor — or attacker — provisions the same CDN resource name and begins serving traffic from your subdomain. A DNS change alert on CNAME records catches the moment the CNAME starts resolving to a different endpoint.</p>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<p>DNS record changes are high-impact and fast-propagating. An A record change redirects traffic globally within minutes. An MX record change silently reroutes all email. An NS record change hands control of your entire zone to a different provider. Manual checking misses changes that happen between queries. Automated polling from a single vantage point misses changes that are resolver-specific.</p>
+
+<p>A DNS record change alert — one that monitors continuously, covers all record types, queries from multiple points, and notifies you immediately — is the only way to detect unexpected changes before they cause user-visible damage. Check your current DNS state now with the <a href="https://lior-seats.github.io/dns-checker/">free DNSWatch checker</a>, then set up automated monitoring so you're not the last to know when something changes.</p>
+
+<div class="cta-box">
+  <h3>Know instantly when your DNS records change</h3>
+  <p>DNSWatch monitors your domains across all record types and sends instant alerts when anything changes — so you catch unauthorized changes, misconfigurations, and CDN drift before they cause outages.</p>
+  <p>Join the waitlist at <a href="https://lior-seats.github.io/dnswatch-waitlist/">https://lior-seats.github.io/dnswatch-waitlist/</a></p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch Waitlist</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Check Your DNS Records (Free)</a>
+</div>
+
+<hr/>
+<p style="color:#666;font-size:0.85rem">© 2026 Developer Tools Blog</p>
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=dns-record-change-alert',{mode:'no-cors'});}());</script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Heartbeat Monitor: Know Instantly When Your Scheduled Jobs Stop Running</title>
+<meta name="description" content="Monitor cron jobs with heartbeat pings. Get instant alerts when scheduled tasks stop running silently. Free heartbeat monitoring for developers."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-heartbeat-monitor.html"/>
+<meta property="og:title" content="Cron Job Heartbeat Monitor: Know Instantly When Your Scheduled Jobs Stop Running"/>
+<meta property="og:description" content="Monitor cron jobs with heartbeat pings. Get instant alerts when scheduled tasks stop running silently. Free heartbeat monitoring for developers."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-heartbeat-monitor.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Heartbeat Monitor: Know Instantly When Your Scheduled Jobs Stop Running</h1>
+
+<p class="meta">Cron jobs fail silently — no output, no error, no alert. Heartbeat monitoring flips the model so you find out immediately when a job stops running, not days later when the damage is done.</p>
+
+<p>Scheduled jobs are the silent backbone of most production systems: database backups, report generation, cache warming, cleanup scripts, billing runs, queue processors. When they work, nobody thinks about them. When they stop working, the failure is invisible — there is no exception to catch, no HTTP 500 to log, no user complaint to triage. A cron job heartbeat monitor detects that silence and turns it into an alert.</p>
+
+<hr/>
+
+<h2>Why cron job failures are so hard to detect</h2>
+
+<p>Most application monitoring tools are reactive. They watch for errors your code raises, HTTP status codes your server returns, or thresholds your metrics breach. A cron job that stops running raises none of these signals — it simply produces no output and generates no activity.</p>
+
+<h3>No output means no error logging</h3>
+<p>By default, cron sends failed job output to the system mail spool of the user running the job. On most production servers, that mail spool goes unread indefinitely. Even when output is redirected to a log file, the log being empty is not distinguishable from the log being correct — a job that ran successfully also produces no output in many cases.</p>
+
+<h3>Cron itself doesn't know if a job "worked"</h3>
+<p>Cron only tracks whether a process was spawned and what exit code it returned. If your backup script exits 0 but produces a zero-byte archive, cron considers the job successful. If your report generation script exits 0 but fails to write the output because a database query timed out and the error was swallowed, cron considers the job successful.</p>
+
+<h3>Jobs can stop being scheduled without notice</h3>
+<p>Crontab files disappear during server reimaging. Package upgrades can overwrite systemd timer units. Configuration management tools can reset cron directories. A user-level crontab that worked for 18 months can silently vanish during a routine update, and the absence of a job running is indistinguishable from a job that ran but produced no output.</p>
+
+<div class="callout">
+<strong>The core problem: absence of evidence vs. evidence of absence.</strong>
+Standard monitoring waits for a bad signal. Cron job heartbeat monitoring checks for the expected good signal — and alerts when it doesn't arrive.
+</div>
+
+<hr/>
+
+<h2>What heartbeat monitoring is</h2>
+
+<p>Heartbeat monitoring inverts the detection model. Instead of your monitoring system polling your job to check if it ran, your job pings your monitoring system after it runs. If no ping arrives within the expected window, the monitoring system fires an alert.</p>
+
+<p>The implementation is minimal. At the end of your cron job, add a single <code>curl</code> or <code>wget</code> call to a unique URL assigned to that job. The monitoring service records the timestamp. If the URL isn't pinged within the expected interval — the job's period plus a grace window — you receive an alert.</p>
+
+<p>This approach catches four distinct failure modes in one mechanism:</p>
+<ul>
+  <li><strong>Job not scheduled</strong> — crontab removed, systemd timer disabled, server not running</li>
+  <li><strong>Job started but crashed</strong> — process spawned, exited non-zero or was killed before completing</li>
+  <li><strong>Job completed but produced wrong output</strong> — script exited 0 but your code can make the ping conditional on a successful result check</li>
+  <li><strong>Job running too slowly</strong> — the grace window catches jobs that are completing but taking dangerously long</li>
+</ul>
+
+<hr/>
+
+<h2>Implementing heartbeat pings in your cron jobs</h2>
+
+<h3>Basic curl ping</h3>
+<p>The simplest implementation: append a <code>curl</code> call to your existing cron job. The <code>&amp;&amp;</code> operator ensures the ping only fires on success:</p>
+
+<pre><code># In crontab: run backup every day at 2am, ping on success
+0 2 * * * /opt/scripts/backup.sh && curl -fsS --retry 3 https://cronwatch.example/ping/YOUR-JOB-ID</code></pre>
+
+<p>The <code>-fsS</code> flags make curl fail silently on HTTP errors (<code>-f</code>), suppress progress output (<code>-s</code>), but still show errors (<code>-S</code>). The <code>--retry 3</code> handles transient network issues without blocking your job.</p>
+
+<h3>Wrapping the full job</h3>
+<p>For a job script you own, call the ping from inside the script after verifying the result — not merely that the process exited 0:</p>
+
+<pre><code>#!/bin/bash
+set -euo pipefail
+
+# Your actual job logic
+pg_dump mydb | gzip > /backups/mydb-$(date +%Y%m%d).sql.gz
+
+# Verify the output exists and is non-empty before pinging
+BACKUP_FILE="/backups/mydb-$(date +%Y%m%d).sql.gz"
+if [[ -f "$BACKUP_FILE" && -s "$BACKUP_FILE" ]]; then
+  curl -fsS --retry 3 "https://cronwatch.example/ping/YOUR-JOB-ID?bytes=$(stat -c%s "$BACKUP_FILE")"
+else
+  echo "Backup file missing or empty — not pinging heartbeat" >&2
+  exit 1
+fi</code></pre>
+
+<h3>systemd OnSuccess handler</h3>
+<p>For jobs managed as systemd services, use the <code>OnSuccess</code> directive to fire a ping unit only when the service exits cleanly:</p>
+
+<pre><code>[Unit]
+Description=Daily database backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/scripts/backup.sh
+OnSuccess=backup-heartbeat.service</code></pre>
+
+<pre><code># backup-heartbeat.service
+[Unit]
+Description=Heartbeat ping for daily backup
+
+[Service]
+Type=oneshot
+ExecStart=curl -fsS https://cronwatch.example/ping/YOUR-JOB-ID</code></pre>
+
+<h3>Setting the right grace window</h3>
+<p>The grace window is how long after the expected schedule the monitoring service waits before alerting. A 10-minute job scheduled hourly might use a 15-minute grace window. A 2-hour batch job running nightly might use a 30-minute grace window. Too tight a grace window produces false positives; too loose and you find out about failures hours late. Start with 10–20% of the job's typical duration and adjust based on observed variance.</p>
+
+<hr/>
+
+<h2>Why purpose-built tools beat DIY heartbeat setups</h2>
+
+<p>You can build a basic heartbeat receiver yourself — a web endpoint that records pings, a background process that checks for missed pings, a script that sends an email. Developers do this regularly. The problems emerge at scale and over time:</p>
+
+<ul>
+  <li>Your heartbeat monitor is itself a cron job. If it stops running, it stops alerting — you've introduced a second point of failure that is identical to the first.</li>
+  <li>Alert routing logic grows: on-call rotation, escalation after 15 minutes of silence, different alert channels for different jobs, silencing during maintenance windows.</li>
+  <li>Tracking job history, duration trends, and late-run warnings requires a real datastore, not a flat file.</li>
+  <li>Managing hundreds of job IDs across teams and projects becomes a spreadsheet problem.</li>
+</ul>
+
+<p>A purpose-built cron job heartbeat monitor runs independently of your infrastructure, stores job history, handles alert routing, and gives you a dashboard to see all your scheduled jobs in one place. You focus on what the jobs do; the monitor handles whether they ran.</p>
+
+<p>To validate your cron expression before wiring up monitoring, <a href="https://lior-seats.github.io/cron-expression-parser/">use the free CronWatch expression parser</a> — paste any cron schedule and it shows you the next 10 run times in plain English, making it easy to verify your schedule is correct before you depend on it.</p>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<p>Cron jobs fail silently, and standard monitoring tools are blind to silence. Heartbeat monitoring solves this by having each job ping a URL on completion — if the expected ping doesn't arrive within the schedule window plus a grace period, you get an alert. The implementation is a single <code>curl</code> call appended to your existing job. For production reliability, a purpose-built cron job heartbeat monitor runs outside your infrastructure and handles the alert routing and history that a homegrown solution requires you to build and maintain yourself.</p>
+
+<div class="cta-box">
+  <h3>Stop finding out about cron failures days later</h3>
+  <p>CronWatch monitors your scheduled jobs with heartbeat pings and alerts you the moment a job stops running. No agents to install — just add a curl call to your existing jobs.</p>
+  <p>Join the waitlist at <a href="https://lior-seats.github.io/cronwatch-waitlist/">https://lior-seats.github.io/cronwatch-waitlist/</a></p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch Waitlist</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse Your Cron Expression (Free)</a>
+</div>
+
+<hr/>
+<p style="color:#666;font-size:0.85rem">© 2026 Developer Tools Blog</p>
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-heartbeat-monitor',{mode:'no-cors'});}());</script>
+</body>
+</html>
