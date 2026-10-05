@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>GCP SSL Certificate Monitoring: Track Expiry on Google Cloud Load Balancers and GCE</title>
+<meta name="description" content="Monitor SSL certificate expiry on Google Cloud Platform — Compute Engine, Load Balancers, Google-managed certs, and self-managed certs. Get alerts before expiry causes outages."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/gcp-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="GCP SSL Certificate Monitoring: Track Expiry on Google Cloud Load Balancers and GCE"/>
+<meta property="og:description" content="GCP Google-managed certs auto-renew — but self-managed certs, Compute Engine instances, and GKE workloads still need external monitoring."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/gcp-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.95rem; }
+  th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>GCP SSL Certificate Monitoring: Track Expiry on Google Cloud Load Balancers and GCE</h1>
+
+<p class="meta">Google-managed certificates auto-renew — but self-managed certs, Compute Engine instances, and GKE workloads still need monitoring.</p>
+
+<p>Google Cloud Platform offers two paths for SSL certificates on its load balancers: Google-managed certificates that auto-renew, and self-managed certificates that you provision and upload yourself. If you're using anything beyond the first category — or if you run HTTPS directly on Compute Engine instances, Cloud Run custom domains, or GKE ingress controllers — certificate expiry monitoring remains your responsibility.</p>
+
+<p>This guide covers how GCP handles SSL internally, where the gaps are, and how to set up external monitoring for all your GCP-hosted endpoints.</p>
+
+<hr/>
+
+<h2>What GCP manages automatically</h2>
+
+<p><strong>Google-managed SSL certificates</strong> attached to an external HTTPS Load Balancer are provisioned and renewed by Google automatically. You specify domains, Google provisions a certificate via Google Trust Services, and renewal happens without any action on your part — typically 30 days before expiry.</p>
+
+<p>This works reliably when:</p>
+<ul>
+  <li>The domain's DNS A/AAAA records point to the load balancer IP</li>
+  <li>The domain isn't behind another proxy that intercepts HTTP-01 challenges</li>
+  <li>You haven't hit the <a href="https://cloud.google.com/load-balancing/docs/ssl-certificates/google-managed-certs#quotas">per-project certificate quota</a></li>
+</ul>
+
+<hr/>
+
+<h2>Where you still need external monitoring</h2>
+
+<h3>1. Self-managed certificates on load balancers</h3>
+
+<p>If you've uploaded a certificate to GCP — from your own CA, a commercial CA, or an internal PKI — GCP does not renew it. You get no alerts from the console when it approaches expiry. The load balancer will continue serving the expired certificate until you replace it, causing browser security warnings and breaking API clients that validate certs strictly.</p>
+
+<p>Finding expiry dates via gcloud:</p>
+
+<pre><code># List all SSL certificates in a project
+gcloud compute ssl-certificates list --format="table(name, managed.status, expireTime)"
+
+# Get details for a specific cert
+gcloud compute ssl-certificates describe CERT_NAME \
+  --format="value(expireTime)"</code></pre>
+
+<p>The <code>expireTime</code> field shows the certificate expiry timestamp in RFC 3339 format. You can pipe this into a script that alerts when the expiry is within 30 days.</p>
+
+<h3>2. Compute Engine instances running HTTPS directly</h3>
+
+<p>If you're terminating SSL on a GCE instance — Nginx, Apache, or any other server software — the certificate on that instance is entirely outside GCP's managed cert system. This is common for:</p>
+
+<ul>
+  <li>VMs that expose HTTPS directly without a load balancer in front</li>
+  <li>Internal services on private subnets with self-signed or internal CA certs</li>
+  <li>Legacy workloads that predate GCP's managed certificate offering</li>
+  <li>Development or staging instances running real certs for integration testing</li>
+</ul>
+
+<p>Check from the instance or externally:</p>
+
+<pre><code>echo | openssl s_client -servername DOMAIN \
+  -connect DOMAIN:443 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<h3>3. Google Kubernetes Engine (GKE) ingress controllers</h3>
+
+<p>GKE uses the <strong>GKE Ingress Controller</strong> or the <strong>Gateway API</strong>, which can provision Google-managed certificates via annotations. However, this only applies when using the <code>networking.gke.io/managed-certificates</code> annotation with an external load balancer.</p>
+
+<p>If your GKE workloads use:</p>
+<ul>
+  <li>cert-manager with Let's Encrypt (self-managed, must monitor)</li>
+  <li>Pre-provisioned TLS secrets in Kubernetes (must monitor)</li>
+  <li>NGINX Ingress Controller with uploaded certs (must monitor)</li>
+  <li>Istio or other service meshes handling mTLS (must monitor)</li>
+</ul>
+
+<p>None of these are covered by GCP's managed certificate system.</p>
+
+<p>Check cert expiry inside GKE via kubectl:</p>
+
+<pre><code># List all TLS secrets and their expiry dates
+kubectl get secrets -A -o json | python3 -c "
+import sys, json, base64, datetime
+from cryptography import x509
+
+data = json.load(sys.stdin)
+for item in data['items']:
+    if item.get('type') == 'kubernetes.io/tls':
+        cert_data = base64.b64decode(item['data'].get('tls.crt', ''))
+        if cert_data:
+            cert = x509.load_pem_x509_certificate(cert_data)
+            expiry = cert.not_valid_after
+            days = (expiry - datetime.datetime.utcnow()).days
+            ns = item['metadata']['namespace']
+            name = item['metadata']['name']
+            print(f'{ns}/{name}: {days} days ({expiry.strftime(\"%Y-%m-%d\")})')
+"</code></pre>
+
+<h3>4. Cloud Run custom domains</h3>
+
+<p>Cloud Run custom domains use Google-managed certificates and renew automatically — but the provisioning can fail if DNS isn't correctly configured when you first map the domain. Once provisioned, you should still monitor externally to catch edge cases where renewal gets stuck.</p>
+
+<h3>5. Firebase Hosting and App Engine custom domains</h3>
+
+<p>Both Firebase Hosting and App Engine manage SSL automatically for custom domains via Google Trust Services. Renewal is automatic, but external monitoring provides a safety net if the domain ownership verification lapses or DNS changes interfere with renewal.</p>
+
+<hr/>
+
+<h2>Monitoring GCP SSL certificates with the gcloud CLI</h2>
+
+<p>For a project-wide audit of self-managed certificates:</p>
+
+<pre><code>#!/bin/bash
+# Check all self-managed GCP SSL certs and alert if expiring within 30 days
+PROJECT="your-project-id"
+THRESHOLD_DAYS=30
+
+gcloud compute ssl-certificates list \
+  --project="$PROJECT" \
+  --filter="type=SELF_MANAGED" \
+  --format="csv[no-heading](name,expireTime)" | \
+while IFS=',' read -r name expiry; do
+  expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null || \
+    date -j -f "%Y-%m-%dT%H:%M:%S" "${expiry%%+*}" +%s)
+  days_left=$(( (expiry_epoch - $(date +%s)) / 86400 ))
+  if [ "$days_left" -le "$THRESHOLD_DAYS" ]; then
+    echo "ALERT: $name expires in $days_left days ($expiry)"
+  fi
+done</code></pre>
+
+<div class="callout">
+  <strong>⚠️ gcloud monitoring only covers GCP-managed resources</strong>
+  This script only checks certificates you've explicitly uploaded to GCP's load balancer. It won't find certs running directly on Compute Engine instances, inside Kubernetes secrets, or on any endpoint outside GCP.
+</div>
+
+<hr/>
+
+<h2>GCP Cloud Monitoring (Ops Agent) for SSL alerts</h2>
+
+<p>GCP's built-in monitoring can alert on SSL certificate expiry through <strong>Uptime Checks</strong> in the Google Cloud Console:</p>
+
+<ol>
+  <li>Go to <strong>Cloud Monitoring → Uptime checks → Create uptime check</strong></li>
+  <li>Set the target to your domain and protocol to HTTPS</li>
+  <li>Under <strong>SSL certificate expiry check</strong>, enable the option and set a threshold (e.g. 28 days)</li>
+  <li>Configure a notification channel (email, PagerDuty, Slack via webhook)</li>
+</ol>
+
+<p>This works for any HTTPS endpoint — not just GCP-hosted ones. The limitation is that it checks one domain at a time and counts against your uptime check quota (250 free checks per project, additional checks billed at ~$0.06/check/month).</p>
+
+<hr/>
+
+<h2>GCP certificate expiry monitoring: what each approach covers</h2>
+
+<table>
+  <tr>
+    <th>Certificate type</th>
+    <th>GCP auto-renews?</th>
+    <th>Recommended monitoring</th>
+  </tr>
+  <tr>
+    <td>Google-managed (HTTPS LB)</td>
+    <td>Yes</td>
+    <td>External check as safety net</td>
+  </tr>
+  <tr>
+    <td>Self-managed (HTTPS LB)</td>
+    <td>No</td>
+    <td>gcloud CLI script + external check</td>
+  </tr>
+  <tr>
+    <td>Compute Engine (Nginx/Apache)</td>
+    <td>No</td>
+    <td>External HTTPS check on instance</td>
+  </tr>
+  <tr>
+    <td>GKE / cert-manager</td>
+    <td>No (cert-manager manages)</td>
+    <td>kubectl cert audit + external check</td>
+  </tr>
+  <tr>
+    <td>Cloud Run custom domain</td>
+    <td>Yes (usually)</td>
+    <td>External check as safety net</td>
+  </tr>
+  <tr>
+    <td>Firebase/App Engine</td>
+    <td>Yes</td>
+    <td>External check as safety net</td>
+  </tr>
+</table>
+
+<hr/>
+
+<h2>Check your GCP domain's SSL expiry now</h2>
+
+<p>Before setting up automated monitoring, check your GCP domain immediately — no login required:</p>
+
+<div class="cta-box">
+  <h3>🔒 Free SSL Certificate Checker</h3>
+  <p>Enter any domain to see days remaining, expiry date, and issuer. Works for GCP load balancers, Compute Engine, Cloud Run custom domains, and any HTTPS endpoint.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get expiry alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Setting up automated GCP SSL expiry alerts</h2>
+
+<p>The most reliable approach for GCP environments combines:</p>
+
+<ul>
+  <li><strong>External HTTP monitoring</strong> — checks the actual endpoint as a user would see it, catches any cert regardless of how it was provisioned</li>
+  <li><strong>gcloud API checks</strong> — covers self-managed certs on load balancers, gives you advance notice before the cert is actually in use at the edge</li>
+</ul>
+
+<p>For teams running multiple GCP projects or domains, a dedicated SSL monitoring service runs these checks externally and sends tiered alerts at 30, 14, 7, and 1 day before expiry — without requiring access to your GCP project credentials.</p>
+
+<div class="cta-box">
+  <h3>🔒 SSLWatch — automated expiry alerts for GCP and every domain</h3>
+  <p>SSLWatch monitors SSL certificates externally and sends email alerts before they expire. No GCP credentials needed — just add your domains and we'll alert you at 30, 14, 7, and 1 day before expiry.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free SSL checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=gcp-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>

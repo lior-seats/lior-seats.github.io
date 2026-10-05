@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Azure DNS Monitoring: Alert on Record Changes Before They Cause Outages</title>
+<meta name="description" content="Monitor Azure DNS zone record changes automatically. Detect unauthorized A, CNAME, MX, and TXT record changes before they cause outages — using Azure Monitor, Event Grid, and external tools."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/azure-dns-monitoring.html"/>
+<meta property="og:title" content="Azure DNS Monitoring: Alert on Record Changes Before They Cause Outages"/>
+<meta property="og:description" content="Azure DNS doesn't send change alerts by default. Here's how to monitor DNS record changes using Azure Monitor activity logs, Event Grid, and external DNS checkers."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/azure-dns-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.95rem; }
+  th { background: #f4f4f5; font-weight: 700; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Azure DNS Monitoring: Alert on Record Changes Before They Cause Outages</h1>
+
+<p class="meta">Azure DNS gives you no change alerts by default. Here's how to fix that.</p>
+
+<p>Azure DNS is a reliable, low-latency hosting service for DNS zones — but it doesn't send you notifications when records change. An unauthorized A record update, an accidental MX record deletion, or a misconfigured CNAME during a deployment can go undetected for hours until users report the outage.</p>
+
+<p>This guide covers the three main approaches for Azure DNS monitoring: Azure Monitor activity log alerts, Event Grid-based automation, and external DNS change detection.</p>
+
+<hr/>
+
+<h2>Why Azure DNS has no built-in change alerts</h2>
+
+<p>Azure DNS is a data-plane service — it answers DNS queries. Changes to DNS records (A, AAAA, CNAME, MX, TXT, NS, PTR) happen through the Azure Resource Manager control plane. Azure doesn't treat these changes as events that need notification by default.</p>
+
+<p>The practical consequence: if someone in your organization (or an automated deployment pipeline) changes an A record pointing to the wrong IP, you won't hear about it from Azure. You'll hear about it when users can't reach your service.</p>
+
+<hr/>
+
+<h2>Method 1: Azure Monitor activity log alerts</h2>
+
+<p>Every Azure DNS zone write operation is logged in the <strong>Azure Activity Log</strong>. You can create an alert rule that fires when any record set in a zone is created, updated, or deleted.</p>
+
+<h3>Setting up an activity log alert for DNS changes</h3>
+
+<ol>
+  <li>Go to <strong>Azure Monitor → Alerts → Create alert rule</strong></li>
+  <li>Under <strong>Scope</strong>, select your DNS zone resource (e.g. <code>mycompany.com</code>)</li>
+  <li>Under <strong>Condition</strong>, select <strong>Activity log — Administrative</strong></li>
+  <li>Filter by:
+    <ul>
+      <li><strong>Operation name:</strong> <code>Microsoft.Network/dnsZones/recordsets/write</code></li>
+      <li>Or add a second condition for <code>Microsoft.Network/dnsZones/recordsets/delete</code></li>
+    </ul>
+  </li>
+  <li>Under <strong>Actions</strong>, configure an action group (email, SMS, webhook, Logic App)</li>
+  <li>Name the rule and create it</li>
+</ol>
+
+<p>This catches any change to any record set in the zone — creation, modification, or deletion — and alerts within 5 minutes.</p>
+
+<div class="callout">
+  <strong>⚠️ Scope matters: zone vs. subscription</strong>
+  If you scope the alert to a subscription, you'll get alerts for all DNS zones in that subscription. Scope it to a specific zone for fine-grained control per domain.
+</div>
+
+<p>You can also configure this via Azure CLI:</p>
+
+<pre><code># Create an action group (email notification)
+az monitor action-group create \
+  --resource-group YOUR_RG \
+  --name dns-alert-group \
+  --short-name dns-alerts \
+  --action email admin admin@yourcompany.com
+
+# Create the activity log alert
+az monitor activity-log alert create \
+  --resource-group YOUR_RG \
+  --name "DNS Record Change Alert" \
+  --scope "/subscriptions/SUB_ID/resourceGroups/YOUR_RG/providers/Microsoft.Network/dnszones/yourdomain.com" \
+  --condition category=Administrative \
+    operationName=Microsoft.Network/dnsZones/recordsets/write \
+  --action-group dns-alert-group</code></pre>
+
+<hr/>
+
+<h2>Method 2: Event Grid for real-time DNS change automation</h2>
+
+<p>Azure Event Grid can route DNS zone events to Azure Functions, Logic Apps, or webhooks in near-real-time (typically under 1 minute). This is useful if you want to:</p>
+
+<ul>
+  <li>Log all DNS changes to a database or SIEM</li>
+  <li>Trigger automated validation (check that the new A record resolves correctly)</li>
+  <li>Post notifications to Slack or Teams via a webhook</li>
+  <li>Require approval before DNS changes take effect (using Logic App approval flows)</li>
+</ul>
+
+<h3>Setting up Event Grid for DNS zone events</h3>
+
+<pre><code># Subscribe to DNS zone events via Event Grid
+az eventgrid event-subscription create \
+  --name dns-change-subscription \
+  --source-resource-id "/subscriptions/SUB_ID/resourceGroups/YOUR_RG/providers/Microsoft.Network/dnszones/yourdomain.com" \
+  --endpoint https://your-function-or-webhook.azurewebsites.net/api/dns-change \
+  --included-event-types Microsoft.Network.RecordSetsWritten \
+    Microsoft.Network.RecordSetsDeleted</code></pre>
+
+<p>The webhook payload includes the operation type, the record set name, the record type, the initiating identity (which service principal or user made the change), and a timestamp. This gives you a full audit trail of DNS changes with actor attribution.</p>
+
+<hr/>
+
+<h2>Method 3: External DNS record monitoring</h2>
+
+<p>Azure Monitor activity logs and Event Grid only capture changes made <em>through the Azure control plane</em> — changes initiated via the Azure portal, CLI, ARM templates, or SDK. They don't detect:</p>
+
+<ul>
+  <li>DNS propagation anomalies (a record that changed correctly in Azure but is resolving inconsistently across global resolvers)</li>
+  <li>DNS hijacking (where an attacker redirects your traffic by attacking a registrar or upstream nameserver)</li>
+  <li>Cases where Azure's DNS service itself experiences an anomaly</li>
+  <li>Domains hosted on Azure DNS but with delegation problems at the registrar</li>
+</ul>
+
+<p>External DNS monitoring works differently: it periodically queries your DNS records from multiple locations and alerts you if the resolved values change. This is a completely independent check that doesn't require access to your Azure subscription.</p>
+
+<p>Check your current DNS records right now:</p>
+
+<div class="cta-box">
+  <h3>🔍 Free DNS Record Checker</h3>
+  <p>Enter any domain to see its current A, AAAA, MX, TXT, CNAME, and NS records — what the rest of the internet sees right now.</p>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn">Check DNS records →</a>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn btn-secondary">Get DNS change alerts →</a>
+</div>
+
+<hr/>
+
+<h2>Which DNS record types matter most for Azure workloads</h2>
+
+<table>
+  <tr>
+    <th>Record type</th>
+    <th>Impact if changed unexpectedly</th>
+    <th>Priority for monitoring</th>
+  </tr>
+  <tr>
+    <td>A / AAAA</td>
+    <td>Traffic redirected to wrong IP — immediate outage or hijack risk</td>
+    <td>Critical</td>
+  </tr>
+  <tr>
+    <td>CNAME</td>
+    <td>Service redirected — may cause HTTPS cert errors if CNAME changes</td>
+    <td>Critical</td>
+  </tr>
+  <tr>
+    <td>MX</td>
+    <td>Email delivery silently fails or routes to wrong server</td>
+    <td>High</td>
+  </tr>
+  <tr>
+    <td>TXT</td>
+    <td>SPF/DKIM/DMARC validation breaks — email deliverability drops</td>
+    <td>High</td>
+  </tr>
+  <tr>
+    <td>NS</td>
+    <td>Entire zone delegated to different nameservers — full DNS hijack risk</td>
+    <td>Critical</td>
+  </tr>
+  <tr>
+    <td>PTR</td>
+    <td>Reverse DNS breaks — affects email reputation checks</td>
+    <td>Medium</td>
+  </tr>
+</table>
+
+<hr/>
+
+<h2>Azure Policy for DNS zone change governance</h2>
+
+<p>If you need to prevent unauthorized DNS changes rather than just detect them, Azure Policy and RBAC are the right tools:</p>
+
+<ul>
+  <li><strong>RBAC</strong>: Use the built-in <code>DNS Zone Contributor</code> role sparingly. Most teams should have read-only access by default; write access should be restricted to specific service principals used in deployment pipelines.</li>
+  <li><strong>Azure Policy</strong>: Create a <code>deny</code> policy for <code>Microsoft.Network/dnsZones/recordsets/write</code> that only permits changes from specific subscription IDs or management group paths.</li>
+  <li><strong>Resource locks</strong>: Apply a <code>ReadOnly</code> lock to critical DNS zones. This blocks all write operations until the lock is explicitly removed — useful for production zones that should rarely change.</li>
+</ul>
+
+<div class="callout">
+  <strong>Note on resource locks</strong>
+  A ReadOnly lock on an Azure DNS zone prevents ALL changes, including legitimate automated deployments. Use selective RBAC restrictions and monitoring alerts rather than blanket locks for most production scenarios.
+</div>
+
+<hr/>
+
+<h2>Combining Azure-internal and external DNS monitoring</h2>
+
+<p>A robust Azure DNS monitoring strategy uses both layers:</p>
+
+<ol>
+  <li><strong>Activity log alerts</strong> — immediate notification when any control-plane change happens, with actor attribution</li>
+  <li><strong>External DNS polling</strong> — independent verification that the actual resolved values are correct, regardless of how or where the change originated</li>
+</ol>
+
+<p>The two approaches catch different failure modes. Activity log alerts tell you someone changed a record. External monitoring tells you what the world currently sees — which is ultimately what matters for your users.</p>
+
+<div class="cta-box">
+  <h3>🔍 DNSWatch — automated DNS change alerts for Azure and every domain</h3>
+  <p>DNSWatch monitors your DNS records externally from multiple locations and sends email alerts the moment A, MX, TXT, CNAME, or NS records change. No Azure credentials needed — just add your domains.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Free DNS checker →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=azure-dns-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
