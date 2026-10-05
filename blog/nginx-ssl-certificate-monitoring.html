@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Nginx SSL Certificate Monitoring: Automated Expiry Alerts for Your Web Server</title>
+<meta name="description" content="Learn how to monitor Nginx SSL certificate expiry automatically. Move beyond manual openssl checks to multi-domain monitoring with email alerts at 30, 14, 7, and 1 day before expiry."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/nginx-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="Nginx SSL Certificate Monitoring: Automated Expiry Alerts for Your Web Server"/>
+<meta property="og:description" content="Move beyond manual openssl checks to automated Nginx SSL expiry alerts. Catch certificate problems before they take your site down."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/nginx-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Nginx SSL Certificate Monitoring: Automated Expiry Alerts for Your Web Server</h1>
+
+<p class="meta">Your Nginx cert is valid today. In 27 days it won't be. Here's how to know before that happens.</p>
+
+<p>SSL certificate expiry is one of the most preventable outages in web infrastructure — yet it catches DevOps teams off-guard constantly. An expired cert on your Nginx server doesn't just degrade the experience: modern browsers block the request entirely, returning a full-page warning before users can even see your site. If the cert serves an API endpoint, every downstream client starts failing at the same moment.</p>
+
+<p>The reason it still happens: the default workflow is manual. Someone checks the cert when they remember, adds it to a calendar, hopes the reminder fires on time, and eventually gets burned anyway. This article covers how Nginx SSL certificate monitoring should work and how to set it up properly.</p>
+
+<hr/>
+
+<h2>The manual approach: openssl s_client</h2>
+
+<p>The standard command-line check for any SSL cert is:</p>
+
+<pre><code>echo | openssl s_client -servername yourdomain.com \
+  -connect yourdomain.com:443 2>/dev/null \
+  | openssl x509 -noout -dates</code></pre>
+
+<p>This outputs the <code>notAfter</code> field — the expiry date. You can turn it into a cron-based alert with a few more lines:</p>
+
+<pre><code>#!/bin/bash
+DOMAIN="yourdomain.com"
+EXPIRY=$(echo | openssl s_client -servername "$DOMAIN" \
+  -connect "$DOMAIN:443" 2>/dev/null \
+  | openssl x509 -noout -enddate \
+  | cut -d= -f2)
+
+EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null \
+  || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+if [ "$DAYS_LEFT" -lt 30 ]; then
+  echo "WARNING: $DOMAIN SSL cert expires in $DAYS_LEFT days" \
+    | mail -s "SSL Expiry Alert" ops@yourcompany.com
+fi</code></pre>
+
+<p>Add it to crontab to run daily:</p>
+
+<pre><code>0 8 * * * /opt/scripts/ssl-check.sh >> /var/log/ssl-check.log 2>&1</code></pre>
+
+<p>This works for a single domain. It's what most teams start with.</p>
+
+<hr/>
+
+<h2>Why the manual approach breaks down</h2>
+
+<p>The openssl + cron approach has hard limits that matter once your infrastructure grows:</p>
+
+<ul>
+  <li><strong>One domain at a time.</strong> If you're running 5 Nginx vhosts, 3 subdomains, and 2 staging environments, you're maintaining separate scripts or comma-separated loops — fragile and easy to miss when a new domain is added.</li>
+  <li><strong>No alerting by default.</strong> The script only alerts if <code>mail</code> is configured and the local MTA is working. On a fresh server or a container, that's usually not the case. The check runs silently and produces no output.</li>
+  <li><strong>Container and ephemeral environments.</strong> A cron job in a container doesn't survive restarts. A job on an autoscaled instance runs multiple times. A job on a deprovisioned instance doesn't run at all. None of these are visible failures — they look like the check ran normally.</li>
+  <li><strong>No escalation tiers.</strong> Getting one alert at 30 days is less useful than getting alerts at 30, 14, 7, and 1 day before expiry. An alert at 30 days is easy to defer. An alert at 1 day is not — but if your monitoring only fires once, and you deferred it, you won't get reminded.</li>
+  <li><strong>No certificate chain validation.</strong> A cert can be technically valid but have an intermediate chain problem that causes browser errors on specific clients. <code>openssl s_client</code> doesn't reliably surface this.</li>
+</ul>
+
+<hr/>
+
+<h2>How Nginx SSL monitoring should work</h2>
+
+<p>Proper Nginx SSL certificate monitoring has four properties:</p>
+
+<ol>
+  <li><strong>Domain-agnostic.</strong> Add a domain once; the monitoring service checks it on a schedule without requiring changes to your Nginx config, crontab, or scripts.</li>
+  <li><strong>Multi-tier alert schedule.</strong> Alerts at 30, 14, 7, and 1 day before expiry — not a single one-time notice that's easy to dismiss.</li>
+  <li><strong>Delivery to where you actually read alerts.</strong> Email to your ops address, not local mail spool. Ideally with a link that shows current status without requiring a login or terminal access.</li>
+  <li><strong>Infrastructure-independent.</strong> The check happens outside your server — monitoring a Nginx cert from the same host it's served on means a server outage can also kill the monitoring. An external check catches problems your internal tooling can't.</li>
+</ol>
+
+<div class="cta-box">
+  <h3>🔒 Automated Nginx SSL certificate monitoring</h3>
+  <p>SSLWatch monitors your Nginx SSL certificates externally and sends email alerts at 30, 14, 7, and 1 day before expiry. Enter a domain; get alerts. No agents to install, no scripts to maintain.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check your cert now (free)</a>
+</div>
+
+<hr/>
+
+<h2>Using SSLWatch for Nginx SSL expiry alerts</h2>
+
+<p>SSLWatch is designed for exactly this use case: you enter a domain, and SSLWatch monitors the SSL certificate externally and emails you before it expires. It works for any Nginx-served domain — single server, reverse proxy, wildcard cert, or Let's Encrypt — without touching your Nginx config or server.</p>
+
+<p>The alert schedule follows the tiers that matter in practice:</p>
+
+<ul>
+  <li><strong>30 days:</strong> advance notice with plenty of time to act</li>
+  <li><strong>14 days:</strong> reminder if the first alert got buried</li>
+  <li><strong>7 days:</strong> urgent — schedule renewal this week</li>
+  <li><strong>1 day:</strong> emergency — renew immediately</li>
+</ul>
+
+<p>This is structurally different from a one-off script: the alerts repeat on a schedule you don't have to maintain. When you renew the cert, SSLWatch detects the new expiry and resets the alert window automatically.</p>
+
+<div class="callout">
+  <strong>Works alongside Certbot, not instead of it</strong>
+  If you're using Let's Encrypt with Certbot, auto-renewal <em>usually</em> works — but not always. Certbot silently fails when the renewal hook fails, when DNS propagation is delayed, when rate limits are hit, or when the <code>cron</code> or <code>systemd</code> timer that runs it is broken. SSLWatch catches the cases where Certbot's auto-renewal failed and you don't know yet.
+</div>
+
+<hr/>
+
+<h2>Check your Nginx SSL certificate right now</h2>
+
+<p>Before setting up monitoring, check the current status of your cert. Enter your Nginx domain into the free SSL checker:</p>
+
+<div class="cta-box">
+  <h3>🔍 Instant Nginx SSL certificate check</h3>
+  <p>See your certificate's expiry date, issuer, and chain validity in seconds. No signup, no install.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check your SSL cert →</a>
+</div>
+
+<p>The checker shows you exactly what an external client sees when it connects to your domain — the same view a browser uses to validate the cert. If there's a mismatch between what Nginx serves and what you expect, it surfaces here.</p>
+
+<hr/>
+
+<h2>Turn manual checks into automated peace of mind</h2>
+
+<p>The openssl command is useful for a one-time inspection. It's not a monitoring strategy. A monitoring strategy means:</p>
+
+<ul>
+  <li>every domain you serve is covered</li>
+  <li>you get alerted with enough time to act</li>
+  <li>the alert fires even when your server is down</li>
+  <li>you don't have to remember to check</li>
+</ul>
+
+<p>Nginx SSL certificate expiry is a solved problem — the only reason it catches teams off-guard is because the default tooling requires you to set up something manually, and manual setups drift. External monitoring that sends alerts at 30, 14, 7, and 1 days is the durable answer.</p>
+
+<div class="cta-box">
+  <h3>🔒 Stop managing SSL expiry manually</h3>
+  <p>SSLWatch monitors your Nginx SSL certificates and sends email alerts before they expire — at 30, 14, 7, and 1 day. Works with Let's Encrypt, Certbot, commercial certs, and wildcard domains.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Check your cert for free</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/ssl-cert-checker/">Free SSL checker</a>
+</p>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=nginx-ssl-certificate-monitoring',{mode:'no-cors'});}());</script>
+</body>
+</html>
