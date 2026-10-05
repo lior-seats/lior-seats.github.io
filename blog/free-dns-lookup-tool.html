@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Free DNS Lookup Tool: Check A, MX, TXT, and CNAME Records Instantly</title>
+<meta name="description" content="A free online DNS lookup tool that queries A, AAAA, MX, TXT, CNAME, and NS records for any domain in seconds. No signup. No rate limits."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/free-dns-lookup-tool.html"/>
+<meta property="og:title" content="Free DNS Lookup Tool: Check A, MX, TXT, and CNAME Records Instantly"/>
+<meta property="og:description" content="Look up DNS records for any domain — A, AAAA, MX, TXT, CNAME, NS — instantly. Free, no signup required."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/free-dns-lookup-tool.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 0.93rem; }
+  th { background: #f4f4f5; text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 8px 12px; border: 1px solid #e4e4e7; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Free DNS Lookup Tool: Check A, MX, TXT, and CNAME Records Instantly</h1>
+
+<p class="meta">What each DNS record type does, when to look them up, and the fastest way to check them without installing anything.</p>
+
+<p>DNS records are the mapping layer between domain names and the actual services that power them — your website, your email, your SPF policy, your CDN. When something breaks — email stops delivering, a domain doesn't resolve, SSL validation fails — the answer is almost always in the DNS records.</p>
+
+<p>A DNS lookup tool lets you see those records directly, without command-line tools, without digging into your DNS provider's admin panel, and without waiting for propagation guesswork. This post explains what each record type tells you and when you'd actually want to look it up.</p>
+
+<div class="cta-inline">
+  🔍 <strong><a href="https://lior-seats.github.io/dns-checker/">Try the DNS Checker →</a></strong> — Enter any domain and see all DNS records instantly. Free, no signup, uses Cloudflare DNS-over-HTTPS.
+</div>
+
+<hr/>
+
+<h2>The DNS record types you actually need to know</h2>
+
+<h3>A record — maps domain to IPv4 address</h3>
+
+<p>The A record is the most fundamental DNS record. It answers the question: "What IP address does this domain point to?" When a browser navigates to <code>example.com</code>, it resolves the A record to get an IP, then connects to that IP over port 80 or 443.</p>
+
+<p>When to look it up:</p>
+<ul>
+  <li>Domain isn't resolving or is resolving to the wrong server</li>
+  <li>You're migrating to a new server and want to verify the change propagated</li>
+  <li>You suspect a DNS hijack (A record pointing to an unexpected IP)</li>
+  <li>You need the raw IP for a firewall rule or monitoring probe</li>
+</ul>
+
+<h3>AAAA record — maps domain to IPv6 address</h3>
+
+<p>Same as the A record but for IPv6. Most modern stacks configure both A and AAAA. If you're seeing connectivity issues from IPv6-native networks, check whether your AAAA record points to a reachable server. A common misconfiguration is having an AAAA record pointing to an address that no longer exists after a server migration — IPv6 users get a connection refused while IPv4 users work fine.</p>
+
+<h3>MX record — controls where email is delivered</h3>
+
+<p>The MX (Mail Exchange) record specifies which server receives email for your domain. It contains a priority (lower = higher priority) and a hostname. A missing or misconfigured MX record means email to your domain bounces or is silently dropped.</p>
+
+<p>When to look it up:</p>
+<ul>
+  <li>Inbound email isn't arriving</li>
+  <li>You just migrated email providers and need to verify the new MX records are in place</li>
+  <li>You're troubleshooting a customer complaint about bounced email</li>
+  <li>You want to confirm your spam filtering service (e.g., Proofpoint, Mimecast) is correctly inserted in the mail flow</li>
+</ul>
+
+<h3>TXT record — verification, SPF, DKIM, DMARC</h3>
+
+<p>TXT records are used for a wide range of purposes, but the most important in practice are email authentication policies and domain verification tokens:</p>
+
+<ul>
+  <li><strong>SPF</strong> — defines which servers are allowed to send email on behalf of your domain. A missing or overly permissive SPF record increases the chance your legitimate email is marked as spam.</li>
+  <li><strong>DKIM</strong> — stores the public key used to verify cryptographic signatures on outgoing email. If DKIM signatures stop verifying, email clients may mark your messages as unverified.</li>
+  <li><strong>DMARC</strong> — defines what receiving servers should do with emails that fail SPF or DKIM checks.</li>
+  <li><strong>Domain verification tokens</strong> — used by Google Search Console, AWS, Stripe, and other services to confirm you own the domain.</li>
+</ul>
+
+<p>TXT records are frequently the culprit when email deliverability drops suddenly — an SPF record got deleted, a DKIM selector wasn't configured after switching email providers, or a DMARC policy was set to <code>p=reject</code> prematurely.</p>
+
+<h3>CNAME record — alias for another hostname</h3>
+
+<p>A CNAME (Canonical Name) record maps one hostname to another. Instead of pointing <code>www.example.com</code> directly to an IP, you point it to <code>example.com</code> (or to a CDN hostname like <code>xyz.cloudfront.net</code>). The resolver then looks up that target hostname to get the actual IP.</p>
+
+<p>When to look it up:</p>
+<ul>
+  <li>A subdomain isn't resolving correctly</li>
+  <li>You're verifying a CDN or Cloudflare configuration</li>
+  <li>A service stopped working after a deployment changed a CNAME target</li>
+  <li>You need to find the upstream hostname behind a subdomain for debugging</li>
+</ul>
+
+<div class="callout">
+  <strong>CNAME at the root zone</strong>
+  You can't use a CNAME on a bare domain (e.g., <code>example.com</code> itself) according to DNS standards. Some DNS providers offer "CNAME flattening" or "ALIAS records" that work around this. If you need to point your root domain to a CDN or load balancer, look for these options in your DNS provider's settings.
+</div>
+
+<h3>NS record — identifies your nameservers</h3>
+
+<p>NS (Name Server) records identify the authoritative nameservers for your domain. These are the servers that hold the actual DNS records. If your NS records are wrong, your entire domain stops resolving for everyone — nothing works.</p>
+
+<p>NS records are typically set at your domain registrar (not your DNS provider), and they change when you switch DNS providers. When migrating DNS, always verify that your registrar is pointing to the new nameservers before making any other changes.</p>
+
+<hr/>
+
+<h2>Checking DNS records without installing tools</h2>
+
+<h3>Online DNS checker (fastest)</h3>
+
+<p>The fastest way is a browser-based tool that queries DNS-over-HTTPS. No installation, no command-line knowledge required, works from any device:</p>
+
+<div class="cta-inline">
+  🔍 <strong><a href="https://lior-seats.github.io/dns-checker/">DNS Checker — Free Online DNS Lookup</a></strong><br/>
+  Enter any domain and see A, AAAA, MX, TXT, CNAME, and NS records side by side. Results come from Cloudflare's DNS-over-HTTPS API — accurate, real-time, and cached-bypass-aware.
+</div>
+
+<h3>Command line with dig</h3>
+
+<p><code>dig</code> is available by default on Linux and macOS, and installable on Windows via WSL or BIND tools:</p>
+
+<pre><code># Look up all common record types
+dig example.com A
+dig example.com AAAA
+dig example.com MX
+dig example.com TXT
+dig example.com CNAME
+dig example.com NS
+
+# Short output (answer only)
+dig example.com MX +short
+
+# Query a specific resolver
+dig @1.1.1.1 example.com A</code></pre>
+
+<h3>nslookup (Windows/macOS)</h3>
+
+<pre><code>nslookup -type=MX example.com
+nslookup -type=TXT example.com
+nslookup -type=NS example.com</code></pre>
+
+<hr/>
+
+<h2>What to do after a lookup</h2>
+
+<p>If you find a record that's wrong, the fix is straightforward: update it in your DNS provider's dashboard. The time it takes to propagate depends on the TTL set on the record — see <a href="https://lior-seats.github.io/blog/dns-propagation-checker.html">how DNS propagation works</a> for details on timing.</p>
+
+<p>If you can't find a record that should be there, check whether it was accidentally deleted (most DNS providers keep a change log), and whether you're looking at the right zone (some providers have separate zones for subdomains).</p>
+
+<p>If you find a record that looks wrong but you didn't change it — treat it as an incident. Unauthorized DNS changes are a real attack vector. Lock down DNS provider access and audit who made the change.</p>
+
+<hr/>
+
+<h2>Continuous DNS monitoring</h2>
+
+<p>A one-time lookup tells you what your DNS looks like right now. But DNS records change — sometimes intentionally (deployments, migrations), sometimes accidentally (provider errors, unauthorized changes). The only way to catch unintended changes before users do is continuous monitoring.</p>
+
+<div class="cta-box">
+  <h3>🔔 Monitor your DNS records automatically</h3>
+  <p>DNSWatch checks your A, AAAA, MX, TXT, CNAME, and NS records continuously and sends an instant alert whenever a value changes. Catch unauthorized changes, misconfigured deployments, and provider incidents before they become user-facing outages.</p>
+  <a href="https://lior-seats.github.io/dnswatch-waitlist/" class="btn">Join the DNSWatch Waitlist</a>
+  <a href="https://lior-seats.github.io/dns-checker/" class="btn btn-secondary">Look Up DNS Records Now →</a>
+</div>
+
+</div>
+<script>(function(){fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=free-dns-lookup-tool',{mode:'no-cors'});}());</script>
+</body>
+</html>

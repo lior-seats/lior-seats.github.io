@@ -60,4 +60,6 @@
   <url><loc>https://lior-seats.github.io/blog/cron-job-dead-mans-switch.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/github-actions-schedule-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/nginx-ssl-certificate-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/dns-propagation-checker.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/free-dns-lookup-tool.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
