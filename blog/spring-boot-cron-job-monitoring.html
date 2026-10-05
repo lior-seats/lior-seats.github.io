@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Spring Boot Scheduled Task Monitoring: Alerts When @Scheduled Jobs Stop Running</title>
+<meta name="description" content="@Scheduled, Quartz, and Spring Batch all fail silently. Here's how to add heartbeat monitoring to Spring Boot scheduled tasks so you know before your users do."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/spring-boot-cron-job-monitoring.html"/>
+<meta name="keywords" content="spring boot scheduled task monitoring, spring boot cron job monitoring, @Scheduled monitoring, quartz scheduler monitoring, spring batch job monitoring"/>
+<meta property="og:title" content="Spring Boot Scheduled Task Monitoring: Alerts When @Scheduled Jobs Stop Running"/>
+<meta property="og:description" content="@Scheduled, Quartz, and Spring Batch all fail silently. Here's how to add heartbeat monitoring to Spring Boot scheduled tasks so you know before your users do."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/spring-boot-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92em; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  th { background: #f4f4f5; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Spring Boot Scheduled Task Monitoring: Alerts When @Scheduled Jobs Stop Running</h1>
+
+<p class="meta">Your nightly invoice generation job quietly stopped three weeks ago. The <code>@Scheduled</code> method is still annotated, the application logs show no exceptions, Spring Boot Actuator reports the app as healthy. You found out when accounting asked why invoices weren't going out.</p>
+
+<p>Spring Boot offers three main ways to schedule recurring work: <code>@Scheduled</code> for simple fixed-rate or cron-expression tasks, Quartz Scheduler for distributed job coordination, and Spring Batch for large-scale data processing jobs. All three share the same blind spot: <strong>when a task silently stops running, nothing in Spring Boot tells you.</strong></p>
+
+<p>This guide covers the failure modes specific to each approach and shows you how to add a single line of heartbeat monitoring to detect silent failures before your users do.</p>
+
+<hr/>
+
+<h2>Failure modes by scheduler</h2>
+
+<h3>@Scheduled: thread pool starvation</h3>
+
+<p>The most common silent failure with <code>@Scheduled</code> isn't an exception — it's <strong>thread pool exhaustion</strong>. By default, Spring Boot runs all <code>@Scheduled</code> methods on a single-threaded task executor. If one scheduled method blocks — waiting on a slow database query, an unresponsive external API, or a deadlock — every other <code>@Scheduled</code> method queues behind it and never runs.</p>
+
+<pre><code>// application.properties — without this, ALL @Scheduled tasks share one thread
+spring.task.scheduling.pool.size=5
+
+// ScheduledTasks.java
+@Component
+public class ScheduledTasks {
+
+    @Scheduled(cron = "0 0 2 * * ?")  // 2am daily
+    public void generateInvoices() {
+        // If this blocks for >24h (e.g., stuck HTTP call), sendReports() never runs
+        invoiceService.generateAll();
+    }
+
+    @Scheduled(cron = "0 30 2 * * ?")  // 2:30am daily
+    public void sendReports() {
+        // Silently queued behind generateInvoices() if that thread is stuck
+        reportService.sendAll();
+    }
+}</code></pre>
+
+<p>The second common failure is <strong>exception swallowing</strong>. A runtime exception inside a <code>@Scheduled</code> method cancels future executions of that specific task. The scheduler catches the exception, logs it at ERROR level, and permanently stops scheduling that method. Unless you're watching the logs, the job disappears forever.</p>
+
+<pre><code>// This exception permanently cancels future runs of this @Scheduled method
+@Scheduled(fixedRate = 60_000)
+public void syncInventory() {
+    try {
+        inventoryClient.sync(); // Throws on network error
+    } catch (Exception e) {
+        log.error("Sync failed", e);
+        // DON'T rethrow — Spring won't cancel on caught exceptions
+        // BUT if you forget the try/catch and the exception propagates, Spring stops scheduling this method
+    }
+}</code></pre>
+
+<div class="callout">
+<strong>⚠️ Spring Boot 2.x vs 3.x behavior differs</strong>
+In Spring Boot 2.x, an uncaught exception in a <code>@Scheduled</code> method logs the error and cancels future runs. In Spring Boot 3.x with virtual threads enabled, the behavior can vary. Either way, exceptions inside scheduled methods need explicit handling — and you still won't know the task stopped unless you're monitoring it externally.
+</div>
+
+<h3>Quartz: misfire policies and clustered state drift</h3>
+
+<p>Quartz Scheduler is more robust than <code>@Scheduled</code>, but clustering introduces new silent failure modes. In a clustered Quartz setup, jobs run on whichever node acquires the database lock. If the node that acquired the lock crashes mid-execution, Quartz relies on its misfire policy to recover.</p>
+
+<p>The default misfire threshold is 60 seconds. If your application server was down for 2 minutes — a routine restart during a deploy — Quartz may mark the trigger as "misfired" and either skip the missed execution (<code>MISFIRE_INSTRUCTION_DO_NOTHING</code>) or fire once immediately (<code>MISFIRE_INSTRUCTION_FIRE_ONCE_NOW</code>). The correct behavior depends on your job semantics, but the default isn't always right:</p>
+
+<pre><code>// Quartz job with explicit misfire handling
+@Bean
+public JobDetail reportJobDetail() {
+    return JobBuilder.newJob(DailyReportJob.class)
+        .withIdentity("dailyReport")
+        .storeDurably()
+        .build();
+}
+
+@Bean
+public Trigger reportTrigger() {
+    CronScheduleBuilder schedule = CronScheduleBuilder
+        .cronSchedule("0 0 6 * * ?")  // 6am daily
+        .withMisfireHandlingInstructionDoNothing();  // Skip missed runs — right for reports
+        // vs .withMisfireHandlingInstructionFireAndProceed() — run immediately — right for cleanup
+    return TriggerBuilder.newTrigger()
+        .forJob(reportJobDetail())
+        .withSchedule(schedule)
+        .build();
+}
+
+// The job itself — Quartz won't tell you if this throws
+public class DailyReportJob implements Job {
+    @Override
+    public void execute(JobExecutionContext context) throws JobExecutionException {
+        // Exception here marks the trigger as errored — future runs continue
+        // But nobody alerts you unless you add explicit monitoring
+        reportService.generateDaily();
+    }
+}</code></pre>
+
+<h3>Spring Batch: partitioned step failures and job repository gaps</h3>
+
+<p>Spring Batch records job execution history in the <code>BATCH_JOB_EXECUTION</code> table. A failed step marks the job as <code>FAILED</code>, and Spring Batch will retry it on the next trigger. This sounds robust — until you realize that a job stuck in <code>STARTED</code> state (due to a JVM crash mid-execution) blocks all future runs of the same job until manually restarted.</p>
+
+<p>More commonly: a partitioned job finishes <code>COMPLETED</code> but processed zero records because the data source returned an empty result set due to a query bug or a misconfigured date range. Spring Batch has no concept of "successfully processed the wrong thing." The job reports green; your data is silently wrong.</p>
+
+<pre><code>// Spring Batch job with completion listener — but still no external alert
+@Bean
+public Job importJob(JobRepository jobRepository, Step importStep) {
+    return new JobBuilder("importJob", jobRepository)
+        .listener(new JobExecutionListenerSupport() {
+            @Override
+            public void afterJob(JobExecution jobExecution) {
+                if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
+                    long count = jobExecution.getStepExecutions().stream()
+                        .mapToLong(StepExecution::getWriteCount).sum();
+                    if (count == 0) {
+                        log.warn("Import completed but wrote 0 records — possible data source issue");
+                        // Log warning — but who reads logs at 3am?
+                    }
+                }
+            }
+        })
+        .start(importStep)
+        .build();
+}</code></pre>
+
+<hr/>
+
+<h2>Adding heartbeat monitoring in 5 lines</h2>
+
+<p>The most reliable way to monitor scheduled tasks externally is the <strong>heartbeat pattern</strong>: at the end of each successful run, your job pings a monitoring URL. If the ping stops arriving — because the job stopped running, threw an exception before completing, or the whole application died — the monitor alerts you.</p>
+
+<h3>For @Scheduled tasks</h3>
+
+<pre><code>@Component
+public class ScheduledTasks {
+
+    private final RestTemplate restTemplate = new RestTemplate();
+    private static final String HEARTBEAT_URL = "https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN";
+
+    @Scheduled(cron = "0 0 2 * * ?")
+    public void generateInvoices() {
+        try {
+            invoiceService.generateAll();
+            // Only ping if the job actually completed successfully
+            restTemplate.getForObject(HEARTBEAT_URL, String.class);
+        } catch (Exception e) {
+            log.error("Invoice generation failed", e);
+            // No ping — monitor will alert when the heartbeat window expires
+        }
+    }
+}</code></pre>
+
+<p>If you don't want the synchronous HTTP call on the critical path, fire it asynchronously:</p>
+
+<pre><code>@Scheduled(cron = "0 0 2 * * ?")
+public void generateInvoices() {
+    invoiceService.generateAll();
+    // Non-blocking ping — won't slow down the task
+    CompletableFuture.runAsync(() -> {
+        try {
+            new URL(HEARTBEAT_URL).openConnection().getContent();
+        } catch (IOException ignored) {}
+    });
+}</code></pre>
+
+<h3>For Quartz jobs</h3>
+
+<pre><code>public class DailyReportJob implements Job {
+
+    @Override
+    public void execute(JobExecutionContext context) throws JobExecutionException {
+        try {
+            reportService.generateDaily();
+            // Ping heartbeat on success
+            HttpURLConnection conn = (HttpURLConnection)
+                new URL("https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN").openConnection();
+            conn.setRequestMethod("GET");
+            conn.getResponseCode();
+            conn.disconnect();
+        } catch (Exception e) {
+            throw new JobExecutionException(e);
+        }
+    }
+}</code></pre>
+
+<h3>For Spring Batch jobs</h3>
+
+<pre><code>@Bean
+public Job importJob(JobRepository jobRepository, Step importStep) {
+    return new JobBuilder("importJob", jobRepository)
+        .listener(new JobExecutionListenerSupport() {
+            @Override
+            public void afterJob(JobExecution jobExecution) {
+                if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
+                    // Only ping if completed successfully AND processed records
+                    long writeCount = jobExecution.getStepExecutions().stream()
+                        .mapToLong(StepExecution::getWriteCount).sum();
+                    if (writeCount > 0) {
+                        try {
+                            new URL("https://cronwatch.example.com/api/heartbeat/YOUR_TOKEN")
+                                .openStream().close();
+                        } catch (IOException ignored) {}
+                    }
+                }
+            }
+        })
+        .start(importStep)
+        .build();
+}</code></pre>
+
+<hr/>
+
+<h2>Using Spring Boot Actuator for internal visibility</h2>
+
+<p>Spring Boot Actuator provides a <code>/actuator/scheduledtasks</code> endpoint that lists all registered scheduled tasks and their cron expressions. It does <em>not</em> tell you whether a task actually ran successfully — only what's registered. Still useful for verifying configuration:</p>
+
+<pre><code># application.properties
+management.endpoints.web.exposure.include=health,info,scheduledtasks
+management.endpoint.scheduledtasks.enabled=true</code></pre>
+
+<pre><code># Response from /actuator/scheduledtasks
+{
+  "cron": [
+    {
+      "runnable": { "target": "com.example.ScheduledTasks.generateInvoices" },
+      "expression": "0 0 2 * * ?"
+    }
+  ],
+  "fixedRate": [],
+  "fixedDelay": []
+}</code></pre>
+
+<p>This confirms the task is registered, but if the thread pool is exhausted or the method throws, the endpoint still shows the task as configured. You need external heartbeat monitoring to know it's actually running.</p>
+
+<hr/>
+
+<h2>Testing your cron expressions</h2>
+
+<p>Spring's cron format differs from standard Unix cron in one important way: it has 6 fields (<code>seconds minutes hours day-of-month month day-of-week</code>) instead of 5. <code>0 0 2 * * ?</code> means "at 2:00:00 AM every day" — not what a Unix cron parser would produce for the same string.</p>
+
+<p>Before adding a cron expression to a <code>@Scheduled</code> or Quartz trigger, validate it in a parser that understands Spring's 6-field format:</p>
+
+<div class="cta-box">
+<h3>🕐 Validate your Spring cron expression</h3>
+<p>Paste any cron expression to get the plain-English description and next 5 run times — works with both Spring 6-field format and standard 5-field Unix cron.</p>
+<a href="https://lior-seats.github.io/cron-expression-parser/" class="btn">Try the free cron parser →</a>
+</div>
+
+<hr/>
+
+<h2>Production checklist: Spring Boot cron job monitoring</h2>
+
+<ul>
+<li>☐ Configure <code>spring.task.scheduling.pool.size</code> &gt; 1 if you have more than one <code>@Scheduled</code> method</li>
+<li>☐ Add try/catch to every <code>@Scheduled</code> method — uncaught exceptions cancel future runs</li>
+<li>☐ Validate all cron expressions with a 6-field-aware parser before deploying</li>
+<li>☐ Add heartbeat pings to the end of each critical scheduled task</li>
+<li>☐ For Quartz: set explicit misfire policies on every trigger</li>
+<li>☐ For Spring Batch: alert on zero write-count completions, not just status=FAILED</li>
+<li>☐ For clustered deployments: monitor the cluster, not individual nodes — a 2-node cluster with one node down silently halves your job throughput</li>
+</ul>
+
+<hr/>
+
+<h2>Dead-man's-switch monitoring for Spring Boot</h2>
+
+<p>The heartbeat pattern works best when paired with a monitor that fires an alert when the ping <em>stops</em> — a dead-man's-switch. You configure a grace period (e.g., 30 minutes after the expected run time) and get alerted if no ping arrives in that window.</p>
+
+<div class="cta-box">
+<h3>🔔 Never miss a failed Spring Boot scheduled task again</h3>
+<p>CronWatch is a dead-man's-switch monitor for scheduled jobs. Add one line to your Spring Boot task; get alerted by email if it stops pinging. No infrastructure to run, no agents to install — just a curl-compatible heartbeat URL.</p>
+<a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+<a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron parser</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=spring-boot-cron-job-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
