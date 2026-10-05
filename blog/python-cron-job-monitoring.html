@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Python Cron Job Monitoring: APScheduler, Celery Beat, and the schedule Library</title>
+<meta name="description" content="How to monitor Python scheduled jobs and get alerted when they fail silently. Covers APScheduler, Celery Beat, the schedule library, and the dead man's switch pattern."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/python-cron-job-monitoring.html"/>
+<meta property="og:title" content="Python Cron Job Monitoring: APScheduler, Celery Beat, and the schedule Library"/>
+<meta property="og:description" content="Python scheduled jobs fail silently. Here's how to add monitoring to APScheduler, Celery Beat, and the schedule library so you find out before users do."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/python-cron-job-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Python Cron Job Monitoring: APScheduler, Celery Beat, and the schedule Library</h1>
+
+<p class="meta">Python scheduled jobs fail silently in ways that other parts of your stack don't. Here's what goes wrong with each scheduler and how to add monitoring in one function call.</p>
+
+<p>Python has no shortage of scheduling libraries. APScheduler is feature-rich and integrates with Flask and FastAPI. Celery Beat handles distributed task scheduling for high-volume apps. The <code>schedule</code> library is so simple you can be running jobs in five minutes. And for simple scripts, crontab plus a Python executable remains perfectly reasonable.</p>
+
+<p>The problem they all share: when a job stops running, nothing tells you. No alert, no dashboard notification, no email. The job just quietly stops producing output, and you find out from a user reporting stale data or a missed deadline.</p>
+
+<p>This article covers the specific failure modes for each scheduler and how to add a dead man's switch — the simplest reliable approach to monitoring any background job.</p>
+
+<hr/>
+
+<h2>Why Python jobs fail silently</h2>
+
+<p>The root cause differs by scheduler, but the symptom is the same: silence.</p>
+
+<h3>APScheduler: exceptions get swallowed</h3>
+
+<p>APScheduler catches exceptions inside jobs and logs them — it doesn't re-raise them or send an alert. If your job throws an exception, the scheduler logs a warning and moves on to the next scheduled run. If nobody is watching the logs, nobody knows.</p>
+
+<pre><code><span class="comment"># This fails silently in APScheduler by default</span>
+from apscheduler.schedulers.blocking import BlockingScheduler
+
+scheduler = BlockingScheduler()
+
+@scheduler.scheduled_job('cron', hour=3)
+def nightly_sync():
+    result = fetch_from_api()   <span class="comment"># raises ConnectionError at 3am</span>
+    process(result)             <span class="comment"># never runs</span>
+    <span class="comment"># exception is logged; next run is at 3am tomorrow</span>
+    <span class="comment"># you find out from a user two days later</span>
+
+scheduler.start()</code></pre>
+
+<p>APScheduler has an event system you can use to catch failures, but it's not configured by default. The job either needs to handle its own exceptions or you need to add a job error listener at the scheduler level.</p>
+
+<h3>Celery Beat: the scheduler can die silently</h3>
+
+<p>Celery Beat is the scheduler component of Celery. If the Beat process dies — OOMed, killed by the OS, crashed on startup — no tasks get enqueued. Your workers are running, waiting for tasks that will never arrive. There's no default alert.</p>
+
+<p>This is distinct from task failures (which Celery logs and can retry). Beat dying means the entire scheduling loop stops. It's the higher-level failure mode and the harder one to detect, because all the other moving parts (workers, broker) appear healthy.</p>
+
+<p>For a detailed breakdown of Celery Beat monitoring, see <a href="https://lior-seats.github.io/blog/celery-beat-monitoring.html">Celery Beat monitoring: keeping your scheduler healthy</a>.</p>
+
+<h3>The <code>schedule</code> library: no persistence, no recovery</h3>
+
+<p>The <code>schedule</code> library (pip: <code>schedule</code>) is the simplest Python scheduler. You define jobs with a readable API and run them in a loop. The problem is that it has no persistence, no error handling, and no retry logic.</p>
+
+<pre><code>import schedule
+import time
+
+def my_job():
+    fetch_data()    <span class="comment"># if this raises, the loop continues but the job didn't complete</span>
+
+schedule.every().day.at("03:00").do(my_job)
+
+while True:
+    schedule.run_pending()
+    time.sleep(60)</code></pre>
+
+<p>If <code>my_job()</code> raises an unhandled exception, the <code>schedule</code> library will catch it, log it (if you have logging configured), and keep running. The job appears to have run — it was called — but it didn't actually do anything. Nothing surfaces this to you unless you're watching logs.</p>
+
+<p>If the process itself dies — which happens to long-running Python scripts more often than you'd expect — the scheduler stops entirely. No backfill, no recovery, no alert.</p>
+
+<h3>crontab + Python scripts: the classic silent failure</h3>
+
+<p>Running <code>python /opt/jobs/sync.py</code> from crontab is reliable for simple cases. But cron doesn't care about the exit code in a meaningful way — it emails output to the local mail spool, which nobody reads on production servers. If the Python script crashes, exits non-zero, or throws a traceback, you get silence.</p>
+
+<hr/>
+
+<h2>The solution: dead man's switch monitoring</h2>
+
+<p>The most reliable pattern for monitoring any scheduled job — regardless of the scheduler — is a dead man's switch. Your job sends an HTTP ping at the end of a successful run. A monitoring service waits for that ping on the expected schedule. If the ping doesn't arrive within the grace period, you get an alert.</p>
+
+<p>This catches three failure modes at once:</p>
+<ul>
+  <li>The job ran but threw an exception before completing</li>
+  <li>The job didn't run at all (scheduler died, process killed)</li>
+  <li>The job ran but produced wrong output (if you add a validation step before the ping)</li>
+</ul>
+
+<p>One function call at the end of each job:</p>
+
+<pre><code>import requests
+
+CRONWATCH_URL = "https://cronwatch.io/ping/YOUR-TOKEN"
+
+def ping_success():
+    """Call at the end of every job that completes successfully."""
+    try:
+        requests.get(CRONWATCH_URL, timeout=5)
+    except Exception:
+        pass  <span class="comment"># Don't let monitoring failure break the job</span></code></pre>
+
+<hr/>
+
+<h2>Adding monitoring to each scheduler</h2>
+
+<h3>APScheduler: job listener + ping</h3>
+
+<p>The cleanest APScheduler approach is a job event listener that pings on success and skips on failure (failures get handled by your existing alerting):</p>
+
+<pre><code>from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
+import requests
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+PING_URLS = {
+    'nightly_sync': 'https://cronwatch.io/ping/TOKEN-1',
+    'weekly_report': 'https://cronwatch.io/ping/TOKEN-2',
+}
+
+def job_listener(event):
+    job_id = event.job_id
+    if event.exception:
+        logger.error(f"Job {job_id} failed: {event.exception}", exc_info=event.traceback)
+        <span class="comment"># optionally: send Slack alert, fire PagerDuty, etc.</span>
+    else:
+        <span class="comment"># Job completed — ping the monitor</span>
+        url = PING_URLS.get(job_id)
+        if url:
+            try:
+                requests.get(url, timeout=5)
+            except Exception:
+                pass
+
+scheduler = BlockingScheduler()
+scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
+
+@scheduler.scheduled_job('cron', id='nightly_sync', hour=3)
+def nightly_sync():
+    fetch_and_sync()
+
+@scheduler.scheduled_job('cron', id='weekly_report', day_of_week='mon', hour=9)
+def weekly_report():
+    generate_report()
+
+scheduler.start()</code></pre>
+
+<p>The listener fires after every job execution, success or failure. On success, it pings the monitor. On failure, it logs the exception and you can add alerting there too.</p>
+
+<h3>Celery: a dedicated heartbeat task</h3>
+
+<p>For Celery, add a dedicated heartbeat task that Beat schedules every few minutes. If Beat dies, the heartbeat task stops being enqueued, and your monitor alerts you:</p>
+
+<pre><code><span class="comment"># tasks.py</span>
+from celery import Celery
+import requests
+
+app = Celery('myapp', broker='redis://localhost:6379/0')
+
+HEARTBEAT_URL = 'https://cronwatch.io/ping/YOUR-BEAT-TOKEN'
+
+@app.task
+def beat_heartbeat():
+    """Ping to prove Beat is alive and enqueuing tasks."""
+    try:
+        requests.get(HEARTBEAT_URL, timeout=5)
+    except Exception:
+        pass
+
+<span class="comment"># celery_beat_schedule in your Django settings or celery config:</span>
+app.conf.beat_schedule = {
+    'beat-heartbeat': {
+        'task': 'myapp.tasks.beat_heartbeat',
+        'schedule': 60.0,   <span class="comment"># every 60 seconds</span>
+    },
+    <span class="comment"># ... your other tasks</span>
+}
+
+<span class="comment"># Your existing tasks: wrap with ping at the end</span>
+@app.task
+def nightly_sync():
+    do_sync()
+    <span class="comment"># Only ping after successful completion</span>
+    try:
+        requests.get('https://cronwatch.io/ping/YOUR-SYNC-TOKEN', timeout=5)
+    except Exception:
+        pass</code></pre>
+
+<p>Set your monitor's expected interval to 2 minutes. If Beat dies and the heartbeat task stops appearing, you'll get an alert within 2 minutes.</p>
+
+<h3>The <code>schedule</code> library: wrap each job</h3>
+
+<pre><code>import schedule
+import time
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+def monitored(job_func, ping_url):
+    """Wrapper that pings the monitor only on successful completion."""
+    def wrapper():
+        try:
+            job_func()
+            <span class="comment"># Only ping if the job succeeded</span>
+            requests.get(ping_url, timeout=5)
+        except Exception as e:
+            logger.error(f"{job_func.__name__} failed: {e}", exc_info=True)
+            <span class="comment"># Don't ping — the monitor will alert you when ping is late</span>
+    return wrapper
+
+def fetch_prices():
+    <span class="comment"># your actual job logic</span>
+    data = api.get_prices()
+    db.update(data)
+
+schedule.every().hour.do(
+    monitored(fetch_prices, 'https://cronwatch.io/ping/YOUR-TOKEN')
+)
+
+while True:
+    schedule.run_pending()
+    time.sleep(30)</code></pre>
+
+<h3>crontab + Python: the simplest pattern</h3>
+
+<pre><code><span class="comment"># crontab entry</span>
+0 3 * * * python /opt/jobs/sync.py && curl -fsS https://cronwatch.io/ping/YOUR-TOKEN</code></pre>
+
+<p>The <code>&&</code> ensures the curl only fires if the Python script exits 0. If it crashes or exits with an error code, no ping — and your monitor alerts you.</p>
+
+<p>In the Python script itself, make sure it exits non-zero on failure:</p>
+
+<pre><code>import sys
+
+def main():
+    try:
+        run_sync()
+    except Exception as e:
+        print(f"Sync failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
+    <span class="comment"># implicit sys.exit(0) on normal completion</span></code></pre>
+
+<hr/>
+
+<h2>What to monitor for each scheduler</h2>
+
+<p>Different schedulers need different monitoring priorities:</p>
+
+<ul>
+  <li><strong>APScheduler</strong>: Monitor individual jobs. Each scheduled function should have its own ping token so you know exactly which job missed.</li>
+  <li><strong>Celery Beat</strong>: Monitor the Beat process itself (heartbeat task) AND individual critical tasks separately. A Beat failure affects all tasks; a task failure affects only that job.</li>
+  <li><strong>schedule library</strong>: Monitor individual jobs. The process is simple and easy to restart; individual job completion is the main concern.</li>
+  <li><strong>crontab</strong>: Monitor each cron entry that has business impact. Low-frequency jobs (weekly, monthly) are especially important to monitor because a failure can go undetected for a long time before the next expected run.</li>
+</ul>
+
+<hr/>
+
+<h2>Quick reference: monitoring pattern by scheduler</h2>
+
+<table style="width:100%;border-collapse:collapse;font-size:0.92em;margin:1.2em 0">
+  <thead>
+    <tr style="background:#f4f4f5">
+      <th style="padding:9px 12px;text-align:left;border-bottom:2px solid #e4e4e7">Scheduler</th>
+      <th style="padding:9px 12px;text-align:left;border-bottom:2px solid #e4e4e7">Primary risk</th>
+      <th style="padding:9px 12px;text-align:left;border-bottom:2px solid #e4e4e7">Monitoring pattern</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7"><code>APScheduler</code></td><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7">Exceptions swallowed</td><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7">Job event listener → ping on <code>EVENT_JOB_EXECUTED</code></td></tr>
+    <tr><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7"><code>Celery Beat</code></td><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7">Beat process dies</td><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7">Heartbeat task every 60s + per-task ping</td></tr>
+    <tr><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7"><code>schedule</code> lib</td><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7">Exception stops job silently</td><td style="padding:9px 12px;border-bottom:1px solid #e4e4e7">Wrap each job function → ping on success</td></tr>
+    <tr><td style="padding:9px 12px"><code>crontab + Python</code></td><td style="padding:9px 12px">Exit code ignored</td><td style="padding:9px 12px"><code>&& curl https://cronwatch.io/ping/TOKEN</code> after script</td></tr>
+  </tbody>
+</table>
+
+<div class="cta-box">
+  <h3>📟 CronWatch — monitoring for Python scheduled jobs</h3>
+  <p>CronWatch is a dead man's switch monitor for scheduled jobs. Add one <code>requests.get()</code> call to your job; if the ping stops arriving, you get an email alert. Works with APScheduler, Celery Beat, the schedule library, crontab, and any other scheduler.</p>
+  <a class="btn" href="https://lior-seats.github.io/cronwatch-waitlist/">Join the CronWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/cron-expression-parser/">Cron expression parser</a>
+</div>
+
+<hr/>
+
+<h2>Related reading</h2>
+
+<ul>
+  <li><a href="https://lior-seats.github.io/blog/celery-beat-monitoring.html">Celery Beat monitoring: keeping your scheduler healthy</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-job-silent-failures.html">Why your cron jobs are failing silently (and how to know)</a></li>
+  <li><a href="https://lior-seats.github.io/blog/monitor-cron-jobs-alerts.html">How to monitor cron jobs and get alerted when they fail</a></li>
+  <li><a href="https://lior-seats.github.io/blog/cron-expression-examples.html">Cron expression examples: 60+ real-world schedules</a></li>
+</ul>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=python-cron-job-monitoring',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>

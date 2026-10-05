@@ -31,6 +31,7 @@
   <url><loc>https://lior-seats.github.io/blog/dead-mans-snitch-alternatives.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/aws-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/kubernetes-cronjob-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/python-cron-job-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://lior-seats.github.io/blog/celery-beat-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/github-actions-cron-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/node-cron-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
