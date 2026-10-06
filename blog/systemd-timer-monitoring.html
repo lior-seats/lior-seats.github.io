@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor systemd Timers: Alert When Scheduled Jobs Fail</title>
+<meta name="description" content="systemd timers replace cron but have the same silent-failure problem. Here's how to monitor systemd timers and get alerted when a scheduled service stops running."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/systemd-timer-monitoring.html"/>
+<meta property="og:title" content="How to Monitor systemd Timers: Alert When Scheduled Jobs Fail"/>
+<meta property="og:description" content="systemd timers replace cron but have the same silent-failure problem. Monitor them and get alerted before users notice."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/systemd-timer-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.92em; }
+  th, td { text-align: left; padding: 8px 12px; border: 1px solid #e4e4e7; }
+  th { background: #f4f4f5; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Monitor systemd Timers: Alert When Scheduled Jobs Fail</h1>
+
+<p class="meta">systemd timers are better than cron — until one silently stops firing and nobody notices for three weeks.</p>
+
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=systemd-timer-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+
+<p>systemd timers have largely replaced crontab on modern Linux systems. They're more powerful: you can set precise activation conditions, control the execution environment, log everything through journald, and track last-run state with <code>systemctl status</code>. But they share cron's most dangerous property — <strong>when a timer stops firing, nothing tells you by default</strong>.</p>
+
+<p>This guide covers how systemd timers work, how to inspect their status, common failure modes, and how to add external monitoring so you're alerted before a user notices the scheduled job hasn't run.</p>
+
+<hr/>
+
+<h2>How systemd timers work</h2>
+
+<p>A systemd timer consists of two unit files working together:</p>
+
+<ul>
+  <li><strong><code>myservice.timer</code></strong> — defines the schedule (when to run)</li>
+  <li><strong><code>myservice.service</code></strong> — defines the job (what to run)</li>
+</ul>
+
+<p>A minimal timer that runs a backup script every night at 2am:</p>
+
+<pre><code># /etc/systemd/system/backup.timer
+[Unit]
+Description=Daily database backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target</code></pre>
+
+<pre><code># /etc/systemd/system/backup.service
+[Unit]
+Description=Database backup job
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup.sh</code></pre>
+
+<p>Enable and start the timer (not the service — systemd activates the service on schedule):</p>
+
+<pre><code>systemctl enable backup.timer
+systemctl start backup.timer</code></pre>
+
+<p>The <code>Persistent=true</code> option is important: if the system was off when the job should have run, it will run on the next boot. Without it, missed runs are silently skipped.</p>
+
+<hr/>
+
+<h2>Checking timer status manually</h2>
+
+<p>These are the commands you'll use when investigating a timer:</p>
+
+<h3>List all active timers</h3>
+<pre><code>systemctl list-timers</code></pre>
+
+<p>Output includes NEXT (next activation time), LAST (last activation time), PASSED (time since last run), and UNIT. Look at the PASSED column — if a daily job shows 3 days, it hasn't run.</p>
+
+<h3>Check whether a timer and its service are healthy</h3>
+<pre><code>systemctl status backup.timer
+systemctl status backup.service</code></pre>
+
+<p>Look for <code>Active: active (waiting)</code> on the timer. On the service, check the last exit code under the <code>Main PID</code> line — a non-zero exit means the job failed.</p>
+
+<h3>View the service execution log</h3>
+<pre><code>journalctl -u backup.service --since "24 hours ago"</code></pre>
+
+<p>This shows all stdout/stderr from the last 24 hours. If the job threw an exception or hit a permission error, it's here.</p>
+
+<h3>Check last activation time programmatically</h3>
+<pre><code>systemctl show backup.timer --property=LastTriggerUSec</code></pre>
+
+<p>Returns a microsecond timestamp. Compare against the current time to calculate how long ago the timer last fired.</p>
+
+<hr/>
+
+<h2>Common systemd timer failure modes</h2>
+
+<h3>1. Timer enabled but not started</h3>
+
+<p>Enabling a timer (<code>systemctl enable</code>) creates the symlink to auto-start it on boot, but doesn't start it in the current session. If you enabled the timer but forgot <code>systemctl start</code>, it won't run until the next reboot.</p>
+
+<pre><code># Check — should show "Active: active (waiting)"
+systemctl is-active backup.timer</code></pre>
+
+<h3>2. Service exits non-zero but timer keeps scheduling</h3>
+
+<p>The timer is happy as long as it successfully activated the service. It doesn't care whether the service's <code>ExecStart</code> command succeeded or failed. A backup script that fails every night shows <code>Active: active (waiting)</code> on the timer while silently failing every run.</p>
+
+<p>Check the service's last result:</p>
+
+<pre><code>systemctl show backup.service --property=ExecMainStatus</code></pre>
+
+<p>A value of <code>0</code> is success. Anything else is a failure that the timer is not reporting.</p>
+
+<h3>3. Transient service failures masked by auto-restart</h3>
+
+<p>If your <code>.service</code> unit has <code>Restart=on-failure</code>, a failed run will be retried. The second attempt might succeed, making it look healthy in the status output — while the underlying issue (a database connection timing out, a rate limit being hit) fires on every first attempt.</p>
+
+<h3>4. The server or VM was rebuilt</h3>
+
+<p>After a server rebuild, provisioning automation re-creates the service file but forgets to run <code>systemctl enable backup.timer &amp;&amp; systemctl start backup.timer</code>. The scheduled job stops running. Nobody notices for days or weeks because the last successful run was before the rebuild and no alert was configured.</p>
+
+<h3>5. OnCalendar expression is wrong</h3>
+
+<p>systemd calendar expressions are not the same as cron expressions. A common mistake:</p>
+
+<pre><code># This fires every weekday (correct)
+OnCalendar=Mon..Fri *-*-* 09:00:00
+
+# This fires at 09:00 on any day — includes weekends
+OnCalendar=*-*-* 09:00:00</code></pre>
+
+<p>Test your expression before deploying:</p>
+
+<pre><code>systemd-analyze calendar "Mon..Fri *-*-* 09:00:00"</code></pre>
+
+<hr/>
+
+<h2>Adding monitoring to systemd timers</h2>
+
+<p>Manual inspection only tells you the current state. For production timers, you want to be alerted when a job doesn't run on schedule — without manually SSHing into a server to check.</p>
+
+<h3>Option 1: OnFailure= directive</h3>
+
+<p>systemd can invoke a separate service unit when any service fails. Create a notification service:</p>
+
+<pre><code># /etc/systemd/system/notify-failure@.service
+[Unit]
+Description=Send failure notification for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/send-alert.sh "systemd service %i failed"</code></pre>
+
+<p>Then add to your timer's service unit:</p>
+
+<pre><code>[Unit]
+OnFailure=notify-failure@backup.service</code></pre>
+
+<p>This catches failures, but not the case where the timer stops firing entirely — if the timer itself is inactive, <code>OnFailure</code> never triggers.</p>
+
+<h3>Option 2: Heartbeat monitoring (catches both failures and missed runs)</h3>
+
+<p>The more reliable pattern is a heartbeat: your service sends a signal at the end of a successful run. External monitoring detects the absence of that signal and alerts you.</p>
+
+<p>Add a heartbeat ping to the end of your <code>backup.service</code>:</p>
+
+<pre><code>[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup.sh
+ExecStartPost=/usr/bin/curl -s "https://your-monitor.com/api/heartbeat/YOUR_TOKEN" &gt; /dev/null</code></pre>
+
+<p>The monitor expects a ping every N minutes (your timer interval + some grace period). If the ping doesn't arrive, it alerts you. This approach catches:</p>
+
+<ul>
+  <li>The service running but failing (no ping sent)</li>
+  <li>The timer stopped firing entirely (no ping sent)</li>
+  <li>The server being down (no ping sent)</li>
+  <li>The service running too slowly (ping arrives late)</li>
+</ul>
+
+<p>The <code>ExecStartPost=</code> directive only runs when <code>ExecStart=</code> exits 0, so a failed backup won't send a false-positive ping.</p>
+
+<div class="callout">
+  <strong>Grace period tip</strong>
+  Set the alert threshold to interval + 10–15 minutes. A daily job has a 24h + 15min window before alerting. This prevents false alerts from minor execution time variation while still catching actual missed runs within 15 minutes.
+</div>
+
+<h3>Option 3: Prometheus blackbox exporter</h3>
+
+<p>If you're already running Prometheus, the <a href="https://github.com/prometheus/blackbox_exporter" target="_blank" rel="noopener">blackbox exporter</a> can probe HTTP endpoints. Combine it with a <code>/health/last-backup</code> endpoint in your application that returns a timestamp. Write an alerting rule in Alertmanager:</p>
+
+<pre><code>- alert: BackupStale
+  expr: time() - backup_last_success_timestamp_seconds > 86400 + 900
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Database backup hasn't run in over 24h"</code></pre>
+
+<p>This works well if you already have Prometheus infrastructure. If you don't, it's significant overhead for one timer.</p>
+
+<hr/>
+
+<h2>A shell script to audit all timers</h2>
+
+<p>Run this on any server to get a quick health report of all active timers and whether they've missed their expected window:</p>
+
+<pre><code>#!/bin/bash
+# systemd-timer-audit.sh — report timers that haven't fired recently
+
+echo "=== systemd timer health report ==="
+echo ""
+
+systemctl list-timers --no-legend --no-pager | while read -r next_time next_left last_time last_ago unit rest; do
+  # Skip timers with no last-run time
+  if [[ "$last_time" == "n/a" ]]; then
+    echo "⚠  $unit — has never fired"
+    continue
+  fi
+  echo "✓  $unit — last fired $last_ago ago, next in $next_left"
+done
+
+echo ""
+echo "=== Failed service units ==="
+systemctl list-units --state=failed --type=service --no-legend 2>/dev/null | awk '{print "✗ " $1}'</code></pre>
+
+<p>This gives you a quick picture across all timers. Integrate it into a daily report email or a monitoring script.</p>
+
+<hr/>
+
+<h2>Summary</h2>
+
+<table>
+  <tr>
+    <th>Failure mode</th>
+    <th>Detected by <code>systemctl status</code>?</th>
+    <th>Detected by heartbeat monitor?</th>
+  </tr>
+  <tr>
+    <td>Timer not started after enable</td>
+    <td>Yes (inactive)</td>
+    <td>Yes (no ping)</td>
+  </tr>
+  <tr>
+    <td>Service exits non-zero</td>
+    <td>Partially (last exit code)</td>
+    <td>Yes (no ping)</td>
+  </tr>
+  <tr>
+    <td>Server rebuilt, timer not re-enabled</td>
+    <td>Only if you check</td>
+    <td>Yes (no ping)</td>
+  </tr>
+  <tr>
+    <td>Timer fires but job runs too slowly</td>
+    <td>No</td>
+    <td>Yes (late ping)</td>
+  </tr>
+  <tr>
+    <td>Timer deactivated by package update</td>
+    <td>Only if you check</td>
+    <td>Yes (no ping)</td>
+  </tr>
+</table>
+
+<p>Manual checks work for debugging. For production timers that need to run reliably, add an external heartbeat monitor so you're alerted before users notice the job has stopped.</p>
+
+<div class="cta-box">
+  <h3>🔔 CronWatch — heartbeat monitoring for scheduled jobs</h3>
+  <p>Add one curl line to any cron job, systemd timer, or scheduled task. We alert you if it stops firing. Works with crontab, systemd timers, Kubernetes CronJobs, GitHub Actions, and any scheduler that runs a shell command.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the waitlist</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Free cron expression parser</a>
+</div>
+
+<hr/>
+
+<p><a href="https://lior-seats.github.io/blog/">← More articles</a></p>
+
+</div>
+</body>
+</html>
