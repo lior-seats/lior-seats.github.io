@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor SSL Certificate Expiry in Node.js</title>
+<meta name="description" content="Monitor SSL certificate expiry from Node.js using the built-in tls module. Check expiry dates, build alert scripts, and avoid silent HTTPS outages."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/nodejs-ssl-certificate-monitoring.html"/>
+<meta property="og:title" content="How to Monitor SSL Certificate Expiry in Node.js"/>
+<meta property="og:description" content="Monitor SSL certificate expiry from Node.js using the built-in tls module. Check expiry dates, build alert scripts, and avoid silent HTTPS outages."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/nodejs-ssl-certificate-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Monitor SSL Certificate Expiry in Node.js</h1>
+
+<p class="meta">Use the built-in <code>tls</code> module to check expiry dates programmatically — no external dependencies required.</p>
+
+<p>SSL certificates expire silently. There's no runtime error, no log entry, no notification from your hosting provider. One morning your site returns a browser security warning, your API clients start throwing <code>UNABLE_TO_VERIFY_LEAF_SIGNATURE</code>, and users start filing support tickets. Node.js gives you everything you need to catch this before it happens — if you wire it up yourself.</p>
+
+<hr/>
+
+<h2>Check SSL certificate expiry with Node.js tls module</h2>
+
+<p>The <code>tls</code> module is part of Node.js core. No npm install required. Here's the minimal pattern for fetching a certificate's expiry date:</p>
+
+<pre><code>const tls = require('tls');
+
+function checkSSLExpiry(hostname) {
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect(
+      443,
+      hostname,
+      { servername: hostname, rejectUnauthorized: false },
+      () => {
+        const cert = socket.getPeerCertificate();
+        socket.destroy();
+
+        if (!cert || !cert.valid_to) {
+          return reject(new Error(`No certificate returned for ${hostname}`));
+        }
+
+        const expiresAt = new Date(cert.valid_to);
+        const daysRemaining = Math.floor(
+          (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+
+        resolve({
+          hostname,
+          expiresAt: expiresAt.toISOString(),
+          daysRemaining,
+          issuer: cert.issuer?.O ?? 'unknown',
+          subject: cert.subject?.CN ?? hostname,
+        });
+      }
+    );
+
+    socket.setTimeout(5000, () => {
+      socket.destroy();
+      reject(new Error(`Timeout connecting to ${hostname}`));
+    });
+
+    socket.on('error', reject);
+  });
+}
+
+// Example usage
+checkSSLExpiry('github.com').then(console.log).catch(console.error);</code></pre>
+
+<p>Sample output:</p>
+
+<pre><code>{
+  hostname: 'github.com',
+  expiresAt: '2026-11-29T23:59:59.000Z',
+  daysRemaining: 55,
+  issuer: 'Sectigo Limited',
+  subject: 'github.com'
+}</code></pre>
+
+<div class="callout">
+  <strong>⚠️ rejectUnauthorized: false</strong>
+  Setting this to <code>false</code> lets you inspect expiring certificates even when the chain is already broken. For production HTTPS requests you still want <code>true</code>. This flag only applies to the tls.connect call used to read the certificate — it doesn't affect how your application handles TLS elsewhere.
+</div>
+
+<hr/>
+
+<h2>Check multiple domains in parallel</h2>
+
+<p>Real applications expose dozens of domains — apex domains, subdomains, API endpoints, CDN origins. Check them all in one pass:</p>
+
+<pre><code>const domains = [
+  'example.com',
+  'api.example.com',
+  'staging.example.com',
+  'www.example.com',
+];
+
+async function checkAllDomains(hostnames) {
+  const results = await Promise.allSettled(
+    hostnames.map(h => checkSSLExpiry(h))
+  );
+
+  return results.map((r, i) => ({
+    hostname: hostnames[i],
+    status: r.status,
+    ...(r.status === 'fulfilled' ? r.value : { error: r.reason.message }),
+  }));
+}
+
+checkAllDomains(domains).then(results => {
+  results.forEach(r => {
+    if (r.status === 'rejected') {
+      console.error(`❌  ${r.hostname}: ${r.error}`);
+    } else if (r.daysRemaining <= 14) {
+      console.warn(`⚠️  ${r.hostname}: expires in ${r.daysRemaining} days`);
+    } else {
+      console.log(`✅  ${r.hostname}: ${r.daysRemaining} days remaining`);
+    }
+  });
+});</code></pre>
+
+<p><code>Promise.allSettled</code> (rather than <code>Promise.all</code>) ensures one unreachable domain doesn't abort checks for all the others.</p>
+
+<hr/>
+
+<h2>Send email alerts when expiry is near</h2>
+
+<p>Checking is only half the job. You also need to be notified. Add Nodemailer to fire an alert when any domain is within 30 days of expiry:</p>
+
+<pre><code>const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+async function sendExpiryAlert(result) {
+  await transporter.sendMail({
+    from: '"SSL Monitor" &lt;alerts@example.com&gt;',
+    to: process.env.ALERT_EMAIL,
+    subject: `⚠️ SSL expiry warning: ${result.hostname} expires in ${result.daysRemaining} days`,
+    text: [
+      `Domain: ${result.hostname}`,
+      `Expires: ${result.expiresAt}`,
+      `Days remaining: ${result.daysRemaining}`,
+      `Issuer: ${result.issuer}`,
+      '',
+      'Renew your certificate before it expires to avoid downtime.',
+    ].join('\n'),
+  });
+}
+
+async function monitorAndAlert(hostnames, thresholdDays = 30) {
+  const results = await checkAllDomains(hostnames);
+
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.daysRemaining <= thresholdDays) {
+      console.warn(`Sending alert for ${r.hostname} (${r.daysRemaining} days remaining)`);
+      await sendExpiryAlert(r);
+    }
+  }
+}</code></pre>
+
+<hr/>
+
+<h2>Run the check on a schedule with node-cron</h2>
+
+<p>Wire it to a daily schedule so expiry alerts fire automatically:</p>
+
+<pre><code>const cron = require('node-cron');
+
+// Run every day at 8am
+cron.schedule('0 8 * * *', async () => {
+  console.log(`[${new Date().toISOString()}] Running SSL expiry check`);
+  await monitorAndAlert([
+    'example.com',
+    'api.example.com',
+  ], 30);
+});</code></pre>
+
+<p>Install the single dependency:</p>
+
+<pre><code>npm install node-cron</code></pre>
+
+<p>Nodemailer is optional — swap in any transactional email library (SendGrid, Resend, Postmark) that your stack already uses.</p>
+
+<hr/>
+
+<h2>Where the self-hosted approach gets painful</h2>
+
+<p>This setup works. But as soon as you operate it for more than a few domains or a few weeks, friction compounds:</p>
+
+<ul>
+  <li><strong>The monitor itself can fail silently.</strong> If your Node process crashes, exits, or the cron schedule misses a run, you receive no alert — and no meta-alert telling you the monitor stopped. You need to monitor the monitor.</li>
+  <li><strong>SMTP credentials require ongoing maintenance.</strong> App passwords expire, SMTP hosts rate-limit, and misconfigured TLS on the mail transport causes silent delivery failures. You add a dependency to debug mail deliverability on top of certificate expiry.</li>
+  <li><strong>State management across restarts.</strong> If you want to suppress repeat alerts ("already sent a 30-day warning, don't send another 30-day warning tomorrow"), you need to persist sent-alert state to a database or file — and handle replay correctly across deploys.</li>
+  <li><strong>Port 443 connectivity from CI or serverless environments.</strong> Many CI runners and serverless functions restrict outbound TLS connections. A monitor that runs fine locally may silently fail in the environment that matters.</li>
+</ul>
+
+<div class="callout">
+  <strong>The core problem</strong>
+  A self-hosted SSL checker solves the technical check. It doesn't solve the reliability problem: who alerts you when the alerter breaks?
+</div>
+
+<hr/>
+
+<h2>Check any domain right now — free tool</h2>
+
+<p>Before building your own monitor, check your most important domains with the free SSL checker below. It calls a real TLS handshake and returns days remaining, issuer, and expiry date — no signup required.</p>
+
+<div class="cta-box">
+  <h3>🔒 Free SSL Certificate Checker</h3>
+  <p>Enter any domain to instantly see days remaining, expiry date, and issuer. No signup required.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check a domain now →</a>
+</div>
+
+<p>If you want automated alerts at 30, 14, 7, and 1 day before expiry — without running your own Node.js process — SSLWatch monitors your domains and emails you before they expire.</p>
+
+<div class="cta-box">
+  <h3>📬 SSLWatch — Automated SSL Monitoring</h3>
+  <p>Add your domains once. Get email alerts at 30, 14, 7, and 1 day before each certificate expires. No infrastructure to maintain.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Get early access →</a>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn btn-secondary">Free checker →</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=nodejs-ssl-certificate-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
