@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>The Best SSL Certificate Monitoring Tools in 2026 — Free Checkers vs. Automated Alerts</title>
+<meta name="description" content="Compare free SSL certificate checkers vs. automated monitoring tools. From curl commands to GitHub Actions to dedicated SSL monitors — pick the right approach for your setup."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-monitoring-tools.html"/>
+<meta property="og:title" content="The Best SSL Certificate Monitoring Tools in 2026 — Free Checkers vs. Automated Alerts"/>
+<meta property="og:description" content="Compare free SSL certificate checkers vs. automated monitoring tools. From curl commands to GitHub Actions to dedicated SSL monitors — pick the right approach for your setup."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-monitoring-tools.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .cta-box.secondary { background: #eff6ff; border-color: #bfdbfe; }
+  .cta-box.secondary h3 { color: #1e3a8a; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  .cta-box.secondary .btn { background: #1d4ed8; }
+  .cta-box.secondary .btn:hover { background: #1e40af; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.93em; }
+  th { background: #f4f4f5; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>The Best SSL Certificate Monitoring Tools in 2026: Free Checkers vs. Automated Alerts</h1>
+
+<p class="meta">From a quick curl one-liner to GitHub Actions workflows to dedicated monitors — pick the right level for your setup.</p>
+
+<p>SSL certificate expiry is one of the most preventable outages in web development. Every year, major sites go dark because a certificate expired and nobody noticed — not because the renewal was impossible, but because the alert never fired. The tools available today fall into two broad categories: <strong>free checkers you run manually</strong>, and <strong>automated monitors that alert you before expiry happens</strong>. Choosing the right one depends on how many domains you manage, how much production traffic is at stake, and whether you trust yourself to check on a schedule. This guide covers both ends of the spectrum honestly.</p>
+
+<hr/>
+
+<h2>Free SSL certificate checkers: the manual approach</h2>
+
+<p>Manual checkers are fast, require no signup, and are perfectly adequate for a small number of personal or low-stakes sites. The trade-off is simple: you have to remember to check, and most people don't.</p>
+
+<h3>1. curl / openssl from the command line</h3>
+
+<p>The fastest approach — no account, no browser, no setup. If you have openssl installed (it comes pre-installed on macOS and most Linux distros), you can check any domain in seconds:</p>
+
+<pre><code># Show full validity range (notBefore + notAfter)
+openssl s_client -connect domain.com:443 2>/dev/null | openssl x509 -noout -dates
+
+# Show only the expiry date
+echo | openssl s_client -servername domain.com -connect domain.com:443 2>/dev/null \
+  | openssl x509 -noout -enddate</code></pre>
+
+<p>Output from the second command looks like:</p>
+
+<pre><code>notAfter=Dec 14 23:59:59 2026 GMT</code></pre>
+
+<p>To get the number of days remaining directly (Linux):</p>
+
+<pre><code>expiry=$(echo | openssl s_client -servername domain.com -connect domain.com:443 2>/dev/null \
+  | openssl x509 -noout -enddate | cut -d= -f2)
+echo $(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 )) days remaining</code></pre>
+
+<p>The <code>-servername</code> flag enables SNI, which is required for virtual-hosted servers. Skip it and you may get the wrong certificate back on shared-IP servers.</p>
+
+<h3>2. Browser built-in certificate inspector</h3>
+
+<p>Every modern browser exposes certificate details behind the padlock (or site-info) icon in the address bar. Click it, then look for <strong>Connection is secure → Certificate is valid</strong> (Chrome/Edge) or the equivalent in Firefox/Safari. Drill in and you'll see the issuer, issued date, and expiry date.</p>
+
+<p>This works well for a one-off check on a site you're currently visiting. It doesn't scale to checking a list of domains, and it only shows the cert the browser received — not intermediate certs in the chain.</p>
+
+<h3>3. Free online SSL checkers</h3>
+
+<p>Web-based SSL checkers let you enter a domain and get expiry details without installing anything. They're useful when you're on a machine without openssl or when you want a second opinion.</p>
+
+<p>Our own <a href="https://lior-seats.github.io/ssl-cert-checker/">SSL Certificate Checker — free, no signup</a> shows days remaining, expiry date, issuer, and whether the chain is valid. Results appear in seconds with no account required.</p>
+
+<p>For deeper analysis — cipher suites, chain completeness, protocol support, and a letter-grade rating — <strong>SSL Labs Server Test</strong> (ssllabs.com/ssltest) is the most thorough free option. It takes 30–90 seconds per scan and is worth running before a production launch or after a cert renewal.</p>
+
+<h3>4. The core limitation of manual checking</h3>
+
+<p>All manual checkers share the same failure mode: <strong>you have to remember to use them</strong>. Most teams don't. Expiries sneak up during busy periods, after team transitions, or simply because nobody owns the "check SSL certs" calendar reminder. A cert that was 60 days out last month is now 7 days out, and nothing fired.</p>
+
+<div class="callout">
+<strong>The real cost isn't the tool — it's the cadence</strong>
+A free checker run weekly is more valuable than a paid monitor nobody configured. But automated monitoring removes the human cadence dependency entirely, which is why teams with any production traffic tend to drift toward it.
+</div>
+
+<hr/>
+
+<h2>When you've outgrown manual checking</h2>
+
+<p>Manual SSL checking works until it doesn't. Here are the signs you need something that runs on its own:</p>
+
+<ul>
+  <li><strong>More than 3–4 domains to track.</strong> Manually checking a dozen domains weekly is work that doesn't happen consistently.</li>
+  <li><strong>Any customer-facing production certificate.</strong> An expired cert on a production site means downtime, security warnings, and lost revenue. The risk isn't proportional to the savings from not paying $5/month for a monitor.</li>
+  <li><strong>Let's Encrypt certificates.</strong> The 90-day expiry is short by design, and auto-renewal can fail silently — a misconfigured Certbot hook, a DNS change, or a server migration can all break renewal without any visible error. You don't find out until the cert expires.</li>
+  <li><strong>"Who's responsible for SSL renewal" is ambiguous.</strong> In any team environment where multiple people share infra ownership, the answer to that question is often "everybody, which means nobody." Automated alerting closes the gap.</li>
+  <li><strong>After your first expiry incident.</strong> One outage is usually enough motivation to automate.</li>
+</ul>
+
+<hr/>
+
+<h2>Automated SSL monitoring options</h2>
+
+<p>Once you decide to automate, there are several approaches ranging from self-hosted scripts to purpose-built services. Here's how they compare.</p>
+
+<h3>1. Bash script + cron job</h3>
+
+<p>The lowest-cost automated option: a shell script that checks cert expiry using openssl and sends an email alert, scheduled via cron. Here's a working example:</p>
+
+<pre><code>#!/bin/bash
+# ssl-monitor.sh — check SSL expiry and alert if within WARN_DAYS
+
+DOMAINS=("example.com" "api.example.com" "staging.example.com")
+WARN_DAYS=30
+ALERT_EMAIL="ops@example.com"
+
+for domain in "${DOMAINS[@]}"; do
+  expiry=$(echo | openssl s_client -servername "$domain" \
+    -connect "${domain}:443" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  if [ -z "$expiry" ]; then
+    echo "SSL check failed: $domain" \
+      | mail -s "SSL FAIL: $domain" "$ALERT_EMAIL"
+    continue
+  fi
+
+  days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+
+  if [ "$days" -le "$WARN_DAYS" ]; then
+    echo "$domain expires in $days days ($expiry)" \
+      | mail -s "SSL WARNING: $domain expires in $days days" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<p>Schedule it in crontab to run daily:</p>
+
+<pre><code># Run SSL check daily at 8 AM
+0 8 * * * /usr/local/bin/ssl-monitor.sh >> /var/log/ssl-monitor.log 2>&1</code></pre>
+
+<p><strong>Strengths:</strong> free, no external dependencies, auditable, runs on infrastructure you control.</p>
+
+<p><strong>Weaknesses:</strong> the script itself can fail silently (cron stops, server migrates, mail server is down). There's no watchdog on the watchdog. You also have to keep the domain list updated manually, and every new domain added to your infrastructure is a manual step away from a gap.</p>
+
+<h3>2. GitHub Actions scheduled check</h3>
+
+<p>If your team already lives in GitHub, a scheduled workflow is an attractive option — no server needed, visible to the whole team, and free within GitHub Actions limits. Here's a working workflow:</p>
+
+<pre><code>name: SSL Certificate Expiry Check
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # daily at 8 AM UTC
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  check-ssl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check SSL certificates
+        run: |
+          DOMAINS=("example.com" "api.example.com" "staging.example.com")
+          WARN_DAYS=30
+          FAILED=0
+
+          for domain in "${DOMAINS[@]}"; do
+            expiry=$(echo | openssl s_client -servername "$domain" \
+              -connect "${domain}:443" 2>/dev/null \
+              | openssl x509 -noout -enddate 2>/dev/null \
+              | cut -d= -f2)
+
+            if [ -z "$expiry" ]; then
+              echo "FAIL: Could not retrieve cert for $domain"
+              FAILED=1
+              continue
+            fi
+
+            days=$(( ($(date -d "$expiry" +%s) - $(date +%s)) / 86400 ))
+            echo "$domain: $days days remaining (expires $expiry)"
+
+            if [ "$days" -le "$WARN_DAYS" ]; then
+              echo "WARNING: $domain expires in $days days"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED</code></pre>
+
+<p>When the workflow fails (any cert within 30 days), GitHub sends a failure notification to whoever has notifications enabled. You can extend this with Slack notifications via <code>actions/github-script</code> or a dedicated Slack action.</p>
+
+<p><strong>Strengths:</strong> no server dependency, team-visible, integrates with existing GitHub notification preferences, free.</p>
+
+<p><strong>Weaknesses:</strong> GitHub Actions checks originate from GitHub's infrastructure — if your domain is IP-allowlisted, you'll need to handle that. The domain list is still manual. Alerts arrive as workflow failure notifications, which blend in with CI failures and get ignored over time.</p>
+
+<h3>3. Uptime monitoring services with SSL checking</h3>
+
+<p>General-purpose uptime monitors like UptimeRobot, BetterStack, and Freshping include SSL expiry checking as part of their HTTP monitor feature. If you're already paying for uptime monitoring, check whether SSL alerting is included in your plan — it often is, as a secondary feature.</p>
+
+<p>The typical setup: add a monitor for <code>https://example.com</code>, and the service checks both uptime and certificate expiry. Alert thresholds vary by platform — some only alert at 7 days, others offer configurable windows.</p>
+
+<p><strong>Strengths:</strong> one tool for uptime + SSL, familiar interface if you're already using one of these services.</p>
+
+<p><strong>Weaknesses:</strong> SSL alerting is a secondary feature, not the primary focus. Alert lead times are often shorter than ideal, and the multi-cert management workflow isn't purpose-built.</p>
+
+<h3>4. Dedicated SSL monitoring</h3>
+
+<p>Purpose-built SSL monitoring tools handle the full lifecycle: scheduled external checks, configurable alert windows (30/14/7/1 days is a common pattern), multi-domain dashboards, and alert routing to email and Slack. The external-check architecture means monitoring continues even if your server is down.</p>
+
+<p><a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a> is a dedicated SSL monitoring tool built exactly for this: add your domains, and it checks them on a schedule and sends alerts at 30, 14, 7, and 1 day before expiry. No cron job to configure, no domain list to keep synchronized with a script, no server dependency. The monitoring keeps running regardless of your infrastructure state.</p>
+
+<hr/>
+
+<h2>What to look for in an SSL monitoring tool</h2>
+
+<p>If you're evaluating dedicated SSL monitors, here are the features that actually matter:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Why it matters</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Alert lead time</strong></td>
+      <td>30+ days is ideal for managed certificates — you need time to request, validate, and deploy. 14+ days for Let's Encrypt, where auto-renewal should catch it but might not.</td>
+    </tr>
+    <tr>
+      <td><strong>Multi-domain support</strong></td>
+      <td>A monitor that only handles one domain at a time creates the same scaling problem as manual checking. Look for bulk import or a clean dashboard view across all domains.</td>
+    </tr>
+    <tr>
+      <td><strong>Alert channels</strong></td>
+      <td>Email is a baseline. Slack integration is important for teams that already route operational alerts there. PagerDuty or webhook support matters for on-call workflows.</td>
+    </tr>
+    <tr>
+      <td><strong>External check architecture</strong></td>
+      <td>The monitor should run from infrastructure independent of yours. A monitoring script on your own server stops working the moment your server has problems — which is exactly when you need monitoring most.</td>
+    </tr>
+    <tr>
+      <td><strong>Dashboard visibility</strong></td>
+      <td>A view of all your domains and their days remaining is useful beyond just alerts — it lets you proactively review the cert portfolio and catch anything that slipped through.</td>
+    </tr>
+    <tr>
+      <td><strong>Price</strong></td>
+      <td>For small teams and indie developers, $9/month or less is a reasonable ceiling. SSL monitoring is infrastructure hygiene, not a growth tool — the price should reflect that.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Which approach is right for your setup</h2>
+
+<p>There's no single correct answer — the right tool depends on your context:</p>
+
+<ul>
+  <li><strong>1–2 personal or low-traffic sites:</strong> Use the <a href="https://lior-seats.github.io/ssl-cert-checker/">free SSL certificate checker</a> for a quick pulse check, and set a calendar reminder every 60 days. For low-stakes sites, the overhead of a paid monitor isn't justified.</li>
+  <li><strong>3–10 domains or any production traffic:</strong> Automate. Either a GitHub Actions workflow (if your team lives in GitHub) or a dedicated monitor. The time cost of one expiry incident — debugging, deploying a fix at 2 AM, handling customer complaints — far exceeds the cost of a $5–9/month monitor.</li>
+  <li><strong>Team environment or any Let's Encrypt setup:</strong> A dedicated SSL monitoring service is worth it. Let's Encrypt's 90-day cycle and auto-renewal dependency make silent failures common. Teams with ambiguous ownership make manual checking unreliable. Purpose-built monitoring closes both gaps.</li>
+</ul>
+
+<div class="callout">
+<strong>The most common mistake</strong>
+Starting with a manual checker, meaning to eventually automate, and never getting around to it until a cert expires in production. If you have more than a couple of domains and any of them serve real users, automate now — it takes 10 minutes and the failure mode of not doing it is a production outage at the worst possible time.
+</div>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🔍 Free SSL Certificate Checker</h3>
+  <p>Check any domain instantly — days remaining, issuer, expiry date. No signup required.</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check your SSL certificate →</a>
+</div>
+
+<div class="cta-box secondary">
+  <h3>🔔 SSLWatch — Automated SSL Monitoring</h3>
+  <p>Monitor your domains and get alerted at 30, 14, 7, and 1 days before expiry. No more manual checking.</p>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn">Join the SSLWatch waitlist →</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-monitoring-tools',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
