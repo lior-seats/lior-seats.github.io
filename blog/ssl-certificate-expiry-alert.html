@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Set Up SSL Certificate Expiry Alerts (3 Methods)</title>
+<meta name="description" content="Three ways to get alerted before your SSL certificate expires: a cron + curl script, Let's Encrypt automatic renewal, and a dedicated SSL monitoring service. Step-by-step setup for each."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/ssl-certificate-expiry-alert.html"/>
+<meta property="og:title" content="How to Set Up SSL Certificate Expiry Alerts (3 Methods)"/>
+<meta property="og:description" content="Stop finding out your SSL cert expired from users. Three methods to get email alerts before expiry: cron script, Let's Encrypt, and dedicated SSL monitoring."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/ssl-certificate-expiry-alert.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .method-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin: 1.5em 0; }
+  .method-card h3 { margin-top: 0; }
+  .method-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.75em; display: flex; gap: 1rem; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 700; }
+  .badge-easy { background: #dcfce7; color: #166534; }
+  .badge-medium { background: #fef3c7; color: #92400e; }
+  .badge-hard { background: #fee2e2; color: #991b1b; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:last-child td { border-bottom: none; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Set Up SSL Certificate Expiry Alerts (3 Methods)</h1>
+
+<p class="meta">A cron script, Let's Encrypt auto-renewal, and a dedicated monitoring service — pick the one that fits your stack.</p>
+
+<p>SSL certificates expire. When they do, browsers show a "Your connection is not private" warning and your site becomes effectively inaccessible to most users. The fix is trivial — renew the certificate — but finding out about the expiry in time requires actually setting up alerts.</p>
+
+<p>Most teams don't, until it happens once. Here are three ways to make sure it doesn't happen to you.</p>
+
+<hr/>
+
+<h2>Quick comparison</h2>
+
+<table>
+  <thead>
+    <tr><th>Method</th><th>Setup time</th><th>Maintenance</th><th>Best for</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Cron + curl script</strong></td><td>15 min</td><td>Low</td><td>Linux servers you control</td></tr>
+    <tr><td><strong>Let's Encrypt / certbot</strong></td><td>30 min</td><td>None (auto-renews)</td><td>Public-facing web servers</td></tr>
+    <tr><td><strong>Dedicated monitoring service</strong></td><td>2 min</td><td>None</td><td>Multiple domains, no server access</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Method 1: Cron script + email alert</h2>
+
+<div class="method-meta"><span class="badge badge-medium">Medium effort</span><span>~15 minutes</span><span>Works on any Linux server</span></div>
+
+<p>A shell script that checks certificate expiry via OpenSSL and emails you when it's within 30 days. Scheduled via cron to run daily.</p>
+
+<pre><code>#!/bin/bash
+<span class="comment"># ssl-expiry-check.sh
+# Run daily to alert when any cert expires within $DAYS_THRESHOLD</span>
+
+DAYS_THRESHOLD=30
+ALERT_EMAIL="you@yourcompany.com"
+DOMAINS=(
+  "yoursite.com"
+  "api.yoursite.com"
+  "app.yoursite.com"
+)
+
+for DOMAIN in "${DOMAINS[@]}"; do
+  EXPIRY=$(echo | openssl s_client -servername "$DOMAIN" \
+    -connect "$DOMAIN:443" 2>/dev/null \
+    | openssl x509 -noout -enddate 2>/dev/null \
+    | cut -d= -f2)
+
+  if [ -z "$EXPIRY" ]; then
+    echo "WARNING: Could not check $DOMAIN" | \
+      mail -s "SSL check failed: $DOMAIN" "$ALERT_EMAIL"
+    continue
+  fi
+
+  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null \
+    || date -j -f "%b %d %T %Y %Z" "$EXPIRY" +%s)
+  NOW_EPOCH=$(date +%s)
+  DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+  if [ "$DAYS_LEFT" -le "$DAYS_THRESHOLD" ]; then
+    echo "$DOMAIN SSL cert expires in $DAYS_LEFT days ($EXPIRY)" | \
+      mail -s "SSL expiry warning: $DOMAIN ($DAYS_LEFT days)" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<p>Install and schedule:</p>
+
+<pre><code><span class="comment"># Make executable</span>
+chmod +x /opt/scripts/ssl-expiry-check.sh
+
+<span class="comment"># Run daily at 9am — add to crontab</span>
+0 9 * * * /opt/scripts/ssl-expiry-check.sh
+
+<span class="comment"># Test it manually first</span>
+./ssl-expiry-check.sh</code></pre>
+
+<p><strong>Pros:</strong> No external dependencies. Works for any domain you can connect to. You control the alert threshold and delivery.</p>
+
+<p><strong>Cons:</strong> Requires a running server. If your server is down, the check doesn't run. Email via <code>mail</code> needs a configured mail relay. The script needs to be maintained as your domain list changes.</p>
+
+<div class="callout">
+  <strong>One hidden failure mode:</strong> The cron job itself can fail silently. If your server is down on renewal day, or the cron job is misconfigured, you get no alert. Consider adding a dead man's switch to the script — a heartbeat ping to a monitoring service that fires when the script runs successfully.
+</div>
+
+<hr/>
+
+<h2>Method 2: Let's Encrypt with certbot auto-renewal</h2>
+
+<div class="method-meta"><span class="badge badge-easy">Easiest long-term</span><span>~30 min setup</span><span>Requires server control + HTTP access</span></div>
+
+<p>Let's Encrypt certificates expire after 90 days, but certbot automatically renews them when they're within 30 days of expiry. Once set up, you should never deal with certificate renewal again.</p>
+
+<pre><code><span class="comment"># Install certbot (Ubuntu/Debian)</span>
+sudo apt install certbot python3-certbot-nginx
+
+<span class="comment"># Obtain a certificate (nginx)</span>
+sudo certbot --nginx -d yoursite.com -d www.yoursite.com
+
+<span class="comment"># Certbot installs a systemd timer or cron job automatically.
+# Verify it's there:</span>
+sudo systemctl list-timers | grep certbot
+<span class="comment"># or:</span>
+sudo crontab -l | grep certbot</code></pre>
+
+<p>Certbot will auto-renew and reload nginx. But there's a catch: <strong>the renewal can fail silently.</strong> Certbot logs failures but doesn't email you by default unless you configure it:</p>
+
+<pre><code><span class="comment"># Add to /etc/letsencrypt/cli.ini to get renewal failure emails</span>
+post-hook = systemctl reload nginx
+pre-hook = systemctl stop nginx  <span class="comment"># if using standalone</span>
+
+<span class="comment"># Enable renewal failure notifications (certbot 1.22+)</span>
+certbot renew --dry-run  <span class="comment"># Test first</span>
+<span class="comment"># Add to certbot config:
+# renew-hook = /opt/scripts/notify-renewal.sh</span></code></pre>
+
+<p>A more reliable approach is to monitor the certificate externally — even if you use Let's Encrypt for renewal, an external checker verifies the certificate is actually valid and will alert you if renewal fails.</p>
+
+<p><strong>Pros:</strong> Fully automatic after setup. 90-day certificates with 30-day renewal window means you always have buffer. Industry standard for public-facing sites.</p>
+
+<p><strong>Cons:</strong> Requires domain validation (HTTP-01 or DNS-01 challenges). Doesn't work for wildcard certs without DNS challenge. Let's Encrypt rate limits apply. Renewal failures can still happen — especially after server configuration changes.</p>
+
+<hr/>
+
+<h2>Method 3: Dedicated SSL monitoring service</h2>
+
+<div class="method-meta"><span class="badge badge-easy">Easiest setup</span><span>2 minutes</span><span>Works for any domain from anywhere</span></div>
+
+<p>A dedicated SSL monitoring service checks your certificates from external infrastructure on a schedule, and emails you at configurable intervals before expiry (typically 30, 14, 7, and 1 day). You add a domain, they handle the rest.</p>
+
+<p>No server access required. No scripts to maintain. Works for domains you don't control the server for (third-party APIs, vendor domains you depend on, client sites you manage).</p>
+
+<p><strong>What to look for in an SSL monitoring service:</strong></p>
+
+<ul>
+  <li>Alerts at multiple thresholds (30 days, 14 days, 7 days, 1 day — not just one)</li>
+  <li>Multiple domains in a single dashboard</li>
+  <li>Email alerts at minimum; Slack/webhook for bonus points</li>
+  <li>Checks from multiple locations (so a single network outage doesn't suppress the alert)</li>
+  <li>Simple setup — no agents to install, just add the domain</li>
+</ul>
+
+<div class="cta-inline" style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px 20px;margin:1.8em 0;font-size:0.95rem">
+  🔍 <strong>First, check when your cert actually expires:</strong> <a href="https://lior-seats.github.io/ssl-cert-checker/">paste any domain into the free SSL checker →</a> No signup needed.
+</div>
+
+<div class="cta-box">
+  <h3>🔐 SSLWatch — email alerts before your SSL cert expires</h3>
+  <p>SSLWatch monitors your domains 24/7 and sends email alerts 30, 14, 7, and 1 day before any certificate expires. Add a domain in under a minute — no server access required. $9/month for up to 50 domains.</p>
+  <a class="btn" href="https://lior-seats.github.io/sslwatch-waitlist/">Join the SSLWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/ssl-cert-checker/">Check a domain free</a>
+</div>
+
+<hr/>
+
+<h2>Which method should you use?</h2>
+
+<p><strong>Use Let's Encrypt + certbot</strong> if you run your own Linux web server, your site is publicly accessible, and you want zero ongoing maintenance. Pair it with an external monitor to catch renewal failures.</p>
+
+<p><strong>Use a cron script</strong> if you have specific servers where you can't or won't use Let's Encrypt — internal services, staging environments, or non-standard setups. Add a dead man's switch to make sure the script itself doesn't fail silently.</p>
+
+<p><strong>Use a dedicated monitoring service</strong> if you manage multiple domains, don't have server access, or just want email alerts without maintaining any infrastructure. This is the fastest path from "no monitoring" to "I'll know 30 days before expiry."</p>
+
+<p>For production sites with real users, combining approaches is best: auto-renewal to keep the certificate current, and external monitoring to verify the renewal actually worked.</p>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/">SSLWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/ssl-cert-checker/">Free SSL checker</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=ssl-certificate-expiry-alert',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>
