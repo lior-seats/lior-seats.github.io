@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>How to Monitor Domain Expiry and Get Alerts Before It Expires</title>
+<meta name="description" content="Three methods to monitor domain expiry and get alerts before your domain name expires: WHOIS cron script, registrar reminders, and automated monitoring. Never lose a domain again."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/domain-expiry-monitoring.html"/>
+<meta property="og:title" content="How to Monitor Domain Expiry and Get Alerts Before It Expires"/>
+<meta property="og:description" content="Three methods to monitor domain expiry: WHOIS cron script, registrar reminders, and automated monitoring. Step-by-step guide to never lose a domain again."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/domain-expiry-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .method-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin: 1.5em 0; }
+  .method-card h3 { margin-top: 0; }
+  .method-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.75em; display: flex; gap: 1rem; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 700; }
+  .badge-easy { background: #dcfce7; color: #166534; }
+  .badge-medium { background: #fef3c7; color: #92400e; }
+  .badge-hard { background: #fee2e2; color: #991b1b; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:last-child td { border-bottom: none; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>How to Monitor Domain Expiry and Get Alerts Before It Expires</h1>
+
+<p class="meta">Three methods to make sure you never lose a domain — from a simple cron script to automated monitoring.</p>
+
+<p>Losing a domain because it silently expired is one of the most avoidable disasters in web infrastructure. Your site goes dark, your email stops working, and in the worst case a squatter registers it before you can renew. It happens more often than you'd expect — especially when auto-renew fails silently, when domains are managed across multiple registrars, or when the original billing email no longer works.</p>
+
+<p>This guide covers three ways to monitor domain expiry and get alerted before it's too late.</p>
+
+<div class="callout">
+  <strong>⚠️ Why registrar reminders aren't enough</strong>
+  Registrar reminder emails land in inboxes that may belong to former employees, go to spam, or get ignored because they arrive 60 days out and feel non-urgent. By the time the <em>final</em> reminder fires, you have days to act — not weeks.
+</div>
+
+<hr/>
+
+<h2>Quick comparison</h2>
+
+<table>
+  <thead>
+    <tr><th>Method</th><th>Setup time</th><th>Maintenance</th><th>Best for</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>WHOIS cron script</strong></td><td>20 min</td><td>Low</td><td>Linux servers, technical teams</td></tr>
+    <tr><td><strong>Registrar auto-renew + calendar</strong></td><td>5 min</td><td>None</td><td>Personal sites, single registrar</td></tr>
+    <tr><td><strong>Dedicated monitoring service</strong></td><td>2 min</td><td>None</td><td>Multiple domains, always-on alerting</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Method 1: WHOIS cron script</h2>
+
+<div class="method-card">
+  <h3>⚙️ Build it yourself</h3>
+  <div class="method-meta">
+    <span>Setup: ~20 minutes</span>
+    <span class="badge badge-medium">Medium complexity</span>
+    <span>Requires: Linux server, mail setup</span>
+  </div>
+  <p>The most direct approach: query WHOIS data for your domain and parse the expiry date. When days remaining drops below a threshold, send an alert.</p>
+</div>
+
+<p>First, install <code>whois</code> if it's not already available:</p>
+
+<pre><code>sudo apt-get install -y whois   <span class="comment"># Debian/Ubuntu</span>
+sudo yum install -y whois       <span class="comment"># CentOS/RHEL</span></code></pre>
+
+<p>Create the monitoring script at <code>/usr/local/bin/check-domain-expiry.sh</code>:</p>
+
+<pre><code>#!/bin/bash
+# Domain expiry checker — alerts when expiry is within N days
+
+DOMAIN="$1"
+ALERT_DAYS="${2:-30}"        # Alert if expiry is within 30 days
+ALERT_EMAIL="ops@example.com"
+
+if [ -z "$DOMAIN" ]; then
+  echo "Usage: $0 &lt;domain&gt; [days-before-alert]"
+  exit 1
+fi
+
+# Query WHOIS and extract expiry date
+EXPIRY_RAW=$(whois "$DOMAIN" 2>/dev/null | grep -iE "expir(y|ation).*date|paid-till" | head -1)
+EXPIRY_DATE=$(echo "$EXPIRY_RAW" | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/[0-9]{4}" | head -1)
+
+if [ -z "$EXPIRY_DATE" ]; then
+  echo "ERROR: Could not parse expiry date for $DOMAIN"
+  echo "WHOIS output: $EXPIRY_RAW"
+  exit 1
+fi
+
+# Convert to epoch (normalize date format)
+EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$EXPIRY_DATE" +%s)
+NOW_EPOCH=$(date +%s)
+DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+echo "Domain: $DOMAIN | Expires: $EXPIRY_DATE | Days left: $DAYS_LEFT"
+
+if [ "$DAYS_LEFT" -le "$ALERT_DAYS" ]; then
+  echo "ALERT: $DOMAIN expires in $DAYS_LEFT days ($EXPIRY_DATE)" | \
+    mail -s "⚠️ Domain expiry warning: $DOMAIN" "$ALERT_EMAIL"
+  echo "Alert sent to $ALERT_EMAIL"
+fi</code></pre>
+
+<p>Make it executable and test it:</p>
+
+<pre><code>chmod +x /usr/local/bin/check-domain-expiry.sh
+/usr/local/bin/check-domain-expiry.sh github.com 365</code></pre>
+
+<p>Add a cron job to run daily for each domain you manage:</p>
+
+<pre><code><span class="comment"># Check domain expiry daily at 9am</span>
+0 9 * * * /usr/local/bin/check-domain-expiry.sh yourdomain.com 30
+0 9 * * * /usr/local/bin/check-domain-expiry.sh yourdomain.io 30</code></pre>
+
+<h3>WHOIS limitations to know</h3>
+
+<ul>
+  <li><strong>Rate limiting:</strong> WHOIS servers rate-limit bulk queries — avoid checking dozens of domains per minute.</li>
+  <li><strong>Format inconsistency:</strong> Different registrars use different WHOIS date formats. The regex above covers the most common ones but may miss edge cases.</li>
+  <li><strong>Privacy-protected domains:</strong> WHOIS privacy services (like Cloudflare Registrar) may mask the expiry date. In that case, RDAP is more reliable.</li>
+  <li><strong>Sendmail dependency:</strong> The <code>mail</code> command requires a working mail transfer agent on the server.</li>
+</ul>
+
+<h3>Using RDAP instead of WHOIS</h3>
+
+<p>RDAP (Registration Data Access Protocol) is the modern replacement for WHOIS. It returns structured JSON, which is far easier to parse reliably:</p>
+
+<pre><code>curl -s "https://rdap.org/domain/github.com" | \
+  python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+events = data.get('events', [])
+for e in events:
+    if e.get('eventAction') == 'expiration':
+        print('Expires:', e.get('eventDate', 'unknown'))
+"</code></pre>
+
+<hr/>
+
+<h2>Method 2: Registrar auto-renew + calendar reminders</h2>
+
+<div class="method-card">
+  <h3>📅 Manual safety net</h3>
+  <div class="method-meta">
+    <span>Setup: ~5 minutes</span>
+    <span class="badge badge-easy">Easy</span>
+    <span>Requires: Registrar access, calendar app</span>
+  </div>
+  <p>For personal sites and small portfolios, a belt-and-suspenders approach with auto-renew and explicit calendar reminders works well — as long as you actually do it.</p>
+</div>
+
+<p>The steps:</p>
+
+<ol>
+  <li><strong>Enable auto-renew</strong> on every domain. This is the most important thing. Log into your registrar, find each domain, and confirm auto-renew is on.</li>
+  <li><strong>Verify the payment method is current.</strong> Auto-renew fails silently when the card on file has expired. Check the billing details now.</li>
+  <li><strong>Set a calendar reminder 60 days before expiry.</strong> The reminder should say "check auto-renew payment method for [domain]" — not "renew domain." This gives you enough runway to fix a failed payment before the domain actually expires.</li>
+  <li><strong>Keep a spreadsheet of all domains</strong> with their registrars, expiry dates, and renewal contact email. This sounds trivial but most outages happen because nobody knows who manages a given domain.</li>
+</ol>
+
+<div class="callout">
+  <strong>🔁 Auto-renew is not a monitoring strategy</strong>
+  Auto-renew fails when cards expire, when accounts get locked, when billing emails are wrong, or when the registrar has an internal issue. It reduces risk but doesn't eliminate it. You need independent verification.
+</div>
+
+<hr/>
+
+<h2>Method 3: Dedicated domain expiry monitoring</h2>
+
+<div class="method-card">
+  <h3>🔔 Always-on alerting</h3>
+  <div class="method-meta">
+    <span>Setup: 2 minutes</span>
+    <span class="badge badge-easy">Easy</span>
+    <span>No server required</span>
+  </div>
+  <p>A dedicated monitoring service checks your domains regularly and emails you before they expire — from outside your infrastructure, so it works even if your own servers are down.</p>
+</div>
+
+<p>The key advantage of an external service over a cron script on your server: <strong>it doesn't share failure modes with your infrastructure</strong>. If the server running your cron script has a disk failure or gets rebooted, the domain monitoring stops silently. An external service continues watching regardless.</p>
+
+<p>What good domain expiry monitoring looks like:</p>
+
+<ul>
+  <li>Alerts at 30, 14, 7, and 1 day before expiry</li>
+  <li>Checks both domain expiry (WHOIS/RDAP) and SSL certificate expiry together</li>
+  <li>Dashboard showing all monitored domains with days remaining</li>
+  <li>Works for domains across any registrar — no registrar integration needed</li>
+  <li>Operates independently of your servers</li>
+</ul>
+
+<hr/>
+
+<h2>Checklist: what to monitor beyond domain expiry</h2>
+
+<p>While you're setting up domain expiry monitoring, it's worth thinking about the other expiry signals that cause silent outages:</p>
+
+<table>
+  <thead>
+    <tr><th>What expires</th><th>Typical failure mode</th><th>Alert threshold</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Domain name</td><td>Site goes down, email stops, squatting risk</td><td>30 days</td></tr>
+    <tr><td>SSL certificate</td><td>"Not secure" warning in browsers, HTTPS broken</td><td>30 days</td></tr>
+    <tr><td>API keys / tokens</td><td>Silent 401s in production</td><td>30 days</td></tr>
+    <tr><td>TLS client certs</td><td>Service-to-service auth failures</td><td>30 days</td></tr>
+    <tr><td>Code signing certs</td><td>App distribution failures, rejected builds</td><td>60 days</td></tr>
+  </tbody>
+</table>
+
+<p>SSL certificate expiry is the most common silent failure we see — and unlike domain expiry, it doesn't get email reminders from registrars. Certificates issued by Let's Encrypt auto-renew (when certbot is running), but certificates from other CAs don't, and Let's Encrypt auto-renewal fails silently when the certbot cron job stops working.</p>
+
+<hr/>
+
+<h2>Which method should you use?</h2>
+
+<p><strong>Use a cron script</strong> if you already have reliable server infrastructure and want zero external dependencies. Budget 20–30 minutes to write it correctly with proper error handling and email delivery.</p>
+
+<p><strong>Use registrar auto-renew + calendar reminders</strong> if you manage fewer than five domains and they all live at the same registrar. It's not automated monitoring, but it's a workable safety net if you actually follow through on the calendar reminders.</p>
+
+<p><strong>Use a dedicated monitoring service</strong> if you manage multiple domains across different registrars, if you want external verification that works even when your infrastructure has problems, or if you want SSL certificate monitoring bundled with domain monitoring in the same dashboard.</p>
+
+<div class="cta-box">
+  <h3>🔔 Monitor your SSL certificates too</h3>
+  <p>Domain expiry and SSL certificate expiry are the two most common silent failures that take sites offline without warning. If you're setting up domain monitoring, SSL monitoring is the natural next step — and it doesn't require registrar access.</p>
+  <p>Enter any domain to check its SSL certificate expiry instantly:</p>
+  <a href="https://lior-seats.github.io/ssl-cert-checker/" class="btn">Check SSL expiry free →</a>
+  <a href="https://lior-seats.github.io/sslwatch-waitlist/" class="btn btn-secondary">Get SSL expiry alerts →</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=domain-expiry-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
