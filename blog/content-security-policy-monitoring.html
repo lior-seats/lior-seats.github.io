@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Content Security Policy Monitoring: Detect CSP Changes Automatically</title>
+<meta name="description" content="CSP headers can break your site or silently weaken security after a deployment. Learn how to monitor Content Security Policy changes and get alerted automatically."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/content-security-policy-monitoring.html"/>
+<meta property="og:title" content="Content Security Policy Monitoring: Detect CSP Changes Automatically"/>
+<meta property="og:description" content="CSP headers can break your site or silently weaken security after a deployment. Learn how to monitor Content Security Policy changes and get alerted automatically."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/content-security-policy-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .danger { background: #fff1f2; border-left: 4px solid #f43f5e; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Content Security Policy Monitoring: Detect CSP Changes Automatically</h1>
+
+<p class="meta">A Content Security Policy that silently changes after a deployment can break your site, allow cross-site scripting, or block legitimate scripts without anyone knowing until users start complaining.</p>
+
+<p>Content Security Policy is one of the most powerful security headers available — and one of the most fragile. A CSP that protects your users can change or disappear in seconds when you update a CDN rule, rotate a nonce, or modify a reverse proxy config. The effects range from subtle (a third-party widget stops loading) to severe (a broken site that blocks all JavaScript).</p>
+
+<p>This guide covers how CSP regressions happen, how to check your current policy, and how to monitor it automatically so you find out before your users do.</p>
+
+<div class="cta-inline">
+  🔍 <strong>Check your CSP right now:</strong> <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker — see your Content-Security-Policy and all other headers →</a>
+</div>
+
+<hr/>
+
+<h2>What Content Security Policy does</h2>
+
+<p>The <code>Content-Security-Policy</code> header tells browsers which sources are allowed to load scripts, styles, images, fonts, and other resources on your page. A strict CSP blocks cross-site scripting (XSS) attacks by refusing to execute inline scripts and restricting external script sources to an explicit allowlist.</p>
+
+<p>A minimal script-blocking CSP looks like this:</p>
+
+<pre><code>Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.example.com; style-src 'self' 'unsafe-inline'</code></pre>
+
+<p>This policy says: load everything from the same origin by default, allow scripts only from the current origin and <code>cdn.example.com</code>, and allow inline styles (common requirement for frameworks that inject inline CSS).</p>
+
+<p>When this header disappears or gets weakened — for example, by someone adding <code>script-src 'unsafe-inline' *</code> to fix a broken widget — your XSS protection is gone. Browsers won't warn you. Users won't notice unless they're actively exploited.</p>
+
+<hr/>
+
+<h2>How CSP headers regress</h2>
+
+<h3>CDN config changes</h3>
+<p>Cloudflare Transform Rules, AWS CloudFront response headers policies, and Fastly VCL configs all sit in front of your application and can override or strip the CSP your app sends. When a team member updates a CDN rule without realizing it affects security headers, the CSP can change without any application deployment happening.</p>
+
+<h3>Nonce rotation without a monitoring update</h3>
+<p>CSPs that use nonces (<code>script-src 'nonce-abc123'</code>) require generating a new nonce on every request. If a deployment changes the nonce generation logic, changes the CSP header string, or accidentally hard-codes a nonce, the policy becomes either broken or trivially bypassable.</p>
+
+<h3>Framework and middleware upgrades</h3>
+<p>Many frameworks set security headers automatically — Helmet.js, Django's SecurityMiddleware, Rails' <code>secure_headers</code> gem. When you upgrade these packages, the default CSP values often change to reflect new browser support. What was a strict policy on version 4 may become looser on version 6, or stricter in ways that break your legitimate asset loads.</p>
+
+<h3>Proxy and load balancer changes</h3>
+<p>Moving traffic between nginx and a load balancer, adding a new reverse proxy, or changing SSL termination layers can silently drop headers that were configured at a layer that's no longer in the request path. The header was there last Tuesday; it's gone today because the traffic routing changed.</p>
+
+<div class="danger">
+  <strong>The silent regression problem:</strong> Unlike a broken API or a 500 error, a missing or weakened CSP produces no application logs, no error pages, and no monitoring alerts unless you specifically watch for it. It can stay undetected for weeks.
+</div>
+
+<hr/>
+
+<h2>How to check your current CSP</h2>
+
+<h3>curl from the command line</h3>
+<pre><code>curl -s -I https://yourdomain.com | grep -i "content-security-policy"</code></pre>
+
+<p>If this produces no output, your site has no CSP set. If the output looks different from what you expect, something has changed since you last deployed.</p>
+
+<p>For a full headers check across all six major security headers at once:</p>
+<pre><code>curl -s -I https://yourdomain.com | grep -iE "content-security|x-frame|x-content-type|strict-transport|referrer-policy|permissions-policy"</code></pre>
+
+<h3>Browser DevTools</h3>
+<p>Open Chrome DevTools → Network tab → click any document request → scroll to Response Headers. You'll see the CSP value sent by the server (not necessarily what the meta tag in HTML says — the HTTP header takes precedence for most enforcement).</p>
+
+<h3>Free security headers checker</h3>
+<p>The <a href="https://lior-seats.github.io/security-headers-checker/">security headers checker</a> shows a full breakdown of your CSP and all other security headers in one check. It flags missing directives, grades your overall security posture, and explains what each header does.</p>
+
+<hr/>
+
+<h2>How to monitor CSP automatically</h2>
+
+<p>Checking manually is useful for a specific deployment. Monitoring is different: you want to know the moment the header changes on its own — whether or not a deployment happened.</p>
+
+<h3>Method 1: cron script with curl + diff</h3>
+
+<p>Save the known-good CSP value to a file, then run a cron job that compares the live header to the saved value:</p>
+
+<pre><code>#!/bin/bash
+# /usr/local/bin/check-csp.sh
+DOMAIN="yourdomain.com"
+EXPECTED_CSP="default-src 'self'; script-src 'self' https://cdn.yourdomain.com"
+EMAIL="security@yourdomain.com"
+
+CURRENT_CSP=$(curl -s -I "https://$DOMAIN" | grep -i "content-security-policy" | sed 's/content-security-policy: //i' | tr -d '\r')
+
+if [ "$CURRENT_CSP" != "$EXPECTED_CSP" ]; then
+  echo "CSP changed on $DOMAIN.
+Expected: $EXPECTED_CSP
+Got: $CURRENT_CSP" | mail -s "Security alert: CSP changed on $DOMAIN" "$EMAIL"
+fi</code></pre>
+
+<pre><code># crontab: check every 6 hours
+0 */6 * * * /usr/local/bin/check-csp.sh</code></pre>
+
+<p>This approach works but requires maintaining the expected value as your CSP legitimately evolves, and it only alerts on exact string differences — a whitespace change or header case difference triggers a false positive.</p>
+
+<h3>Method 2: GitHub Actions scheduled check</h3>
+
+<pre><code>name: CSP Monitor
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Daily at 8am UTC
+
+jobs:
+  check-csp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Content Security Policy
+        run: |
+          CSP=$(curl -s -I https://yourdomain.com | grep -i "content-security-policy")
+          if [ -z "$CSP" ]; then
+            echo "::error::Content-Security-Policy header is missing!"
+            exit 1
+          fi
+          echo "CSP present: $CSP"
+          # Optionally: check for dangerous values
+          if echo "$CSP" | grep -q "unsafe-eval"; then
+            echo "::warning::CSP contains unsafe-eval"
+          fi</code></pre>
+
+<p>GitHub will email you when the action fails. This catches a missing CSP but won't alert on a weakened-but-present policy unless you add more specific checks.</p>
+
+<h3>Method 3: Dedicated security header monitoring</h3>
+
+<p>The most reliable approach is a service that monitors your security headers continuously from external infrastructure and alerts you the moment any header changes — including partial changes, weakened values, and header removals.</p>
+
+<div class="cta-box">
+  <h3>🛡️ Monitor your CSP and all security headers automatically</h3>
+  <p><strong><a href="https://lior-seats.github.io/headerguard-waitlist/">HeaderGuard</a></strong> checks your HTTP security headers daily and sends an email alert the moment anything changes — Content-Security-Policy, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy.</p>
+  <p>Add your domain once. Get notified before a security regression turns into a breach report.</p>
+  <a href="https://lior-seats.github.io/headerguard-waitlist/" class="btn">Join the HeaderGuard waitlist →</a>
+  <a href="https://lior-seats.github.io/security-headers-checker/" class="btn btn-secondary">Check your headers free</a>
+</div>
+
+<hr/>
+
+<h2>CSP directives quick reference</h2>
+
+<table>
+  <tr><th>Directive</th><th>Controls</th><th>Common safe value</th></tr>
+  <tr><td><code>default-src</code></td><td>Fallback for all resource types</td><td><code>'self'</code></td></tr>
+  <tr><td><code>script-src</code></td><td>JavaScript sources</td><td><code>'self'</code> + explicit CDN origins</td></tr>
+  <tr><td><code>style-src</code></td><td>CSS sources</td><td><code>'self' 'unsafe-inline'</code> (often needed)</td></tr>
+  <tr><td><code>img-src</code></td><td>Image sources</td><td><code>'self' data: https:</code></td></tr>
+  <tr><td><code>connect-src</code></td><td>XHR/fetch/WebSocket targets</td><td><code>'self'</code> + your API origins</td></tr>
+  <tr><td><code>frame-ancestors</code></td><td>Who can embed your page</td><td><code>'none'</code> or <code>'self'</code></td></tr>
+  <tr><td><code>upgrade-insecure-requests</code></td><td>Force HTTPS on mixed content</td><td>Include if serving HTTPS</td></tr>
+</table>
+
+<p><strong>Values to avoid without understanding them:</strong></p>
+<ul>
+  <li><code>'unsafe-inline'</code> in <code>script-src</code> — eliminates most XSS protection</li>
+  <li><code>'unsafe-eval'</code> — allows <code>eval()</code>, required by some legacy code but reduces security</li>
+  <li><code>*</code> as a source — allows loading from any origin</li>
+</ul>
+
+<p>Check your current CSP values and grade with the <a href="https://lior-seats.github.io/security-headers-checker/">free security headers checker →</a></p>
+
+</div>
+
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=content-security-policy-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

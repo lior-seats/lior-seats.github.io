@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Cron Job Missed Run: How to Get Alerted When a Scheduled Job Doesn't Fire</title>
+<meta name="description" content="Cron jobs can silently miss scheduled runs due to server reboots, load, or config drift. Learn how to detect missed cron runs and get alerted immediately when a job doesn't fire."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/cron-job-missed-run.html"/>
+<meta property="og:title" content="Cron Job Missed Run: How to Get Alerted When a Scheduled Job Doesn't Fire"/>
+<meta property="og:description" content="Cron jobs can silently miss scheduled runs due to server reboots, load, or config drift. Learn how to detect missed cron runs and get alerted immediately."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/cron-job-missed-run.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .danger { background: #fff1f2; border-left: 4px solid #f43f5e; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Cron Job Missed Run: How to Get Alerted When a Scheduled Job Doesn't Fire</h1>
+
+<p class="meta">A cron job that silently misses its scheduled run is often worse than one that fails noisily — at least a failure generates a log entry. A missed run generates nothing.</p>
+
+<p>Your nightly database backup job is scheduled for 2:00 AM. Last Tuesday, the server was under load from an unrelated process during that window and the job never triggered. The backup hasn't run in six days. Nobody knows.</p>
+
+<p>This is the missed run problem: cron jobs can silently skip scheduled executions due to server reboots, load spikes, timezone misconfigurations, or crontab drift — and the default behavior is complete silence. This guide covers why jobs miss runs, how to detect a missed run after the fact, and how to get alerted automatically the next time it happens.</p>
+
+<div class="cta-inline">
+  ⏰ <strong>Check your cron expressions:</strong> <a href="https://lior-seats.github.io/cron-expression-parser/">Free cron expression parser — see your next 5 scheduled run times →</a>
+</div>
+
+<hr/>
+
+<h2>Why cron jobs miss scheduled runs</h2>
+
+<h3>Server was down during the scheduled window</h3>
+<p>This is the most common cause. Standard cron does not have a concept of "missed runs" — if the server is off, rebooting, or the cron daemon isn't running when a job is scheduled, that run simply doesn't happen. There's no backfill, no retry, and no record that anything was skipped.</p>
+
+<p>This matters for jobs that run less frequently than daily. A weekly job scheduled for Sunday at 3 AM will silently skip if the server reboots at 2:58 AM for an unscheduled kernel update. The next run is seven days later.</p>
+
+<h3>Load average too high — cron load average limit</h3>
+<p>cron has an optional load average threshold controlled by the <code>-l</code> flag (or <code>CRON_QUEUE_MAX</code> on some systems). When the system load exceeds this threshold, cron defers the job until load drops below the limit. If load stays high for the entire scheduled minute, the job is skipped entirely — no rescheduling, no alert.</p>
+
+<h3>crontab edited incorrectly</h3>
+<p>Forgetting to end a crontab file with a newline, using tabs where spaces are expected in some cron implementations, or saving a crontab with a syntax error can silently prevent all subsequent jobs in the file from running. Some cron implementations log an error; others don't.</p>
+
+<h3>Timezone mismatch after DST or server migration</h3>
+<p>Cron runs in the server's local timezone by default. Daylight saving time changes shift what wall-clock hour cron considers "3:00 AM". A job scheduled for <code>0 3 * * *</code> may fire at 2 AM or 4 AM (or twice) during DST transitions. If it fires at the wrong time and produces no output, the job still runs — but if the timing expectation was load-sensitive (e.g., "after the nightly batch"), you now have a problem.</p>
+
+<p>Server migrations between AWS regions or cloud providers often silently change the system timezone. A job scheduled for 3 AM EST runs at 3 AM UTC after migration — eight hours earlier than expected.</p>
+
+<h3>The cron job itself exits in under a second</h3>
+<p>Jobs that exit immediately due to a missing binary, a script with a syntax error, or an immediate-exit condition leave no logs unless you explicitly redirect output. <code>/path/to/script.sh 2>&1 | logger</code> helps, but if the script exits before logger captures anything useful, the missed run is still invisible in practice.</p>
+
+<div class="callout">
+  <strong>Key insight:</strong> Cron's default behavior on a missed or failed run is silence. You must explicitly instrument your cron jobs to make failures visible.
+</div>
+
+<hr/>
+
+<h2>How to detect a cron job missed run after the fact</h2>
+
+<h3>Check the system cron log</h3>
+
+<p>On Debian/Ubuntu systems:</p>
+<pre><code>grep CRON /var/log/syslog | tail -50</code></pre>
+
+<p>On RHEL/CentOS/Amazon Linux:</p>
+<pre><code>grep -i cron /var/log/cron | tail -50</code></pre>
+
+<p>Look for entries like <code>CMD (/path/to/your/script.sh)</code>. If you see entries for other jobs around your expected run time but nothing for your job, it missed its window. If you see no cron entries at all, the cron daemon may not have been running.</p>
+
+<pre><code># Check if crond is running
+systemctl status cron    # Debian/Ubuntu
+systemctl status crond   # RHEL/CentOS</code></pre>
+
+<h3>Check application logs for expected output</h3>
+<p>If your cron job writes output to a log file, check whether an entry exists at the expected run time:</p>
+<pre><code># Check if the backup ran at the expected time
+grep "$(date -d 'yesterday' '+%Y-%m-%d')" /var/log/nightly-backup.log | tail -5</code></pre>
+
+<p>An absence of output at the expected time is the clearest indicator of a missed run — assuming your job produces consistent timestamped output.</p>
+
+<h3>Check the job's side effects</h3>
+<p>For jobs with durable outputs (database writes, S3 uploads, file modifications), check the output directly:</p>
+<pre><code># When was the backup file last modified?
+ls -la /backups/ | tail -5
+
+# When was the last database backup recorded?
+psql -c "SELECT MAX(created_at) FROM backups;"</code></pre>
+
+<hr/>
+
+<h2>How to get alerted on the next missed run</h2>
+
+<p>Detecting a missed run after the fact is forensics. What you actually want is an alert within minutes of the scheduled time passing without execution.</p>
+
+<h3>Method 1: Add a heartbeat ping to the job</h3>
+
+<p>The dead man's switch pattern: the job sends a heartbeat to an external service at the end of each run. If the heartbeat doesn't arrive within the expected window, the service alerts you. No heartbeat = missed run alert.</p>
+
+<pre><code>#!/bin/bash
+# Your existing job logic
+/path/to/your/backup-script.sh
+
+# Heartbeat: send ping after successful completion
+curl -s "https://your-monitoring-service.com/heartbeat/YOUR_TOKEN" \
+  --max-time 5 \
+  --retry 2 \
+  -o /dev/null</code></pre>
+
+<p>The monitoring service expects a ping within <em>N</em> minutes of the scheduled run time (configurable grace period). If no ping arrives, it sends an alert to your email. The key advantage: the alert comes from external infrastructure, not from your server — so it fires even when the server is completely down.</p>
+
+<h3>Method 2: Use cron's MAILTO directive for immediate failure output</h3>
+<pre><code>MAILTO=you@yourdomain.com
+
+# Cron will email you if this job produces any stdout/stderr
+0 2 * * * /path/to/backup.sh 2>&1</code></pre>
+
+<p>This helps with jobs that fail noisily (producing error output). It does not help with jobs that simply don't run — a missed run produces no output, so MAILTO sends nothing.</p>
+
+<h3>Method 3: Wrap the job with a timeout + alert</h3>
+<pre><code>#!/bin/bash
+SCRIPT="/path/to/backup.sh"
+LOG="/var/log/backup.log"
+EMAIL="you@yourdomain.com"
+START=$(date +%s)
+
+timeout 3600 "$SCRIPT" >> "$LOG" 2>&1
+EXIT=$?
+
+END=$(date +%s)
+DURATION=$((END - START))
+
+if [ $EXIT -ne 0 ]; then
+  echo "Backup failed (exit $EXIT) after ${DURATION}s" | \
+    mail -s "ALERT: nightly backup failed" "$EMAIL"
+fi</code></pre>
+
+<p>This catches failures and timeouts but still doesn't catch a job that was never scheduled to begin with (server was down, cron daemon stopped).</p>
+
+<h3>Method 4: Dedicated cron monitoring service</h3>
+
+<p>The only reliable way to catch a missed run (as opposed to a failed run) is external monitoring that expects your job to check in and alerts when it doesn't. This is what services like CronWatch are designed for.</p>
+
+<div class="cta-box">
+  <h3>⏰ Stop flying blind on missed cron runs</h3>
+  <p><strong><a href="https://lior-seats.github.io/cronwatch-waitlist/">CronWatch</a></strong> uses the dead man's switch pattern: add one curl line to your cron job, and CronWatch sends an alert within minutes if it misses a heartbeat. Works for any scheduled job — cron, Heroku Scheduler, GitHub Actions, cloud functions.</p>
+  <p>If your job runs, CronWatch stays quiet. If it misses, you get an email.</p>
+  <a href="https://lior-seats.github.io/cronwatch-waitlist/" class="btn">Join the CronWatch waitlist →</a>
+  <a href="https://lior-seats.github.io/cron-expression-parser/" class="btn btn-secondary">Parse your cron expression free</a>
+</div>
+
+<hr/>
+
+<h2>Quick reference: missed run causes and fixes</h2>
+
+<table>
+  <tr><th>Cause</th><th>Detection</th><th>Fix</th></tr>
+  <tr><td>Server was down</td><td>No cron log entries around run time</td><td>Dead man's switch heartbeat monitoring</td></tr>
+  <tr><td>cron daemon stopped</td><td><code>systemctl status cron</code> shows inactive</td><td>Enable cron on startup + external monitoring</td></tr>
+  <tr><td>High load average</td><td>Check <code>/var/log/syslog</code> for load-skip messages</td><td>Lower load threshold or use <code>nice</code> / <code>ionice</code></td></tr>
+  <tr><td>Timezone mismatch</td><td>Job runs at wrong time; check TZ env</td><td>Use <code>CRON_TZ=UTC</code> directive in crontab</td></tr>
+  <tr><td>Syntax error in crontab</td><td>Validate with <a href="https://lior-seats.github.io/cron-expression-parser/">cron parser</a></td><td>Fix syntax; <code>crontab -e</code> validates on save</td></tr>
+  <tr><td>Script exits instantly</td><td>Check exit code; add <code>set -e</code> and logging</td><td>Add <code>2>&amp;1 | logger</code> and exit code checks</td></tr>
+</table>
+
+<p>For any of the first three causes, the only reliable detection method is external monitoring that expects a heartbeat and alerts on silence — internal alerting can't fire when the server or cron daemon is down.</p>
+
+<p>Check your cron expression timing with the <a href="https://lior-seats.github.io/cron-expression-parser/">free cron expression parser</a> to verify your job is scheduled for when you think it is.</p>
+
+</div>
+
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=cron-job-missed-run',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
