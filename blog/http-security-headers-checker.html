@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HTTP Security Headers Checker: Test Your Website's Security Configuration</title>
+<meta name="description" content="Check your website's HTTP security headers instantly. Find missing CSP, HSTS, X-Frame-Options headers and learn how to fix them."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/http-security-headers-checker.html"/>
+<meta property="og:title" content="HTTP Security Headers Checker: Test Your Website's Security Configuration"/>
+<meta property="og:description" content="Check your website's HTTP security headers instantly. Find missing CSP, HSTS, X-Frame-Options headers and learn how to fix them."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/http-security-headers-checker.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; text-align: left; padding: 10px 12px; border: 1px solid #e4e4e7; font-weight: 700; }
+  td { padding: 10px 12px; border: 1px solid #e4e4e7; vertical-align: top; }
+  tr:nth-child(even) td { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>HTTP Security Headers Checker: Test and Fix Your Website's Security Configuration</h1>
+
+<p class="meta">What each missing header means, how to check them in 30 seconds, and how to fix the gaps before attackers find them first.</p>
+
+<p>Most developers think about SQL injection, XSS, and authentication. Far fewer think about HTTP response headers — the silent layer that tells browsers how to behave when they load your site. A misconfigured or absent security header won't break your application. It will just leave the door open for clickjacking, cross-site scripting, sniffing attacks, and credential theft.</p>
+
+<p>The good news: checking your headers takes 30 seconds. Fixing the most important ones takes minutes. This guide walks through each header that matters, how to test whether it's present, and what to do when it's missing.</p>
+
+<hr/>
+
+<h2>What are HTTP security headers?</h2>
+
+<p>HTTP security headers are directives sent in the HTTP response from your server to the browser. They instruct the browser about what content to trust, which origins can load your resources, and how to handle protocol upgrades and permissions.</p>
+
+<p>They don't protect your backend. They protect your users — specifically, they constrain what an attacker can do if they manage to inject malicious content into your pages or intercept traffic between your server and your users.</p>
+
+<p>Six headers do the heavy lifting:</p>
+
+<ul>
+  <li><strong>Content-Security-Policy (CSP)</strong> — Whitelists the origins allowed to load scripts, styles, images, and other resources.</li>
+  <li><strong>Strict-Transport-Security (HSTS)</strong> — Forces the browser to use HTTPS for future requests, even if the user types <code>http://</code>.</li>
+  <li><strong>X-Frame-Options</strong> — Prevents your page from being loaded inside a <code>&lt;frame&gt;</code> or <code>&lt;iframe&gt;</code> on another origin, blocking clickjacking.</li>
+  <li><strong>X-Content-Type-Options</strong> — Stops browsers from MIME-sniffing a response away from the declared content type.</li>
+  <li><strong>Referrer-Policy</strong> — Controls how much referrer information is included when users follow links off your site.</li>
+  <li><strong>Permissions-Policy</strong> — Restricts access to browser APIs like camera, microphone, geolocation, and payment from your page and embedded iframes.</li>
+</ul>
+
+<hr/>
+
+<h2>How to check your security headers with curl</h2>
+
+<p>The fastest way to inspect what your server is sending is a single curl command:</p>
+
+<pre><code>curl -I https://yourdomain.com</code></pre>
+
+<p>The <code>-I</code> flag fetches only the HTTP headers. You'll see output like:</p>
+
+<pre><code>HTTP/2 200
+content-type: text/html; charset=utf-8
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+referrer-policy: strict-origin-when-cross-origin</code></pre>
+
+<p>Scan the list. Any security header that doesn't appear is missing. To filter specifically for the six headers above:</p>
+
+<pre><code>curl -sI https://yourdomain.com | grep -iE \
+  "content-security-policy|strict-transport-security|x-frame-options|x-content-type-options|referrer-policy|permissions-policy"</code></pre>
+
+<p>If a header produces no output line, it's absent from your responses.</p>
+
+<div class="callout">
+  <strong>Test from outside your network</strong>
+  CDNs, load balancers, and reverse proxies often inject or strip headers. Your localhost test may show headers that never reach production users, or miss headers added at the edge. Always test the public URL.
+</div>
+
+<hr/>
+
+<h2>What each missing header means — and the risk</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Missing header</th>
+      <th>Risk</th>
+      <th>Severity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>Content-Security-Policy</code></td>
+      <td>An attacker who injects inline script (e.g., via XSS) can execute arbitrary JavaScript in your users' browsers — stealing sessions, credentials, and data.</td>
+      <td>High</td>
+    </tr>
+    <tr>
+      <td><code>Strict-Transport-Security</code></td>
+      <td>Users accessing <code>http://</code> can be intercepted before the redirect to HTTPS fires. Also leaves subdomains vulnerable to downgrade attacks if <code>includeSubDomains</code> is absent.</td>
+      <td>High</td>
+    </tr>
+    <tr>
+      <td><code>X-Frame-Options</code></td>
+      <td>Your page can be loaded inside an invisible iframe on a malicious site. A user clicking what appears to be a button on the attacker's site is actually clicking a button on yours — submitting forms, granting permissions, making purchases.</td>
+      <td>Medium–High</td>
+    </tr>
+    <tr>
+      <td><code>X-Content-Type-Options</code></td>
+      <td>Older browsers may interpret a response as executable even when your server declares it as plain text. A user-uploaded file served from your domain could run as JavaScript.</td>
+      <td>Medium</td>
+    </tr>
+    <tr>
+      <td><code>Referrer-Policy</code></td>
+      <td>Full URLs — including path, query parameters, and tokens — are sent as the <code>Referer</code> header to external sites your pages link to. Password reset tokens and session identifiers embedded in URLs leak to third parties.</td>
+      <td>Medium</td>
+    </tr>
+    <tr>
+      <td><code>Permissions-Policy</code></td>
+      <td>Embedded iframes and injected scripts can silently access camera, microphone, geolocation, and payment APIs without user re-consent, depending on browser defaults.</td>
+      <td>Low–Medium</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>How to fix each missing header</h2>
+
+<h3>Content-Security-Policy</h3>
+
+<p>CSP is the most complex header to configure correctly, but you don't need a perfect policy immediately. Start with a report-only policy to observe what would be blocked, then tighten it:</p>
+
+<pre><code># Nginx
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-ancestors 'none';" always;
+
+# Apache
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-ancestors 'none';"</code></pre>
+
+<p>The <code>frame-ancestors 'none'</code> directive in CSP supersedes <code>X-Frame-Options</code> in modern browsers — set both for backward compatibility.</p>
+
+<h3>Strict-Transport-Security</h3>
+
+<pre><code># Nginx
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+# Apache
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"</code></pre>
+
+<p>Start with <code>max-age=300</code> (5 minutes) when first deploying. Once you've confirmed HTTPS works correctly across all subdomains, raise it to <code>31536000</code> (1 year) and consider <a href="https://hstspreload.org/">HSTS preload submission</a>.</p>
+
+<h3>X-Frame-Options</h3>
+
+<pre><code># Nginx
+add_header X-Frame-Options "SAMEORIGIN" always;
+
+# Apache
+Header always set X-Frame-Options "SAMEORIGIN"</code></pre>
+
+<p>Use <code>DENY</code> if your site should never be framed at all. Use <code>SAMEORIGIN</code> if you embed your own pages in iframes on the same origin.</p>
+
+<h3>X-Content-Type-Options</h3>
+
+<p>This one has no configuration — it's always the same value:</p>
+
+<pre><code># Nginx
+add_header X-Content-Type-Options "nosniff" always;
+
+# Apache
+Header always set X-Content-Type-Options "nosniff"</code></pre>
+
+<h3>Referrer-Policy</h3>
+
+<pre><code># Nginx
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+# Apache
+Header always set Referrer-Policy "strict-origin-when-cross-origin"</code></pre>
+
+<p><code>strict-origin-when-cross-origin</code> is the current browser default and a safe choice for most sites. It sends the full URL for same-origin requests and only the origin (no path or query) for cross-origin requests.</p>
+
+<h3>Permissions-Policy</h3>
+
+<pre><code># Nginx
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+
+# Apache
+Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"</code></pre>
+
+<p>An empty parentheses value (<code>()</code>) disables the feature entirely. List only the APIs you actually use as <code>self</code> and deny everything else.</p>
+
+<div class="callout">
+  <strong>Use the <code>always</code> flag in Nginx</strong>
+  Without <code>always</code>, Nginx only sends <code>add_header</code> directives on 2xx and 3xx responses. Error pages (400, 404, 500) — which are frequently targeted by injection attempts — will miss the headers entirely.
+</div>
+
+<hr/>
+
+<h2>Verifying your changes</h2>
+
+<p>After deploying a header change, confirm it's live with curl from outside your network:</p>
+
+<pre><code>curl -sI https://yourdomain.com | grep -i "content-security-policy"</code></pre>
+
+<p>If you're behind a CDN, purge the cache first — stale cached responses won't carry new headers. For Cloudflare, the Development Mode toggle or a Cache Purge from the dashboard forces fresh responses immediately.</p>
+
+<p>Also verify your error pages carry the same headers:</p>
+
+<pre><code>curl -sI https://yourdomain.com/404-page-that-does-not-exist | grep -iE "x-frame-options|x-content-type"</code></pre>
+
+<hr/>
+
+<h2>Headers change over time</h2>
+
+<p>Infrastructure changes — CDN config edits, reverse proxy updates, framework upgrades, new deploy pipelines — silently modify headers. A header that was correctly set last quarter may have been stripped or weakened by a configuration drift you never noticed.</p>
+
+<p>Security headers aren't a one-time checkbox. They need ongoing monitoring the same way SSL certificates do.</p>
+
+<div class="cta-box">
+  <h3>🔍 Free HTTP Security Headers Checker</h3>
+  <p>Instantly see which security headers your site is sending and which are missing — no signup, no install. Paste your URL and get a full report in seconds.</p>
+  <a href="https://lior-seats.github.io/security-headers-checker/" class="btn">Check your headers now →</a>
+</div>
+
+<p>If you want to know immediately when a header gets dropped or weakened — without running curl on a schedule yourself — HeaderGuard monitors your site's security headers continuously and alerts you the moment something changes.</p>
+
+<div class="cta-box">
+  <h3>🛡️ HeaderGuard — Security Header Monitoring</h3>
+  <p>Monitor your site's HTTP security headers for changes. Get alerted the moment a header is dropped, weakened, or misconfigured — before attackers notice it first.</p>
+  <a href="https://lior-seats.github.io/headerguard-waitlist/" class="btn">Join the waitlist →</a>
+  <a href="https://lior-seats.github.io/security-headers-checker/" class="btn btn-secondary">Free instant check →</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=blog-http-security-headers-checker',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
