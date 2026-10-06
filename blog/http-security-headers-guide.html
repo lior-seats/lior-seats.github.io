@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HTTP Security Headers: What They Are and How to Monitor Them (2026)</title>
+<meta name="description" content="HTTP security headers protect users from XSS, clickjacking, and data leaks. Learn what HSTS, CSP, X-Frame-Options, and 3 more headers do — and how to monitor when they change."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/http-security-headers-guide.html"/>
+<meta property="og:title" content="HTTP Security Headers: What They Are and How to Monitor Them (2026)"/>
+<meta property="og:description" content="HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy — what each header does, how to add it, and why monitoring changes matters."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/http-security-headers-guide.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .header-card { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #6366f1; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 1.5em 0; }
+  .header-card h3 { margin-top: 0; font-size: 1rem; color: #1e1b4b; }
+  .header-card .grade { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
+  .grade-a { background: #dcfce7; color: #166534; }
+  .grade-f { background: #fee2e2; color: #991b1b; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>HTTP Security Headers: What They Are and How to Monitor Them (2026)</h1>
+
+<p class="meta">A practical guide to the 6 most important security headers — what each one does, how to add it to nginx/Apache/your app, and why monitoring header changes catches regressions before your security scanner does.</p>
+
+<p>HTTP security headers are response headers your web server sends to browsers. They tell the browser how to behave with your content — whether to allow it in an iframe, how to handle mixed content, which origins can load resources, and more. Getting them right is a one-time effort. The problem is keeping them right.</p>
+
+<p>A deployment can silently remove a header. A CDN configuration change can override your headers. A new nginx config can reset everything to defaults. Without monitoring, you find out weeks later — usually from a security scanner or a bug bounty report.</p>
+
+<div class="cta-inline">
+  🔍 <strong>Check your headers right now:</strong> <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker — enter any domain and get a letter grade →</a>
+</div>
+
+<hr/>
+
+<h2>The 6 headers that matter most</h2>
+
+<div class="header-card">
+  <h3>1. Strict-Transport-Security (HSTS) <span class="grade grade-a">High impact</span></h3>
+  <p>Tells browsers to only connect via HTTPS, even if the user types <code>http://</code>. Prevents SSL stripping attacks.</p>
+  <p><strong>Recommended value:</strong></p>
+  <pre><code>Strict-Transport-Security: max-age=31536000; includeSubDomains; preload</code></pre>
+  <p><code>max-age=31536000</code> = 1 year. <code>includeSubDomains</code> covers subdomains. <code>preload</code> adds you to browsers' hardcoded HTTPS list (submit at hstspreload.org).</p>
+  <p><strong>Add in nginx:</strong> <code>add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;</code></p>
+</div>
+
+<div class="header-card">
+  <h3>2. Content-Security-Policy (CSP) <span class="grade grade-a">High impact</span></h3>
+  <p>Controls which resources (scripts, styles, images) the browser is allowed to load. Prevents cross-site scripting (XSS) by blocking inline scripts and untrusted origins.</p>
+  <p>CSP is the most complex header to configure correctly. A simple starting point:</p>
+  <pre><code>Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'</code></pre>
+  <p>For SPAs with third-party scripts, you'll need to whitelist each source explicitly. Use <code>Content-Security-Policy-Report-Only</code> first to test without blocking.</p>
+</div>
+
+<div class="header-card">
+  <h3>3. X-Frame-Options <span class="grade grade-a">Medium impact</span></h3>
+  <p>Prevents your page from being embedded in an <code>&lt;iframe&gt;</code> on another site — the primary defense against clickjacking attacks.</p>
+  <pre><code>X-Frame-Options: SAMEORIGIN</code></pre>
+  <p><code>SAMEORIGIN</code> allows your own domain to embed the page. <code>DENY</code> blocks all framing. Note: CSP's <code>frame-ancestors</code> directive is the modern replacement, but X-Frame-Options provides broader browser support.</p>
+</div>
+
+<div class="header-card">
+  <h3>4. X-Content-Type-Options <span class="grade grade-f">Easy win</span></h3>
+  <p>Prevents browsers from MIME-sniffing a response away from the declared content type. Stops a class of attack where a file uploaded as an image gets executed as JavaScript.</p>
+  <pre><code>X-Content-Type-Options: nosniff</code></pre>
+  <p>This one is trivially easy to add and has essentially no downside. If this header is missing from your site, it's a free fix.</p>
+</div>
+
+<div class="header-card">
+  <h3>5. Referrer-Policy <span class="grade grade-f">Easy win</span></h3>
+  <p>Controls how much referrer information is included in requests. Without this header, navigating from your site to an external link sends your full URL as the referrer — which can leak sensitive URL parameters (tokens, IDs, query strings).</p>
+  <pre><code>Referrer-Policy: strict-origin-when-cross-origin</code></pre>
+  <p>This sends the origin (no path) for cross-origin requests and the full URL for same-origin requests. A safe default for most sites.</p>
+</div>
+
+<div class="header-card">
+  <h3>6. Permissions-Policy <span class="grade grade-f">Low effort</span></h3>
+  <p>Formerly Feature-Policy. Controls which browser features your page can use — camera, microphone, geolocation, etc. Limits the blast radius if a malicious third-party script runs on your site.</p>
+  <pre><code>Permissions-Policy: camera=(), microphone=(), geolocation=()</code></pre>
+  <p>The empty parentheses disable each feature for all origins including your own. Adjust based on your actual feature usage.</p>
+</div>
+
+<hr/>
+
+<h2>How to add them: nginx, Apache, and app-level</h2>
+
+<h3>nginx</h3>
+
+<pre><code>server {
+    <span class="comment"># Security headers</span>
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    <span class="comment"># CSP — customize for your app</span>
+    add_header Content-Security-Policy "default-src 'self'" always;
+}</code></pre>
+
+<h3>Apache</h3>
+
+<pre><code>&lt;IfModule mod_headers.c&gt;
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+&lt;/IfModule&gt;</code></pre>
+
+<h3>Express / Node.js (via Helmet)</h3>
+
+<pre><code>import helmet from 'helmet';
+
+app.use(helmet());
+<span class="comment">// Helmet sets sensible defaults for all major security headers
+// Customize specific headers:</span>
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "https://cdn.example.com"],
+  }
+}));</code></pre>
+
+<h3>Vercel (vercel.json)</h3>
+
+<pre><code>{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" }
+      ]
+    }
+  ]
+}</code></pre>
+
+<hr/>
+
+<h2>Quick reference: header grades</h2>
+
+<table>
+  <thead><tr><th>Header</th><th>Missing grade</th><th>Present grade</th><th>Fix time</th></tr></thead>
+  <tbody>
+    <tr><td><strong>HSTS</strong></td><td>F</td><td>A (with includeSubDomains)</td><td>5 min</td></tr>
+    <tr><td><strong>CSP</strong></td><td>F</td><td>A (non-trivial) / B (basic)</td><td>30 min+</td></tr>
+    <tr><td><strong>X-Frame-Options</strong></td><td>F</td><td>A (DENY or SAMEORIGIN)</td><td>2 min</td></tr>
+    <tr><td><strong>X-Content-Type-Options</strong></td><td>F</td><td>A (nosniff)</td><td>2 min</td></tr>
+    <tr><td><strong>Referrer-Policy</strong></td><td>F</td><td>A (strict-origin)</td><td>2 min</td></tr>
+    <tr><td><strong>Permissions-Policy</strong></td><td>F</td><td>A (any value)</td><td>5 min</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Why monitoring header changes matters</h2>
+
+<p>Headers are easy to set and just as easy to accidentally remove. Common regression scenarios:</p>
+
+<ul>
+  <li><strong>nginx config reload</strong> — a new config template from a framework or ops team that doesn't include your security headers</li>
+  <li><strong>CDN reconfiguration</strong> — CDN-level headers override origin headers; a CDN config change can silently remove HSTS</li>
+  <li><strong>Framework upgrade</strong> — a new version of your web framework changes default response headers</li>
+  <li><strong>Docker image update</strong> — base image update changes nginx defaults</li>
+  <li><strong>Migration to new infrastructure</strong> — the security headers were on the old server but not configured on the new one</li>
+</ul>
+
+<div class="callout">
+  <strong>The typical timeline without monitoring:</strong>
+  Headers removed Tuesday after a deployment → security scanner runs Sunday → issue reported Monday → headers fixed and redeployed Tuesday. One week of degraded security posture, and that's assuming the scanner catches it.
+</div>
+
+<p>External header monitoring catches regressions within minutes. The alert goes to email or Slack; the engineer fixes the config and redeploys; the headers are back before users are exposed for any meaningful period.</p>
+
+<div class="cta-box">
+  <h3>🔐 HeaderGuard — alerts when your security headers change</h3>
+  <p>HeaderGuard monitors your site's HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy. Get an email the moment any header changes value, disappears, or reappears. $9/month for up to 10 domains.</p>
+  <a class="btn" href="https://lior-seats.github.io/headerguard-waitlist/">Join the HeaderGuard waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/security-headers-checker/">Check your headers free</a>
+</div>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/headerguard-waitlist/">HeaderGuard</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=http-security-headers-guide',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>
