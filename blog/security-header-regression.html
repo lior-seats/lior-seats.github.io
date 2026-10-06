@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Security Header Regression: Why Headers Disappear After Deployments</title>
+<meta name="description" content="Security headers vanish after deployments, CDN changes, and nginx upgrades — silently. Learn why regressions happen, how to detect them, and how to get alerted automatically."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/security-header-regression.html"/>
+<meta property="og:title" content="Security Header Regression: Why Headers Disappear After Deployments"/>
+<meta property="og:description" content="Security headers vanish after deployments, CDN changes, and nginx upgrades — silently. Learn why regressions happen and how to get alerted automatically."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/security-header-regression.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .danger { background: #fff1f2; border-left: 4px solid #f43f5e; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Security Header Regression: Why Headers Disappear After Deployments</h1>
+
+<p class="meta">Security headers are easy to add once. They are surprisingly easy to lose — silently, without any error, often discovered weeks later by a bug bounty researcher or an automated scanner.</p>
+
+<p>You spent an afternoon adding <code>Strict-Transport-Security</code>, <code>Content-Security-Policy</code>, and <code>X-Frame-Options</code> to your nginx config. Your security scanner gave you an A. Three months later you deploy a new CDN configuration and your grade drops to a D. Nobody noticed.</p>
+
+<p>This is security header regression — and it is far more common than most developers realize.</p>
+
+<div class="cta-inline">
+  🔍 <strong>Check your headers right now:</strong> <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker — see your current grade in seconds →</a>
+</div>
+
+<hr/>
+
+<h2>Why security headers regress</h2>
+
+<p>The most common causes of security header regression, in rough order of frequency:</p>
+
+<h3>1. CDN or reverse proxy configuration changes</h3>
+<p>Security headers are often set at the edge (Cloudflare, Fastly, AWS CloudFront) rather than in the application itself. When you update a CDN config, create a new distribution, or change cache rules, header directives can silently disappear. The deployment succeeds with zero errors — because from the server's perspective, nothing failed.</p>
+
+<div class="danger">
+  <strong>⚠️ Cloudflare Page Rules and Transform Rules:</strong> If your headers are set via Cloudflare Transform Rules and you add a new Route or Worker that intercepts the same path, the transform rules may no longer apply. This is a particularly common source of HSTS and CSP regressions.
+</div>
+
+<h3>2. nginx or Apache config merges</h3>
+<p>Your security headers might live in a <code>location /</code> block. When you deploy a new <code>server</code> block or a new <code>vhost</code>, the <code>add_header</code> directives from the parent block may not propagate into nested location blocks — this is a known nginx behavior. Adding one innocent <code>location</code> block can silently drop all headers from that path.</p>
+
+<pre><code># This works for /, but adding a nested block can break header inheritance:
+server {
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header Content-Security-Policy "default-src 'self'";
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Adding this block causes the above headers to stop applying to /api/:
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        # The add_header directives above are now NOT sent for /api/ requests
+    }
+}</code></pre>
+
+<p>The fix is to repeat <code>add_header</code> in every nested <code>location</code> block, or to use <code>always</code> in a way that applies globally. But the failure mode is silent — your <code>/</code> route still returns headers, just not <code>/api/</code> ones.</p>
+
+<h3>3. Load balancer changes</h3>
+<p>AWS ALB, GCP Cloud Load Balancing, and Azure Application Gateway can all be configured to add or strip response headers. When infra teams change load balancer rules, security headers can vanish from production without any application change. These updates don't trigger app deployment pipelines, so they don't show up in deploy logs.</p>
+
+<h3>4. Moving between hosting platforms</h3>
+<p>Migrating from Heroku to Render, from Nginx to Caddy, or from a custom server to Vercel often resets security headers to defaults. Each platform has its own mechanism for setting response headers, and headers from the previous platform are invisible to the new one.</p>
+
+<h3>5. Framework and middleware upgrades</h3>
+<p>If your headers are set by a middleware library (helmet.js, Django SecurityMiddleware, Spring Security), a major version upgrade can change defaults. Helmet v5 shipped with different defaults than Helmet v4. Upgrading silently changed what <code>helmet()</code> with no arguments returned.</p>
+
+<hr/>
+
+<h2>Why nobody notices</h2>
+
+<p>Security header regressions are invisible by default. Unlike a broken API endpoint that returns 500 errors, a missing security header:</p>
+
+<ul>
+  <li>Does not generate any error in your logs</li>
+  <li>Does not trigger any existing alert</li>
+  <li>Does not affect functionality — your site still works perfectly</li>
+  <li>Does not cause any user-visible problem immediately</li>
+</ul>
+
+<p>The consequence of a missing <code>Content-Security-Policy</code> is that an XSS attack that would have been blocked can now succeed. The consequence of a missing <code>Strict-Transport-Security</code> header is that users on insecure networks are vulnerable to SSL stripping. These consequences are probabilistic and delayed — so the regression goes unnoticed until a security audit or a bug bounty report.</p>
+
+<div class="callout">
+  <strong>How long do regressions go undetected?</strong>
+  In practice, security header regressions often go undetected for months. They tend to surface during annual pen tests, Qualys SSL Labs scans, or Google Search Console security alerts — not during the deployment that introduced them.
+</div>
+
+<hr/>
+
+<h2>How to detect security header regressions</h2>
+
+<h3>Option 1: Check manually after each deployment</h3>
+<p>The lowest-effort option that requires the most discipline. After every deployment, run:</p>
+
+<pre><code>curl -s -I https://yourdomain.com | grep -i -E "strict-transport|content-security|x-frame|x-content-type|referrer-policy|permissions-policy"</code></pre>
+
+<p>Or use a free checker like the <a href="https://lior-seats.github.io/security-headers-checker/">security headers checker</a> to see your current grade at a glance.</p>
+
+<p>The problem: this only works if you remember to check. Regressions caused by infrastructure changes (CDN reconfigs, load balancer updates) often happen outside of app deployment cycles, so "check after each deploy" misses them entirely.</p>
+
+<h3>Option 2: Add security header assertions to your CI pipeline</h3>
+<p>A better approach is to assert specific header values in integration tests or as a post-deploy smoke test:</p>
+
+<pre><code># In your CI pipeline (curl-based smoke test)
+HEADERS=$(curl -s -I https://staging.yourdomain.com)
+
+assert_header() {
+  if ! echo "$HEADERS" | grep -qi "$1"; then
+    echo "MISSING SECURITY HEADER: $1"
+    exit 1
+  fi
+}
+
+assert_header "strict-transport-security"
+assert_header "content-security-policy"
+assert_header "x-frame-options"
+assert_header "x-content-type-options"
+echo "All security headers present ✓"</code></pre>
+
+<p>This catches regressions introduced by application deployments. It still misses infrastructure-level changes.</p>
+
+<h3>Option 3: Continuous header monitoring with alerts</h3>
+<p>The most reliable approach is to check your headers from outside your infrastructure on a regular schedule — and send an alert if anything changes or disappears.</p>
+
+<p>This catches regressions from all causes: application deployments, CDN changes, load balancer updates, certificate renewals that reset server configs, and anything else that touches your response headers.</p>
+
+<div class="cta-box">
+  <h3>🛡️ Get alerted when your security headers change</h3>
+  <p><strong><a href="https://lior-seats.github.io/headerguard-waitlist/">HeaderGuard</a></strong> monitors your HTTP security headers daily and sends you an email the moment a header disappears or its value changes — before a security scanner or bug bounty hunter finds it for you.</p>
+  <p>No agents to install, no CI pipeline changes. Just add your domain and HeaderGuard handles the rest.</p>
+  <a href="https://lior-seats.github.io/headerguard-waitlist/" class="btn">Join the HeaderGuard waitlist →</a>
+  <a href="https://lior-seats.github.io/security-headers-checker/" class="btn btn-secondary">Check your headers now (free)</a>
+</div>
+
+<hr/>
+
+<h2>Which headers to monitor</h2>
+
+<p>Focus on the six headers that carry the most security weight:</p>
+
+<table>
+  <tr><th>Header</th><th>What you lose when it disappears</th></tr>
+  <tr><td><code>Strict-Transport-Security</code></td><td>HTTPS enforcement — users become vulnerable to SSL stripping on insecure networks</td></tr>
+  <tr><td><code>Content-Security-Policy</code></td><td>XSS mitigation — script injection attacks that were blocked can now succeed</td></tr>
+  <tr><td><code>X-Frame-Options</code></td><td>Clickjacking protection — your pages can be embedded in malicious iframes</td></tr>
+  <tr><td><code>X-Content-Type-Options</code></td><td>MIME sniffing prevention — browsers may execute content as a different type than intended</td></tr>
+  <tr><td><code>Referrer-Policy</code></td><td>Referrer leakage — full URLs (potentially with tokens or PII) may leak to third-party sites</td></tr>
+  <tr><td><code>Permissions-Policy</code></td><td>Feature access — camera, microphone, and geolocation permissions revert to browser defaults</td></tr>
+</table>
+
+<p>The most impactful regressions to catch immediately are <code>Strict-Transport-Security</code> (direct MITM risk) and <code>Content-Security-Policy</code> (XSS mitigation). The others reduce your security posture but are less immediately exploitable.</p>
+
+<hr/>
+
+<h2>How HeaderGuard monitors for regressions</h2>
+
+<p>HeaderGuard checks your domain's security headers daily from external infrastructure — outside your own servers, CDN, and load balancers. When any monitored header changes or disappears, it sends you an email immediately.</p>
+
+<p>The key difference from CI pipeline checks: HeaderGuard catches infrastructure-level regressions that never touch your application code or deployment pipeline. CDN configuration updates, load balancer rule changes, and certificate renewals that reset server configs are all visible to an external monitor — and invisible to a deployment-triggered smoke test.</p>
+
+<p><a href="https://lior-seats.github.io/security-headers-checker/">Check your current security headers →</a> to see your baseline, then <a href="https://lior-seats.github.io/headerguard-waitlist/">join the HeaderGuard waitlist</a> to get alerted when anything changes.</p>
+
+</div>
+
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=security-header-regression',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>

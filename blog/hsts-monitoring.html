@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HSTS Monitoring: Detect When Your HTTPS Header Goes Missing</title>
+<meta name="description" content="HSTS (Strict-Transport-Security) can silently disappear after a deployment or CDN change, leaving users vulnerable to SSL stripping. Learn how to monitor it automatically."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/hsts-monitoring.html"/>
+<meta property="og:title" content="HSTS Monitoring: Detect When Your HTTPS Header Goes Missing"/>
+<meta property="og:description" content="HSTS can silently disappear after a deployment or CDN change, leaving users vulnerable to SSL stripping. Learn how to monitor your Strict-Transport-Security header automatically."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/hsts-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .danger { background: #fff1f2; border-left: 4px solid #f43f5e; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>HSTS Monitoring: Detect When Your HTTPS Header Goes Missing</h1>
+
+<p class="meta">HSTS (HTTP Strict-Transport-Security) is one of the most important security headers you can ship. It is also one of the most common to silently disappear after a deployment.</p>
+
+<p>You add <code>Strict-Transport-Security: max-age=31536000; includeSubDomains</code> to your nginx config. Your SSL Labs score jumps to A+. Six weeks later, a CDN rule change silently drops the header. Your score reverts. Nobody notices until a security audit or a bug report.</p>
+
+<p>This guide explains what HSTS does, the most common ways it regresses, how to check it manually, and how to monitor it automatically.</p>
+
+<div class="cta-inline">
+  🔍 <strong>Check your HSTS header now:</strong> <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker — see if your Strict-Transport-Security is set correctly →</a>
+</div>
+
+<hr/>
+
+<h2>What HSTS does</h2>
+
+<p><strong>Strict-Transport-Security</strong> tells browsers: "Only ever connect to this domain over HTTPS — even if the user types <code>http://</code>, even if a link says <code>http://</code>." The browser caches this instruction for the duration of <code>max-age</code> (in seconds).</p>
+
+<p>Without HSTS, a user on a coffee shop WiFi who navigates to <code>http://yourdomain.com</code> can be intercepted by an attacker before the redirect to HTTPS happens. The attacker performs an SSL stripping attack — your server thinks it's talking to the user over HTTPS, but the user's browser is talking to the attacker over HTTP. HSTS prevents this by making the browser refuse to connect over HTTP in the first place.</p>
+
+<pre><code># A proper HSTS header looks like this:
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload</code></pre>
+
+<p><strong>The three parts:</strong></p>
+<ul>
+  <li><code>max-age=31536000</code> — cache this instruction for 1 year</li>
+  <li><code>includeSubDomains</code> — apply to all subdomains, not just the root</li>
+  <li><code>preload</code> — eligible for inclusion in browsers' built-in HSTS preload list (submit at <a href="https://hstspreload.org">hstspreload.org</a>)</li>
+</ul>
+
+<div class="callout">
+  <strong>Important:</strong> HSTS is only sent over HTTPS. If you check it over HTTP, you won't see it — and that's correct. Use <code>curl -s -I https://yourdomain.com</code>, not <code>http://</code>.
+</div>
+
+<hr/>
+
+<h2>Why HSTS headers regress</h2>
+
+<h3>CDN header rules overriding your server</h3>
+<p>If you set HSTS in Cloudflare's "Manage Headers" Transform Rules or via the HSTS toggle in SSL/TLS settings, it can be overridden or dropped when you modify other Cloudflare settings. Cloudflare's HSTS setting under SSL/TLS → Edge Certificates is separate from custom response headers — having one active doesn't mean both survive a config change.</p>
+
+<h3>nginx inheritance bug</h3>
+<p>nginx's <code>add_header</code> directive is not inherited by child <code>location</code> blocks if those blocks define their own <code>add_header</code>. This means adding a single new header in a nested <code>location</code> block can silently remove HSTS from all requests handled by that block:</p>
+
+<pre><code>server {
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    location / { try_files $uri $uri/ =404; }
+
+    location /api/ {
+        # Adding this new header here silently removes HSTS from /api/ responses:
+        add_header X-API-Version "2.0";
+        proxy_pass http://localhost:3000;
+    }
+}</code></pre>
+
+<p>The fix is to include all security headers in every <code>location</code> block, or to use nginx's <code>headers-more</code> module, or to set headers at a level that isn't affected by child block inheritance.</p>
+
+<h3>Switching reverse proxies or hosting platforms</h3>
+<p>Moving from Heroku (which strips most security headers) to a VPS, from Apache to nginx, or from a managed hosting provider to a serverless platform resets your headers to whatever the new platform defaults to. New platforms don't import your header config — you have to add it explicitly.</p>
+
+<h3>Load balancer SSL termination changes</h3>
+<p>When SSL termination moves from your application server to a load balancer (AWS ALB, GCP LB, Azure App Gateway), HSTS is often set at the application layer but not re-added at the load balancer layer. The result: HSTS disappears from production responses without any application deployment.</p>
+
+<hr/>
+
+<h2>How to check your HSTS header</h2>
+
+<h3>Quick curl check</h3>
+<pre><code>curl -s -I https://yourdomain.com | grep -i strict-transport
+# Should output something like:
+# strict-transport-security: max-age=31536000; includeSubDomains; preload</code></pre>
+
+<p>If the command produces no output, HSTS is not set. If you see <code>max-age=0</code>, HSTS has been explicitly disabled (this is sometimes done intentionally during migration, but dangerous if unintentional).</p>
+
+<h3>Check with the free security headers tool</h3>
+<p><a href="https://lior-seats.github.io/security-headers-checker/">The security headers checker</a> shows your full security header grade, including whether HSTS is present, the configured <code>max-age</code>, and whether <code>includeSubDomains</code> and <code>preload</code> are set. It checks all six major security headers in one pass.</p>
+
+<h3>Check SSL Labs score</h3>
+<p>Qualys SSL Labs grades HSTS as part of its overall score. An A+ requires HSTS with a <code>max-age</code> of at least 15768000 (6 months) and <code>includeSubDomains</code>. A missing HSTS drops you from A+ to A or lower.</p>
+
+<hr/>
+
+<h2>How to monitor HSTS automatically</h2>
+
+<p>Manual checks work for the deployment you remember to check after. They miss infrastructure changes, CDN config updates, and any regression that happens between deployments.</p>
+
+<h3>Cron + curl script</h3>
+<p>The simplest automated monitor is a cron job that checks your HSTS header and sends an alert if it's missing:</p>
+
+<pre><code>#!/bin/bash
+# /usr/local/bin/check-hsts.sh
+DOMAIN="yourdomain.com"
+EMAIL="you@yourdomain.com"
+
+HSTS=$(curl -s -I "https://$DOMAIN" | grep -i "strict-transport-security")
+
+if [ -z "$HSTS" ]; then
+  echo "HSTS MISSING on $DOMAIN" | mail -s "Security alert: HSTS regression on $DOMAIN" "$EMAIL"
+fi</code></pre>
+
+<pre><code># crontab: run every 6 hours
+0 */6 * * * /usr/local/bin/check-hsts.sh</code></pre>
+
+<p>This works well if you have a server to run it on. The limitation: it only monitors from one location, it requires maintaining a cron job, and it won't send alerts if your server is the same one that lost HSTS (infrastructure-level monitoring blind spot).</p>
+
+<h3>GitHub Actions scheduled workflow</h3>
+<pre><code>name: HSTS Monitor
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Daily at 8am UTC
+
+jobs:
+  check-hsts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check HSTS header
+        run: |
+          HSTS=$(curl -s -I https://yourdomain.com | grep -i strict-transport-security)
+          if [ -z "$HSTS" ]; then
+            echo "::error::HSTS header is missing!"
+            exit 1
+          fi
+          echo "HSTS present: $HSTS"</code></pre>
+
+<p>GitHub Actions failed runs send email notifications to the repo owner. This works reasonably well for catching daily regressions, though it only runs once per day and requires a GitHub repo.</p>
+
+<h3>Dedicated security header monitoring service</h3>
+<p>The most reliable approach is a service that continuously monitors your security headers from external infrastructure and alerts you the moment something changes — without requiring you to maintain a cron job or GitHub Action.</p>
+
+<div class="cta-box">
+  <h3>🛡️ Monitor your HSTS and all security headers automatically</h3>
+  <p><strong><a href="https://lior-seats.github.io/headerguard-waitlist/">HeaderGuard</a></strong> checks your HTTP security headers daily and sends an email alert the moment any header disappears or its value changes — HSTS, CSP, X-Frame-Options, and more.</p>
+  <p>Add your domain once. Get notified before a bug bounty hunter or security audit finds it for you.</p>
+  <a href="https://lior-seats.github.io/headerguard-waitlist/" class="btn">Join the HeaderGuard waitlist →</a>
+  <a href="https://lior-seats.github.io/security-headers-checker/" class="btn btn-secondary">Check your headers free</a>
+</div>
+
+<hr/>
+
+<h2>HSTS values reference</h2>
+
+<table>
+  <tr><th>Value</th><th>What it means</th><th>Recommendation</th></tr>
+  <tr><td><code>max-age=31536000</code></td><td>Cache for 1 year</td><td>✅ Good</td></tr>
+  <tr><td><code>max-age=15768000</code></td><td>Cache for 6 months</td><td>✅ Minimum for SSL Labs A+</td></tr>
+  <tr><td><code>max-age=3600</code></td><td>Cache for 1 hour</td><td>⚠️ Too short for meaningful protection</td></tr>
+  <tr><td><code>max-age=0</code></td><td>Revoke HSTS</td><td>⚠️ Only use intentionally during migration</td></tr>
+  <tr><td><code>includeSubDomains</code></td><td>Apply to all subdomains</td><td>✅ Include unless subdomains need HTTP</td></tr>
+  <tr><td><code>preload</code></td><td>Eligible for browser preload list</td><td>✅ Add and submit to hstspreload.org</td></tr>
+</table>
+
+<p>Check your current HSTS configuration with the <a href="https://lior-seats.github.io/security-headers-checker/">free security headers checker</a> — it shows exactly which directive values are set and flags anything missing or misconfigured.</p>
+
+</div>
+
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=hsts-monitoring',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
