@@ -123,4 +123,6 @@
   <url><loc>https://lior-seats.github.io/blog/hsts-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/content-security-policy-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/cron-job-missed-run.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/check-domain-expiry.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/x-frame-options-check.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>

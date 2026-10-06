@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>X-Frame-Options: How to Check and Monitor Clickjacking Protection</title>
+<meta name="description" content="Check your X-Frame-Options header, understand DENY vs SAMEORIGIN vs ALLOW-FROM, test for clickjacking vulnerabilities, and monitor for header regressions automatically."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/x-frame-options-check.html"/>
+<meta property="og:title" content="X-Frame-Options: How to Check and Monitor Clickjacking Protection"/>
+<meta property="og:description" content="Check your X-Frame-Options header, understand DENY vs SAMEORIGIN vs ALLOW-FROM, test for clickjacking vulnerabilities, and monitor for header regressions automatically."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/x-frame-options-check.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .callout-danger { background: #fef2f2; border-left: 4px solid #dc2626; }
+  .method-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin: 1.5em 0; }
+  .method-card h3 { margin-top: 0; }
+  .method-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.75em; display: flex; gap: 1rem; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 700; }
+  .badge-easy { background: #dcfce7; color: #166534; }
+  .badge-medium { background: #fef3c7; color: #92400e; }
+  .badge-good { background: #dcfce7; color: #166534; }
+  .badge-warn { background: #fef3c7; color: #92400e; }
+  .badge-bad { background: #fee2e2; color: #991b1b; }
+  .cta-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #0c4a6e; }
+  .btn { display: inline-block; background: #0284c7; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #0369a1; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  .btn-secondary:hover { background: #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>X-Frame-Options: How to Check and Monitor Clickjacking Protection</h1>
+
+<p class="meta">What X-Frame-Options does, how to verify it's set correctly, how it compares to CSP frame-ancestors, and how to monitor so a deployment never silently removes it.</p>
+
+<p>Clickjacking is a UI deception attack where an attacker loads your page invisibly inside an iframe and tricks users into clicking buttons they can't see — transferring funds, changing account settings, or authorizing actions without knowing it. <code>X-Frame-Options</code> is one of the oldest and most widely supported defenses against this attack.</p>
+
+<p>It's also one of the most common headers to disappear silently after a deployment. This guide covers how to check whether you have it, what each value means, and how to catch regressions before they matter.</p>
+
+<hr/>
+
+<h2>What X-Frame-Options does</h2>
+
+<p>The <code>X-Frame-Options</code> HTTP response header controls whether a browser is allowed to embed your page in a <code>&lt;frame&gt;</code>, <code>&lt;iframe&gt;</code>, <code>&lt;embed&gt;</code>, or <code>&lt;object&gt;</code>. When the header is set, any attempt to load your page inside a frame from an unauthorized origin causes the browser to refuse to render it.</p>
+
+<p>There are three valid values:</p>
+
+<table>
+  <thead>
+    <tr><th>Value</th><th>Effect</th><th>Recommendation</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>DENY</code></td>
+      <td>Page cannot be framed by anyone — not even pages on the same origin</td>
+      <td><span class="badge badge-good">Best for most sites</span></td>
+    </tr>
+    <tr>
+      <td><code>SAMEORIGIN</code></td>
+      <td>Page can only be framed by pages on the same origin (same protocol + host + port)</td>
+      <td><span class="badge badge-good">OK if you use iframes internally</span></td>
+    </tr>
+    <tr>
+      <td><code>ALLOW-FROM origin</code></td>
+      <td>Page can be framed only by the specified origin</td>
+      <td><span class="badge badge-warn">Deprecated — use CSP instead</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For most web applications, <code>X-Frame-Options: DENY</code> is the right choice. If your app legitimately embeds its own pages in iframes (e.g. preview panels, widget builders), use <code>SAMEORIGIN</code>.</p>
+
+<div class="callout callout-danger">
+  <strong>⚠️ Missing X-Frame-Options = clickjacking risk</strong>
+  If your site handles authenticated actions (form submissions, payments, account changes), a missing or misconfigured <code>X-Frame-Options</code> header makes clickjacking technically feasible. Modern browsers also warn about framed pages without this header in developer tools.
+</div>
+
+<hr/>
+
+<h2>How to check your X-Frame-Options header</h2>
+
+<h2>Method 1: Free security headers checker tool</h2>
+
+<div class="method-card">
+  <h3>HTTP Security Headers Checker</h3>
+  <div class="method-meta">
+    <span class="badge badge-easy">Easy</span>
+    <span>Setup: 0 min</span>
+    <span>No install needed</span>
+  </div>
+  <p>The fastest way is to use the free <a href="https://lior-seats.github.io/security-headers-checker/">HTTP Security Headers Checker</a>. Enter your domain and click Check — you'll see all security headers in one view, including whether <code>X-Frame-Options</code> is present, what value it has, and whether it's configured correctly.</p>
+  <p>The checker also shows:</p>
+  <ul>
+    <li><code>Content-Security-Policy</code> (and whether <code>frame-ancestors</code> is set)</li>
+    <li><code>Strict-Transport-Security</code> (HSTS)</li>
+    <li><code>X-Content-Type-Options</code></li>
+    <li><code>Referrer-Policy</code></li>
+    <li><code>Permissions-Policy</code></li>
+  </ul>
+</div>
+
+<h2>Method 2: curl — command-line check</h2>
+
+<div class="method-card">
+  <h3>curl -I</h3>
+  <div class="method-meta">
+    <span class="badge badge-easy">Easy</span>
+    <span>Works on: macOS, Linux, Windows (WSL)</span>
+  </div>
+  <p>Check response headers directly:</p>
+  <pre><code>curl -sI https://yoursite.com | grep -i "x-frame\|x-content\|strict-transport"</code></pre>
+  <p>Expected output when properly configured:</p>
+  <pre><code>x-frame-options: DENY
+x-content-type-options: nosniff
+strict-transport-security: max-age=31536000; includeSubDomains</code></pre>
+  <p>If <code>X-Frame-Options</code> is absent from the output, it's not set. Note that some frameworks set this header only on HTML responses (not on API endpoints or static assets) — check the page that handles authenticated actions specifically.</p>
+  <p>To check a specific path:</p>
+  <pre><code>curl -sI https://yoursite.com/dashboard | grep -i "x-frame"</code></pre>
+</div>
+
+<h2>Method 3: Browser developer tools</h2>
+
+<div class="method-card">
+  <h3>Chrome / Firefox DevTools</h3>
+  <div class="method-meta">
+    <span class="badge badge-easy">Easy</span>
+    <span>Best for: checking a specific page you're viewing</span>
+  </div>
+  <ol>
+    <li>Open the page you want to check</li>
+    <li>Open DevTools (<code>F12</code> or <code>Cmd+Option+I</code>)</li>
+    <li>Go to the <strong>Network</strong> tab</li>
+    <li>Refresh the page</li>
+    <li>Click the HTML document request (first item in the list)</li>
+    <li>Click <strong>Response Headers</strong></li>
+    <li>Look for <code>x-frame-options</code></li>
+  </ol>
+  <p>Chrome also flags pages without framing protection in the Security panel — go to <strong>Security</strong> → click the page origin → check the headers section.</p>
+</div>
+
+<hr/>
+
+<h2>X-Frame-Options vs. CSP frame-ancestors</h2>
+
+<p>The <code>Content-Security-Policy</code> header with a <code>frame-ancestors</code> directive is the modern replacement for <code>X-Frame-Options</code>. It offers more flexibility (multiple allowed origins) and is supported in all modern browsers.</p>
+
+<table>
+  <thead>
+    <tr><th>Feature</th><th>X-Frame-Options</th><th>CSP frame-ancestors</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Browser support</td>
+      <td>Excellent (IE 8+)</td>
+      <td>Very good (IE not supported)</td>
+    </tr>
+    <tr>
+      <td>Multiple allowed origins</td>
+      <td>No</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Syntax</td>
+      <td><code>X-Frame-Options: DENY</code></td>
+      <td><code>Content-Security-Policy: frame-ancestors 'none'</code></td>
+    </tr>
+    <tr>
+      <td>Overrides X-Frame-Options?</td>
+      <td>—</td>
+      <td>Yes, when both are present</td>
+    </tr>
+    <tr>
+      <td>Recommendation</td>
+      <td>Keep for legacy browsers</td>
+      <td>Primary protection in modern stacks</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Best practice:</strong> Set both. Use <code>X-Frame-Options: DENY</code> for older browser coverage and <code>Content-Security-Policy: frame-ancestors 'none'</code> for modern browsers. When CSP <code>frame-ancestors</code> is present, it takes precedence in supporting browsers, so there's no conflict.</p>
+
+<h3>Nginx configuration</h3>
+<pre><code>server {
+    # ...
+    add_header X-Frame-Options "DENY" always;
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+}</code></pre>
+
+<h3>Apache configuration</h3>
+<pre><code>Header always set X-Frame-Options "DENY"
+Header always set Content-Security-Policy "frame-ancestors 'none'"</code></pre>
+
+<h3>Node.js / Express with Helmet</h3>
+<pre><code>const helmet = require('helmet');
+
+app.use(helmet({
+  frameguard: { action: 'deny' },    // sets X-Frame-Options: DENY
+  contentSecurityPolicy: {
+    directives: {
+      frameAncestors: ["'none'"],    // CSP frame-ancestors: 'none'
+    },
+  },
+}));</code></pre>
+
+<h3>Next.js (next.config.js)</h3>
+<pre><code>const nextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+module.exports = nextConfig;</code></pre>
+
+<hr/>
+
+<h2>Common X-Frame-Options issues</h2>
+
+<h3>Header set on some pages but not others</h3>
+<p>A common pattern: security headers are set in the CDN or reverse proxy config, but API responses or dynamically routed pages bypass the proxy. Check your most sensitive pages explicitly — the login page, checkout, and any page with form submissions — not just the homepage.</p>
+
+<h3>Header silently removed after a deploy</h3>
+<p>Framework version upgrades, CDN config changes, or proxy rule changes can remove security headers without warning. <code>Helmet</code> configuration in Express, for example, changes defaults across major versions. Without monitoring, this goes undetected until a security audit.</p>
+
+<h3>ALLOW-FROM doesn't work in modern browsers</h3>
+<p>The <code>ALLOW-FROM</code> value was never supported in Chrome or Firefox and has been removed from the spec. If you need to allow specific origins to embed your page, use <code>Content-Security-Policy: frame-ancestors https://trusted-origin.com</code> instead.</p>
+
+<h3>Reverse proxy strips the header</h3>
+<p>Cloudflare, AWS CloudFront, and other CDNs can be configured to strip or override response headers. Check both your origin server response and what the CDN delivers to the browser — they can differ.</p>
+
+<hr/>
+
+<h2>Monitoring for header regressions</h2>
+
+<p>Setting a header once is not enough. Security headers disappear more often than teams realize — during Nginx config refactors, Helmet upgrades, CDN rule changes, or new service deployments. A regression that removes <code>X-Frame-Options</code> can go unnoticed for months.</p>
+
+<p>The right approach is to monitor continuously and get an alert when any header changes or disappears. <a href="https://lior-seats.github.io/headerguard-waitlist/">HeaderGuard</a> checks your security headers automatically and sends an email alert when any header changes — including <code>X-Frame-Options</code>, <code>Content-Security-Policy</code>, <code>Strict-Transport-Security</code>, and others.</p>
+
+<p>You can also build a basic header regression check into your CI pipeline:</p>
+
+<pre><code>#!/bin/bash
+# ci-header-check.sh — fail CI if X-Frame-Options is missing
+
+URL="https://yoursite.com"
+EXPECTED="deny"  # lowercase — header values are case-insensitive
+
+actual=$(curl -sI "$URL" | grep -i "x-frame-options" | awk -F': ' '{print $2}' | tr -d '\r\n' | tr '[:upper:]' '[:lower:]')
+
+if [[ "$actual" != "$EXPECTED" && "$actual" != "sameorigin" ]]; then
+  echo "FAIL: X-Frame-Options is '$actual' (expected '$EXPECTED' or 'sameorigin')"
+  exit 1
+else
+  echo "OK: X-Frame-Options is '$actual'"
+fi</code></pre>
+
+<p>Add this to your CI pipeline to catch header regressions before they reach production. For continuous monitoring outside CI, use an automated service so you're alerted even when no deployment is happening — a CDN change can remove headers at any time without triggering a build.</p>
+
+<hr/>
+
+<div class="cta-box">
+  <h3>🛡️ Check your security headers now</h3>
+  <p>See your X-Frame-Options, CSP, HSTS, and all security headers in one free check. Then set up monitoring to get alerted when they change.</p>
+  <a href="https://lior-seats.github.io/security-headers-checker/" class="btn">Check Security Headers Free →</a>
+  <a href="https://lior-seats.github.io/headerguard-waitlist/" class="btn btn-secondary">Monitor for Regressions →</a>
+</div>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=x-frame-options-check',{mode:'no-cors'}).catch(()=>{});}catch(e){}})();</script>
+</body>
+</html>
