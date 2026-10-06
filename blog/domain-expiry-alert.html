@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Domain Expiry Alerts: Never Lose a Domain You Forgot to Renew</title>
+<meta name="description" content="Set up domain expiry alerts before it's too late. Three ways to get email reminders before your domain registration expires — cron script, registrar alerts, and automated monitoring."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/domain-expiry-alert.html"/>
+<meta property="og:title" content="Domain Expiry Alerts: Never Lose a Domain You Forgot to Renew"/>
+<meta property="og:description" content="How to set up domain expiry alerts. Three methods: registrar reminders, a cron script with whois, and automated monitoring services."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/domain-expiry-alert.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92em; }
+  th { background: #f4f4f5; padding: 9px 12px; text-align: left; border-bottom: 2px solid #e4e4e7; font-weight: 700; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e4e4e7; }
+  tr:last-child td { border-bottom: none; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Domain Expiry Alerts: Never Lose a Domain You Forgot to Renew</h1>
+
+<p class="meta">How to set up email reminders before your domain expires — registrar settings, a cron script, and automated monitoring services.</p>
+
+<p>Domains expire. Most of the time, your registrar sends an email reminder, you click renew, and nothing breaks. But registrar emails go to spam. You change email addresses. The credit card on file expires. And before you know it, your domain has lapsed and someone else has registered it — sometimes a domain squatter who'll sell it back at 10× the original price.</p>
+
+<p>The best defense is redundant reminders: registrar notifications plus an independent monitoring service that alerts you at 60, 30, 14, and 7 days before expiry. Here's how to set that up.</p>
+
+<hr/>
+
+<h2>Why registrar reminders aren't enough</h2>
+
+<p>Most registrars send expiry reminders, but they have real failure modes:</p>
+
+<ul>
+  <li><strong>Spam filters</strong> — renewal emails from registrars frequently land in spam, especially with strict corporate email filtering</li>
+  <li><strong>Wrong email address</strong> — the registrar account was set up years ago with an old email address that's no longer monitored</li>
+  <li><strong>Credit card expiry</strong> — auto-renew is enabled but the card on file expired, so the renewal silently fails</li>
+  <li><strong>Deleted notifications</strong> — someone on the team mass-deletes "marketing emails" from the registrar</li>
+  <li><strong>Single reminder</strong> — many registrars send only one reminder, 30 days out; if that email is missed, there's no safety net</li>
+</ul>
+
+<div class="callout">
+  <strong>The real cost of losing a domain:</strong>
+  A lapsed .com for a live business can be registered within minutes by automated squatters. Recovery — if possible at all — typically costs $1,000–$10,000+. Three extra email reminders are worth it.
+</div>
+
+<hr/>
+
+<h2>Method 1: Verify your registrar settings now</h2>
+
+<p>Before anything else, make sure your registrar's built-in reminders are configured correctly.</p>
+
+<ol>
+  <li><strong>Log in to your registrar</strong> (GoDaddy, Namecheap, Google Domains, Cloudflare, etc.)</li>
+  <li><strong>Check the account email address</strong> — make sure it's an inbox someone actually reads</li>
+  <li><strong>Enable auto-renew</strong> and verify the payment method is current</li>
+  <li><strong>Check notification settings</strong> — most registrars let you add additional email addresses for renewal reminders</li>
+  <li><strong>Check spam</strong> right now for any recent registrar emails you may have missed</li>
+</ol>
+
+<p>This takes five minutes and should be done regardless of what else you set up.</p>
+
+<hr/>
+
+<h2>Method 2: Shell script + cron job</h2>
+
+<p>For developers who want full control and already run Linux servers, a daily cron script that checks WHOIS expiry dates is straightforward:</p>
+
+<pre><code>#!/bin/bash
+<span class="comment"># domain-expiry-check.sh — run daily via cron</span>
+
+ALERT_EMAIL="you@company.com"
+WARN_DAYS=30
+DOMAINS=(
+  "yourcompany.com"
+  "yourproduct.io"
+  "yourcompany.net"
+)
+
+for DOMAIN in "${DOMAINS[@]}"; do
+  <span class="comment"># Use whois to get expiry date</span>
+  EXPIRY=$(whois "$DOMAIN" 2>/dev/null | grep -iE "expiry|expiration|expires" | head -1 | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+  if [ -z "$EXPIRY" ]; then
+    echo "Could not check $DOMAIN (whois parse failed)" | \
+      mail -s "Domain check failed: $DOMAIN" "$ALERT_EMAIL"
+    continue
+  fi
+
+  EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$EXPIRY" +%s)
+  NOW_EPOCH=$(date +%s)
+  DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+
+  if [ "$DAYS_LEFT" -le "$WARN_DAYS" ]; then
+    echo "$DOMAIN expires in $DAYS_LEFT days ($EXPIRY)" | \
+      mail -s "⚠️ Domain expiry warning: $DOMAIN ($DAYS_LEFT days)" "$ALERT_EMAIL"
+    echo "ALERT sent for $DOMAIN: $DAYS_LEFT days remaining"
+  else
+    echo "$DOMAIN: $DAYS_LEFT days remaining (OK)"
+  fi
+done</code></pre>
+
+<p>Add to crontab for daily 9am check:</p>
+
+<pre><code>0 9 * * * /opt/scripts/domain-expiry-check.sh >> /var/log/domain-check.log 2>&1</code></pre>
+
+<p><strong>Pros:</strong> No external service dependencies. Works with any domain. Full control over alert thresholds.</p>
+
+<p><strong>Cons:</strong> WHOIS parsing is fragile — different registrars format the expiry date differently. Rate limiting on WHOIS queries. If your server is down or the script fails, you get no alert. Requires ongoing maintenance.</p>
+
+<hr/>
+
+<h2>Method 3: Dedicated domain expiry monitoring service</h2>
+
+<p>A purpose-built service checks your domain registrations from external infrastructure on a schedule and emails you at multiple thresholds — 60, 30, 14, and 7 days before expiry. No scripts to maintain, no server required.</p>
+
+<p><strong>What good domain monitoring looks like:</strong></p>
+
+<ul>
+  <li>Multiple alert thresholds (not just one reminder at 30 days)</li>
+  <li>Alerts at the right email address — separate from your registrar account</li>
+  <li>Coverage for all your domains in one dashboard</li>
+  <li>Detection of auto-renew failures (credit card declined)</li>
+  <li>Simple setup — add a domain, done</li>
+</ul>
+
+<div class="cta-inline">
+  🔍 <strong>Check when your domain expires right now:</strong> <a href="https://lior-seats.github.io/domain-expiry-checker/">Free domain expiry checker — see days remaining, expiry date, and registrar →</a>
+</div>
+
+<div class="cta-box">
+  <h3>🔔 DomainWatch — email alerts before your domain expires</h3>
+  <p>DomainWatch monitors your domain registrations and sends email alerts 60, 30, 14, and 7 days before any domain expires. Never lose a domain because a reminder went to spam. $9/month for up to 25 domains.</p>
+  <a class="btn" href="https://lior-seats.github.io/domainwatch-waitlist/">Join the DomainWatch waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/domain-expiry-checker/">Check a domain free</a>
+</div>
+
+<hr/>
+
+<h2>Recommended setup for most teams</h2>
+
+<p>The safest approach combines all three layers:</p>
+
+<ol>
+  <li><strong>Registrar auto-renew</strong> — your first line of defense, but not reliable alone</li>
+  <li><strong>Registrar email reminders</strong> — verify they're going to an active, monitored inbox</li>
+  <li><strong>External monitoring service</strong> — independent of your registrar, alerts at multiple thresholds, separate email delivery path</li>
+</ol>
+
+<p>For a single personal domain, enabling auto-renew and using a free external checker occasionally is probably enough. For business domains that your product, brand, or operations depend on, all three layers are worth the minimal effort and cost.</p>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/domainwatch-waitlist/">DomainWatch</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/domain-expiry-checker/">Free domain checker</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=domain-expiry-alert',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>

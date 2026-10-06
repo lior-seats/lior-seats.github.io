@@ -118,6 +118,9 @@
   <url><loc>https://lior-seats.github.io/blog/ssl-certificate-expiry-alert.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://lior-seats.github.io/blog/ssl-certificate-monitoring-tools.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/cron-job-dead-mans-switch.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/domain-expiry-alert.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/domain-portfolio-management.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lior-seats.github.io/blog/security-header-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://lior-seats.github.io/blog/domain-expiry-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/security-header-regression.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://lior-seats.github.io/blog/hsts-monitoring.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>

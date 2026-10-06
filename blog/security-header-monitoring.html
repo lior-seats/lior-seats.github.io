@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Security Header Monitoring: Get Alerted When Headers Change or Disappear</title>
+<meta name="description" content="HTTP security headers get silently removed by deployments, CDN changes, and framework upgrades. How to monitor HSTS, CSP, X-Frame-Options, and other headers so regressions don't slip through."/>
+<link rel="canonical" href="https://lior-seats.github.io/blog/security-header-monitoring.html"/>
+<meta property="og:title" content="Security Header Monitoring: Get Alerted When Headers Change or Disappear"/>
+<meta property="og:description" content="Security headers get removed by deployments and CDN changes. How to monitor HSTS, CSP, X-Frame-Options and catch regressions before your security scanner does."/>
+<meta property="og:url" content="https://lior-seats.github.io/blog/security-header-monitoring.html"/>
+<meta property="og:type" content="article"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1a1a1a; background: #fff; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 1.9rem; line-height: 1.25; font-weight: 800; margin-bottom: 12px; }
+  h2 { font-size: 1.25rem; font-weight: 700; margin: 2.2em 0 0.6em; }
+  h3 { font-size: 1.05rem; font-weight: 700; margin: 1.8em 0 0.5em; color: #333; }
+  p { margin-bottom: 1em; }
+  a { color: #0070f3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  code, pre { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.88em; }
+  pre { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 1.2em 0; line-height: 1.6; }
+  code { background: #f4f4f5; padding: 2px 5px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 1.5em 0; }
+  .callout strong { display: block; margin-bottom: 4px; }
+  .cta-inline { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 1.8em 0; font-size: 0.95rem; }
+  .cta-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 22px 24px; margin: 2em 0; }
+  .cta-box h3 { margin-top: 0; color: #14532d; }
+  .btn { display: inline-block; background: #15803d; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; margin-top: 10px; text-decoration: none; font-size: 0.95rem; margin-right: 8px; }
+  .btn:hover { background: #166534; text-decoration: none; }
+  .btn-secondary { background: #f4f4f5; color: #1a1a1a; border: 1px solid #e4e4e7; }
+  hr { border: none; border-top: 1px solid #e4e4e7; margin: 2em 0; }
+  ul, ol { padding-left: 1.4em; margin-bottom: 1em; }
+  li { margin-bottom: 0.4em; }
+  .comment { color: #6b7280; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<p class="meta"><a href="https://lior-seats.github.io/blog/">← Blog</a> &nbsp;·&nbsp; October 2026</p>
+
+<h1>Security Header Monitoring: Get Alerted When Headers Change or Disappear</h1>
+
+<p class="meta">Why security headers need continuous monitoring — and how to catch regressions the moment they happen, not weeks later.</p>
+
+<p>Getting your security headers right is a one-afternoon project. You configure HSTS, add a Content Security Policy, set X-Frame-Options and X-Content-Type-Options, and your scanner shows green across the board. Then three months later a deployment resets your nginx config, a CDN policy change overrides your response headers, or a framework upgrade changes the default middleware — and your headers silently disappear.</p>
+
+<p>This is the part most security guides don't cover: headers need to be monitored continuously, not just configured once.</p>
+
+<hr/>
+
+<h2>How security headers disappear in production</h2>
+
+<p>Security header regressions are almost never intentional. They happen as side effects of routine operations:</p>
+
+<h3>Deployment pipeline changes</h3>
+<p>A new Docker base image, an updated nginx configuration template, or a framework upgrade can silently reset headers to defaults. If your security headers are set at the application layer, a deployment that reverts that configuration removes them. If they're at the server layer, any server reconfiguration risks losing them.</p>
+
+<h3>CDN reconfiguration</h3>
+<p>CDNs like Cloudflare, Fastly, and CloudFront can set, override, or strip response headers. A CDN configuration change — moving to a different cache tier, changing an edge rule, updating a WAF policy — can remove headers that were previously being injected at the CDN layer. Worse, CDN headers and origin headers can interact unexpectedly when both try to set the same header.</p>
+
+<h3>Infrastructure migrations</h3>
+<p>Migrating from one hosting provider to another, from EC2 to containers, from containers to serverless — the security headers were configured on the old infrastructure and need to be explicitly re-configured on the new one. This is frequently missed.</p>
+
+<h3>Multi-subdomain environments</h3>
+<p>Your main domain might have a hardened security configuration while subdomains (<code>api.example.com</code>, <code>app.example.com</code>, <code>admin.example.com</code>) have weaker or missing headers. A change to subdomain configuration that seemed unrelated can affect header presence.</p>
+
+<div class="callout">
+  <strong>The typical discovery path without monitoring:</strong>
+  Headers removed on Tuesday → weekly security scanner runs Sunday → report reviewed Monday → remediation deployed Tuesday. Seven days of degraded security posture. With real-time monitoring, you'd know within minutes of Tuesday's deployment.
+</div>
+
+<hr/>
+
+<h2>What to monitor</h2>
+
+<p>The six headers with the most impact on your security posture:</p>
+
+<ul>
+  <li><strong>Strict-Transport-Security (HSTS)</strong> — enforces HTTPS. If this disappears, users can be redirected to HTTP during an attack.</li>
+  <li><strong>Content-Security-Policy (CSP)</strong> — primary XSS defense. The most complex header to configure and the most valuable to monitor because changes are often unintentional.</li>
+  <li><strong>X-Frame-Options</strong> — prevents clickjacking. Simple to set, easy to lose in a config change.</li>
+  <li><strong>X-Content-Type-Options</strong> — prevents MIME sniffing attacks. One line, zero downside, surprisingly often missing after a migration.</li>
+  <li><strong>Referrer-Policy</strong> — controls information leakage via referrer headers to third-party resources.</li>
+  <li><strong>Permissions-Policy</strong> — limits access to browser APIs (camera, microphone, geolocation) for your page and embedded content.</li>
+</ul>
+
+<p>For each header, you want to monitor both <em>presence</em> (is the header set at all?) and <em>value</em> (has the value weakened? a CSP that was restrictive but is now <code>default-src *</code> is almost worse than no CSP).</p>
+
+<hr/>
+
+<h2>How to check your current headers</h2>
+
+<h3>Using curl</h3>
+
+<pre><code><span class="comment"># Check all response headers (look for security headers in output)</span>
+curl -I https://yoursite.com
+
+<span class="comment"># Check a specific header</span>
+curl -s -I https://yoursite.com | grep -i "strict-transport\|content-security\|x-frame\|x-content-type"</code></pre>
+
+<h3>Using a browser</h3>
+<p>Open DevTools → Network → click your page's request → Headers tab → Response Headers. You can see all headers the server is returning.</p>
+
+<h3>Using a free tool</h3>
+
+<div class="cta-inline">
+  🔒 <strong>Check all 6 security headers at once:</strong> <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker — enter any domain and get a letter grade →</a>
+</div>
+
+<hr/>
+
+<h2>Setting up automated monitoring</h2>
+
+<p>Manual spot checks are useful for audits but don't catch regressions immediately. Automated monitoring runs on a schedule, compares your current headers to a known-good baseline, and alerts you when anything changes.</p>
+
+<h3>Option 1: Simple cron script</h3>
+
+<pre><code>#!/bin/bash
+<span class="comment"># security-headers-check.sh — run daily via cron</span>
+
+SITE="https://yoursite.com"
+ALERT_EMAIL="security@yourcompany.com"
+REQUIRED_HEADERS=(
+  "Strict-Transport-Security"
+  "X-Frame-Options"
+  "X-Content-Type-Options"
+)
+
+for HEADER in "${REQUIRED_HEADERS[@]}"; do
+  VALUE=$(curl -sI "$SITE" | grep -i "^$HEADER:" | head -1)
+  if [ -z "$VALUE" ]; then
+    echo "MISSING: $HEADER not present on $SITE" | \
+      mail -s "⚠️ Security header missing: $HEADER" "$ALERT_EMAIL"
+  fi
+done</code></pre>
+
+<p>This catches absent headers but not weakened values. For CSP monitoring, you'd need to store the expected value and diff against it.</p>
+
+<h3>Option 2: CI/CD integration</h3>
+
+<p>Add a security header check to your deployment pipeline — run after each deploy and fail the deploy if critical headers are missing:</p>
+
+<pre><code><span class="comment"># GitHub Actions step — add after deployment</span>
+- name: Check security headers
+  run: |
+    HSTS=$(curl -sI ${{ env.PRODUCTION_URL }} | grep -i "strict-transport-security")
+    if [ -z "$HSTS" ]; then
+      echo "ERROR: HSTS header missing after deployment"
+      exit 1
+    fi
+    echo "HSTS present: $HSTS"</code></pre>
+
+<p>This catches regressions at deploy time but doesn't monitor for changes that happen outside deployments (CDN config changes, infrastructure incidents).</p>
+
+<h3>Option 3: Dedicated monitoring service</h3>
+
+<p>A dedicated service checks your headers on a schedule from external infrastructure and alerts you when any header changes value or disappears — regardless of whether it was caused by a deployment, CDN change, or anything else.</p>
+
+<p>Advantages over the DIY approaches:</p>
+<ul>
+  <li>Detects changes from any cause (not just deployments)</li>
+  <li>No server or script maintenance</li>
+  <li>Change history — see exactly what the header value was before and after</li>
+  <li>Works for sites you don't deploy yourself (third-party services, acquired products)</li>
+  <li>Multiple domains in one place</li>
+</ul>
+
+<div class="cta-box">
+  <h3>🔐 HeaderGuard — instant alerts when your security headers change</h3>
+  <p>HeaderGuard monitors your site's HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy. Get an email alert within minutes when any header changes value, weakens, or disappears. $9/month for up to 10 domains.</p>
+  <a class="btn" href="https://lior-seats.github.io/headerguard-waitlist/">Join the HeaderGuard waitlist →</a>
+  <a class="btn btn-secondary" href="https://lior-seats.github.io/security-headers-checker/">Check your headers free</a>
+</div>
+
+<hr/>
+
+<h2>What good security header monitoring looks like</h2>
+
+<p>A mature security header monitoring setup has three components:</p>
+
+<ol>
+  <li><strong>CI/CD gate</strong> — catch regressions at deploy time before they reach production</li>
+  <li><strong>External monitoring</strong> — catch changes from CDN, infrastructure, and other non-deploy events</li>
+  <li><strong>Periodic audit</strong> — review header values quarterly, not just presence; tighten CSP as your dependencies stabilize</li>
+</ol>
+
+<p>The CI/CD gate catches most regressions. External monitoring catches the rest. A periodic audit ensures your headers are getting stricter over time, not just present.</p>
+
+<p style="font-size:0.88rem;color:#555;margin-top:2em">
+  <a href="https://lior-seats.github.io/blog/">← All articles</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/headerguard-waitlist/">HeaderGuard</a> &nbsp;·&nbsp;
+  <a href="https://lior-seats.github.io/security-headers-checker/">Free security headers checker</a>
+</p>
+
+</div>
+<script>(function(){try{fetch('https://agent-control-plane-w3m9.onrender.com/api/hit?page=security-header-monitoring',{mode:'no-cors'}).catch(function(){});}catch(e){}})();</script>
+</body>
+</html>
